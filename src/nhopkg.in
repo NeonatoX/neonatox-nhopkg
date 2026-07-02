@@ -669,27 +669,6 @@ check_if_running()
 	return 0
 }
 # ---------------------------------------------------------
-# get_pwd_dir()
-# Description: Sets directory name and its owner of directory where Nhopkg is running.
-# Parameters: none
-# Returns: CWD and DIROWNER variables. Return 0 if success.
-# ---------------------------------------------------------
-get_pwd_dir()
-{
-	if [[ -d $(pwd) ]]; then
-		CWD=$(pwd)
-	else
-		CWD="/tmp"
-	fi
-	# Get owner of dir.
-	DIROWNER=$(ls -n "${CWD}" | tail -1 | awk '{print $3":"$4}')
-	if [[ -z "${DIROWNER}" ]] || [[ "${DIROWNER}" = ":" ]]; then
-		# By default 0:0 (root:root).
-		DIROWNER="0:0"
-	fi
-	return 0
-}
-# ---------------------------------------------------------
 # update_local_db()
 # Description: Update nhopkg files database.
 # Parameters: none
@@ -1814,10 +1793,18 @@ build_search_for_files()
 			continue
 		fi
 		if [[ -d "${searchdir}" ]]; then
-			find -- "${searchdir}" -type f -cnewer "${NHOPKG_TMPDIR}/.nho-preinstall${part:+-}${part}" \
-			>> "${NHOPKG_TMPDIR}/.${PKG_DISPLAY_NAME}-${pkgversion}-${pkgrevision}-installed.log"
-			find -- "${searchdir}" -type l -cnewer "${NHOPKG_TMPDIR}/.nho-preinstall${part:+-}${part}" \
-			>> "${NHOPKG_TMPDIR}/.${PKG_DISPLAY_NAME}-${pkgversion}-${pkgrevision}-installed.log"
+			log="${NHOPKG_TMPDIR}/.${PKG_DISPLAY_NAME}-${pkgversion}-${pkgrevision}-installed.log"
+			ref="${NHOPKG_TMPDIR}/.nho-preinstall${part:+-${part}}"
+			
+			if command -v find &>/dev/null && find --version 2>&1 | grep -qi gnu; then
+				find -- "${searchdir}" \( -type f -o -type l \) -cnewer "$ref" >> "$log" 2>&1
+			elif command -v busybox &>/dev/null; then
+				busybox find "${searchdir}" \( -type f -o -type l \) -exec sh -c '
+					t=$(busybox stat -c %Z "$1" 2>/dev/null); shift; for f; do [ "$(busybox stat -c %Z "$f" 2>/dev/null)" -gt "$t" ] && echo "$f"; done
+				' _ "$ref" {} + >> "$log" 2>&1
+			else
+				echog " ERROR: find no disponible" >> "$log" 2>&1
+			fi
 		fi
 	done
 	# Delete NoUpgrade files.
@@ -2054,7 +2041,7 @@ build_make_binary_package()
 		fi
 	# Package and compress files.
 	echog " --- Compressing package."
-		tar cp --files-from="${NHOPKG_TMPDIR}/.${PKG_DISPLAY_NAME}-${pkgversion}-${pkgrevision}-installed.log" | zstd > "${NHOPKG_TMPDIR}/data.tar.zst"
+		tar cp --files-from="${NHOPKG_TMPDIR}/.${PKG_DISPLAY_NAME}-${pkgversion}-${pkgrevision}-installed.log" | zstd > "${NHOPKG_TMPDIR}/data.tar.zst" 2>/dev/null
 		# Sign data.tar.zst if enabled (via libnhopkg_crypto)
 		crypto_sign_package
 		# Go to the temp directory and package.

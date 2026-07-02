@@ -10,6 +10,6 @@ AGENTS.md
 build
 builddir
 *.po~
-PROPOSAL-*
-docs/PROPOSAL-*
+PROPOSAL*
+docs/PROPOSAL*
 fake*
