@@ -199,6 +199,9 @@ _dep_install_single() {
         remove_replaced_package "$DEP_REPLACE_PACKAGE"
     fi
     
+    # Backup config files before removing old version
+    backup_config_files
+    
     # Remove old version if upgrading
     if [[ -f "${ROOT_PKG_STATE_DIR}/packages/${pkgname}" ]]; then
         get_basic_data "${ROOT_PKG_STATE_DIR}/packages/${pkgname}"
@@ -977,14 +980,10 @@ verify_package_signature()
 		exit 1
 	fi
 }
-## Funtion bin_install(). Installs binary package form data.tar.zst.
-# Usage: bin_install (without arguments)
-bin_install()
+## backup_config_files(). Saves files listed in # Backup: from nhoid before old package removal.
+# Usage: backup_config_files (without arguments)
+backup_config_files()
 {
-	echogn " --- Installing"
-	echo " ${pkgname}-${pkgversion}-${pkgrevision}"
-
-	# --- Backup: save files listed in # Backup: from nhoid before extraction ---
 	declare -a BACKUP_FILES=()
 	local BACKUP_DIR="${NHOPKG_TMPDIR}/backup"
 	if [[ -f "${NHOPKG_TMPDIR}/nhoid" ]]; then
@@ -1010,6 +1009,29 @@ bin_install()
 			fi
 		done
 	fi
+}
+
+## bin_install_restore_config(). Restores backed-up config files after data.tar.* extraction.
+# Usage: bin_install_restore_config (without arguments)
+bin_install_restore_config()
+{
+	local BACKUP_DIR="${NHOPKG_TMPDIR}/backup"
+	if [[ -d "$BACKUP_DIR" ]]; then
+		find "$BACKUP_DIR" -type f | while IFS= read -r backup_file; do
+			local target="${backup_file#$BACKUP_DIR/}"
+			[[ "$target" != /* ]] && target="/$target"
+			[[ "${USE_INSTALL_ROOT}" = "yes" ]] && target="${INSTALL_ROOT}${target}"
+			cp -f "$backup_file" "$target"
+		done
+	fi
+}
+
+## Funtion bin_install(). Installs binary package form data.tar.zst.
+# Usage: bin_install (without arguments)
+bin_install()
+{
+	echogn " --- Installing"
+	echo " ${pkgname}-${pkgversion}-${pkgrevision}"
 
 	if [ -f "${NHOPKG_TMPDIR}/data.tar.zst" ] || [ -f "${NHOPKG_TMPDIR}/data.tar.xz" ] || [ -f "${NHOPKG_TMPDIR}/data.tar.bz2" ]; then
 		# Checks if --root or --root= option are selected.
@@ -1029,16 +1051,7 @@ bin_install()
 		fi
 
 		# Restore backed-up config files
-		if [[ ${#BACKUP_FILES[@]} -gt 0 ]]; then
-			for backup_file in "${BACKUP_FILES[@]}"; do
-				local target="${backup_file}"
-				[[ "$target" != /* ]] && target="/$target"
-				[[ "${USE_INSTALL_ROOT}" = "yes" ]] && target="${INSTALL_ROOT}${target}"
-				if [[ -f "${BACKUP_DIR}/${backup_file}" ]]; then
-					cp -f "${BACKUP_DIR}/${backup_file}" "$target"
-				fi
-			done
-		fi
+		bin_install_restore_config
 	else
 		echog " * The selected package is not valid." >&2
 		# Clean up and exits.
@@ -2914,6 +2927,8 @@ case "${NHOPKG_OPTION}" in
 				cleanup_tmp_dir
 				exit 1
 			fi
+			# Backup config files before removing old version
+			backup_config_files
 			# Checks if package is aready installed.
 			if [[ "${USE_INSTALL_ROOT}" != "yes" ]]; then
 				check_if_installed_package
@@ -3964,6 +3979,9 @@ case "${NHOPKG_OPTION}" in
 		# Check for package replacement
 		dep_check_conflicts "${NHOPKG_TMPDIR}/nhoid"
 
+		# Backup config files before removing old version
+		backup_config_files
+
 		# Remove OLD version if installed
 		if [[ -f "${ROOT_PKG_STATE_DIR}/packages/${pkgname}" ]]; then
 			get_basic_data "${ROOT_PKG_STATE_DIR}/packages/${pkgname}"
@@ -4159,6 +4177,9 @@ case "${NHOPKG_OPTION}" in
 		dep_check_conflicts "${NHOPKG_TMPDIR}/nhoid"
 
 		[ -n "$DEP_REPLACE_PACKAGE" ] && remove_replaced_package "$DEP_REPLACE_PACKAGE"
+
+		# Backup config files before removing old version
+		backup_config_files
 
 		# Remove OLD version if upgrading
 		if [[ -f "${ROOT_PKG_STATE_DIR}/packages/${pkgname}" ]]; then
