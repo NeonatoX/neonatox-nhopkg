@@ -1027,6 +1027,18 @@ bin_install()
 			# Checks if all is good.
 			check_if_ok " *** Failed to install package."
 		fi
+
+		# Restore backed-up config files
+		if [[ ${#BACKUP_FILES[@]} -gt 0 ]]; then
+			for backup_file in "${BACKUP_FILES[@]}"; do
+				local target="${backup_file}"
+				[[ "$target" != /* ]] && target="/$target"
+				[[ "${USE_INSTALL_ROOT}" = "yes" ]] && target="${INSTALL_ROOT}${target}"
+				if [[ -f "${BACKUP_DIR}/${backup_file}" ]]; then
+					cp -f "${BACKUP_DIR}/${backup_file}" "$target"
+				fi
+			done
+		fi
 	else
 		echog " * The selected package is not valid." >&2
 		# Clean up and exits.
