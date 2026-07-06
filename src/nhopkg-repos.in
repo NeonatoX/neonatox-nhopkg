@@ -575,11 +575,11 @@ case "${NHOPKG_OPTION}" in
 
 		repo_tmp_dir="${NHOPKG_TMPDIR}/${repo_name}_staging"
 		mkdir -p "${repo_tmp_dir}"
+		repo_packages_dir="${repo_tmp_dir}/packages_meta"
+		repo_files_dir="${repo_tmp_dir}/files_list"
 		repo_packages_file="${repo_tmp_dir}/repo_packages.tar"
 		repo_files_file="${repo_tmp_dir}/repo_files.tar"
-
-		tar cf "${repo_packages_file}" --files-from /dev/null 2>/dev/null || touch "${repo_packages_file}"
-		tar cf "${repo_files_file}" --files-from /dev/null 2>/dev/null || touch "${repo_files_file}"
+		mkdir -p "${repo_packages_dir}" "${repo_files_dir}"
 
 		for nhopackage_path in "${repo_pkg_list[@]}"; do
 			nhopackage_basename=$(basename "${nhopackage_path}")
@@ -598,19 +598,15 @@ case "${NHOPKG_OPTION}" in
 			fi
 
 			pkg_metadata_name="${pkgname}-${pkgversion}-${pkgrevision}"
-			mv "${NHOPKG_TMPDIR}/nhoid" "${repo_tmp_dir}/${pkg_metadata_name}"
-			ln -sf "${pkg_metadata_name}" "${repo_tmp_dir}/${pkgname}-${pkgversion}"
-			ln -sf "${pkg_metadata_name}" "${repo_tmp_dir}/${pkgname}"
-
-			tar rf "${repo_packages_file}" -C "${repo_tmp_dir}" "${pkg_metadata_name}" "${pkgname}-${pkgversion}" "${pkgname}"
+			mv "${NHOPKG_TMPDIR}/nhoid" "${repo_packages_dir}/${pkg_metadata_name}"
+			ln -sf "${pkg_metadata_name}" "${repo_packages_dir}/${pkgname}-${pkgversion}"
+			ln -sf "${pkg_metadata_name}" "${repo_packages_dir}/${pkgname}"
 
 			pkg_files_name="${pkgname}-${pkgversion}-${pkgrevision}"
 			if tar -xf "${nhopackage_path}" --to-command='zstd -dc | tar -tf -' data.tar.zst > "${repo_tmp_dir}/${pkg_files_name}" 2>/dev/null; then
-				tar rf "${repo_files_file}" -C "${repo_tmp_dir}" "${pkg_files_name}"
-				zstd --rm "${repo_tmp_dir}/${pkg_files_name}" 2>/dev/null
+				mv "${repo_tmp_dir}/${pkg_files_name}" "${repo_files_dir}/"
+				zstd --rm "${repo_files_dir}/${pkg_files_name}" 2>/dev/null
 			fi
-
-			rm -f "${repo_tmp_dir}/${pkg_metadata_name}" "${repo_tmp_dir}/${pkgname}" "${repo_tmp_dir}/${pkgname}-${pkgversion}"
 
 			dest_nho_path="${repo_nho_dir}/${nhopackage_basename}"
 			if [[ "${nhopackage_path}" != "${dest_nho_path}" ]]; then
@@ -619,7 +615,8 @@ case "${NHOPKG_OPTION}" in
 		done
 
 		# Compress metadata
-		if [[ -f "${repo_packages_file}" ]] && [[ -s "${repo_packages_file}" ]]; then
+		if [[ -d "${repo_packages_dir}" ]] && [[ -n "$(ls -A "${repo_packages_dir}" 2>/dev/null)" ]]; then
+			tar cf "${repo_packages_file}" -C "${repo_packages_dir}" . 2>/dev/null
 			zstd --rm "${repo_packages_file}" 2>/dev/null || {
 				echog " *** Unable to compress packages DB for ${repo_name}." >&2
 				cleanup_tmp_dir; exit 1
@@ -627,7 +624,8 @@ case "${NHOPKG_OPTION}" in
 			cp "${repo_packages_file}.zst" "${repo_nho_dir}/core.packages.tar.zst" && rm -f "${repo_packages_file}.zst"
 		fi
 
-		if [[ -f "${repo_files_file}" ]] && [[ -s "${repo_files_file}" ]]; then
+		if [[ -d "${repo_files_dir}" ]] && [[ -n "$(ls -A "${repo_files_dir}" 2>/dev/null)" ]]; then
+			tar cf "${repo_files_file}" -C "${repo_files_dir}" . 2>/dev/null
 			zstd --rm "${repo_files_file}" 2>/dev/null || {
 				echog " *** Unable to compress files DB for ${repo_name}." >&2
 				cleanup_tmp_dir; exit 1
