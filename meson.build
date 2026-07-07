@@ -11,10 +11,41 @@ project('nhopkg', 'c',
 
 # === Opciones de configuración ===
 binlocate = get_option('binlocate')
+repo_version = get_option('repo-version')
+repo_arch = get_option('repo-arch')
+
+# Build default repo URLs from version + arch
+_repo_base = 'https://neonatox.vegnux.com/repo'
+_repo_url_core_default = _repo_base + '/' + repo_version + '/' + repo_arch + '/core'
+_repo_url_extra_default = _repo_base + '/' + repo_version + '/' + repo_arch + '/extra'
+_repo_url_multilib_default = _repo_base + '/' + repo_version + '/' + repo_arch + '/multilib'
+
+# Allow full override via individual options; fall back to auto-built URLs
 repo_url_core = get_option('repo-url-core')
+if repo_url_core == ''
+  repo_url_core = _repo_url_core_default
+endif
 repo_url_extra = get_option('repo-url-extra')
+if repo_url_extra == ''
+  repo_url_extra = _repo_url_extra_default
+endif
 repo_url_multilib = get_option('repo-url-multilib')
+if repo_url_multilib == ''
+  repo_url_multilib = _repo_url_multilib_default
+endif
+
 git_url = get_option('git-url')
+libc_variant = get_option('libc')
+
+# === Configuración específica según libc (glibc / musl) ===
+if libc_variant == 'musl'
+  nhohold = 'nhopkg musl gcc'
+  active_repos = 'core extra'
+  # multilib no aplica para musl
+else
+  nhohold = 'nhopkg glibc gcc'
+  active_repos = 'core extra multilib'
+endif
 
 # === Configuración para sustitución en archivos .in ===
 conf = configuration_data()
@@ -39,6 +70,8 @@ conf.set('NHOPKG_REPO_MULTILIB', repo_url_multilib)
 conf.set('NHOPKG_GIT_SOURCES', git_url)
 conf.set('NHOPKG_GIT_BRANCH', get_option('git-branch'))
 conf.set('BINLOCATE', binlocate)
+conf.set('NHOHOLD', nhohold)
+conf.set('NHOPKG_ACTIVE_REPOS', active_repos)
 
 # Variables para nhopkg.in
 conf.set('PACKAGE_NAME', meson.project_name())

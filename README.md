@@ -56,6 +56,8 @@ Nhopkg requires the following tools to be installed:
 | `plocate` / `mlocate` | File search for dependency resolution |
 
 > **Tip:** Use `plocate` on modern systems (Arch, Fedora), or `mlocate` on Debian/Ubuntu.
+>
+> **musl variant:** Pass `-D repo-version=n27 -D repo-arch=x86_64-musl -D libc=musl -D git-branch=musl` for the musl-based build (see example in the configuration section).
 
 Optional tools: `git`, `gettext` (for i18n support).
 
@@ -87,6 +89,20 @@ meson setup builddir \
 ```
 
 > Use `-D binlocate=locate` if you have `mlocate` or `slocate` instead.
+>
+> **For musl-based systems**, use the following configuration:
+>
+> ```bash
+> meson setup builddir \
+>   --prefix=/usr \
+>   --sysconfdir=/etc \
+>   --localstatedir=/var \
+>   -D binlocate=plocate \
+>   -D repo-version=n27 \
+>   -D repo-arch=x86_64-musl \
+>   -D libc=musl \
+>   -D git-branch=musl
+> ```
 
 ### 3. Build
 
@@ -218,6 +234,8 @@ Default config is at `/etc/nhopkg/nhopkg.conf`. Key options:
 | `NHOPKG_LOCALSTATEDIR` | `/var/nhopkg` | Runtime data directory |
 | `NHOPKG_CHECKDEPS` | `yes` | Enable dependency resolution |
 | `NHOPKG_GETTEXT` | `yes` | Enable i18n translations |
+| `NHOHOLD` | `nhopkg glibc gcc` | Packages never deleted on uninstall (varies per `-D libc=`) |
+| `NHOPKG_GIT_BRANCH` | *(empty)* | Default git branch for `--super-build` |
 
 ## Contributing
 

@@ -5,28 +5,47 @@ option('binlocate',
   description: 'File search tool'
 )
 
+option('repo-version',
+  type: 'string',
+  value: 'n2026',
+  description: 'Repository version segment (e.g., n2026, n27)'
+)
+
+option('repo-arch',
+  type: 'string',
+  value: 'x86_64',
+  description: 'Repository architecture segment (e.g., x86_64, x86_64-musl)'
+)
+
 option('repo-url-core',
   type: 'string',
-  value: 'https://neonatox.vegnux.com/repo/n2026/x86_64/core',
-  description: 'Default Core repository URL'
+  value: '',
+  description: 'Override Core repository URL (empty = auto-built from repo-version + repo-arch)'
 )
 
 option('repo-url-extra',
   type: 'string',
-  value: 'https://neonatox.vegnux.com/repo/n2026/x86_64/extra',
-  description: 'Default Extra repository URL'
+  value: '',
+  description: 'Override Extra repository URL (empty = auto-built from repo-version + repo-arch)'
 )
 
 option('repo-url-multilib',
   type: 'string',
-  value: 'https://neonatox.vegnux.com/repo/n2026/x86_64/multilib',
-  description: 'Default Multilib repository URL'
+  value: '',
+  description: 'Override Multilib repository URL (empty = auto-built from repo-version + repo-arch)'
 )
 
 option('git-url',
   type: 'string',
   value: 'https://gitlab.com/neonatox-sources',
   description: 'Default GIT source repository URL'
+)
+
+option('libc',
+  type: 'combo',
+  choices: ['glibc', 'musl'],
+  value: 'glibc',
+  description: 'C library variant (affects NHOHOLD, active repos, multilib)'
 )
 
 option('git-branch',

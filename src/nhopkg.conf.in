@@ -81,7 +81,7 @@ VERBOSE_MODE=no
 STRIP_BINARIES=no
 
 # Packages to hold (never delete their files on uninstall)
-NHOHOLD="nhopkg glibc gcc"
+NHOHOLD="@NHOHOLD@"
 
 
 #==============================================================================
@@ -195,7 +195,7 @@ NHOPKG_REQUIRE_SIGNED_METADATA=no
 #==============================================================================
 
 # Active repositories (space separated, lowercase)
-NHOPKG_ACTIVE_REPOS="core extra multilib"
+NHOPKG_ACTIVE_REPOS="@NHOPKG_ACTIVE_REPOS@"
 
 # Repository URLs
 NHOPKG_REPO_CORE="@NHOPKG_REPO_CORE@"
