@@ -218,50 +218,67 @@ _dep_install_single() {
     cleanup_tmp_dir
 }
 # ---------------------------------------------------------
-# append_ntrigger()
-# Description: Extracts the body of npostinstall() from the package nhoid
-#    and writes it as an individual trigger file in the chroot when --root
-#    is used. Each package gets its own file in /var/nhopkg/triggers/.
+# ns_exec_in()
+# Description: Executes a script inside a target root using
+#    a private mount namespace + chroot. Bind-mounts /dev,
+#    /proc, /sys, /run and /etc/resolv.conf from the host
+#    into the target so that package scripts (depmod, ldconfig,
+#    fc-cache, etc.) see a complete environment.
 #
-#    nhopkg only generates the files. An external tool executes them later.
+#    The namespace is destroyed automatically when the subshell
+#    exits. No orphaned mounts can remain on the host.
 #
-#    Empty or placeholder postinstall definitions
-#    (noemptyfuncs or :) are skipped (no file created).
+# Parameters:
+#   $1  Target root path (e.g. /mnt)
+#   $2  Path to a script file to execute inside the chroot
 #
-# Parameters: none
-# Returns: 0 if no valid npostinstall section exists,
-#          if it is empty/placeholder, or after creating the trigger file.
+# Returns: exit code of the chroot command
 # ---------------------------------------------------------
-append_ntrigger() {
-	[ -z "$NHOPKG_ROOT" ] && return 0
+ns_exec_in() {
+	local _root="$1"
+	local _script="$2"
 
-	local TRIGGER_DIR="${NHOPKG_ROOT}/var/nhopkg/triggers"
-	mkdir -p "$TRIGGER_DIR"
+	# Verify /bin/sh exists in target
+	if [[ ! -x "${_root}/bin/sh" ]]; then
+		echog " * Cannot execute in target: /bin/sh not found in ${_root}" >&2
+		return 1
+	fi
 
-	# Extraer cuerpo real de npostinstall desde el nhoid
-	local body
-	body="$(
-		sed -n '/^npostinstall() {/,/^}/p' "${NHOPKG_TMPDIR}/nhoid" 2>/dev/null \
-		| sed '1d;$d' \
-		| sed '/^[[:space:]]*$/d'
-	)"
+	# Create mount points if they don't exist
+	mkdir -p "${_root}/dev" "${_root}/proc" "${_root}/sys" "${_root}/run" 2>/dev/null
 
-	# Ignorar placeholders y vacíos
-	[ -z "$body" ] && return 0
-	echo "$body" | grep -Eq '^(noemptyfuncs|:)[[:space:]]*$' && return 0
+	# Copy resolv.conf if missing in target
+	if [[ ! -f "${_root}/etc/resolv.conf" && -f /etc/resolv.conf ]]; then
+		mkdir -p "${_root}/etc" 2>/dev/null
+		cp /etc/resolv.conf "${_root}/etc/resolv.conf" 2>/dev/null
+	fi
 
-	local PKG_FILE="${TRIGGER_DIR}/${PKG_DISPLAY_NAME}_${pkgversion}_${pkgrevision}.sh"
+	# Random name for temp script inside chroot to avoid collisions
+	local _ns_id="_ns_$(head -c 8 /dev/urandom | od -An -tx1 | tr -d ' \n')"
+	local _ns_script="/tmp/${_ns_id}.sh"
 
-	cat > "$PKG_FILE" << TRIGGER_EOF
-run_trigger() {
-$body
-}
+	# Copy script into target
+	cp "${_script}" "${_root}${_ns_script}"
 
-echo "** Running triggers for \$0"
-run_trigger
-TRIGGER_EOF
+	# Trap: always clean up the script inside the target
+	trap "rm -f '${_root}${_ns_script}'" RETURN
 
-	chmod +x "$PKG_FILE"
+	# Execute inside mount namespace + chroot
+	unshare -m -- /bin/sh -c "
+		mount --make-rprivate / 2>/dev/null
+		mount --bind /dev  '${_root}/dev'  2>/dev/null
+		mount --bind /proc '${_root}/proc' 2>/dev/null
+		mount --bind /sys  '${_root}/sys'  2>/dev/null
+		mount --bind /run  '${_root}/run'  2>/dev/null
+		chroot '${_root}' /bin/sh '${_ns_script}'
+	"
+	local _ret=$?
+
+	# Cleanup
+	rm -f "${_root}${_ns_script}"
+	trap - RETURN
+
+	return $_ret
 }
 # ---------------------------------------------------------
 # get_packages_by_group()
@@ -369,116 +386,6 @@ get_package_display_name()
 	else
 		PKG_DISPLAY_NAME="${pkgname}${part:+-}${part}"
 	fi
-}
-# ---------------------------------------------------------
-# shooter_updates()
-# Description: Generates schemas, updates icons, desktop, mime, etc.
-# Parameters: updates (optional: "silent")
-# ---------------------------------------------------------
-shooter_updates() {
-	# --- ROOT MODE: no generar script (no se ejecuta dentro del chroot) ---
-	if [[ "${USE_INSTALL_ROOT}" = "yes" ]]; then
-		return 0
-	fi
-
-	local verbose=true update_count=0 update_errors=0
-	local GLIB_SCHEMAS ICON_CACHE DESKTOP_DB MIME_DB MANDB FC_CACHE LDCONFIG GDK_PIXBUF
-
-	# Detect commands
-	GLIB_SCHEMAS=$(command -v glib-compile-schemas 2>/dev/null)
-	ICON_CACHE=$(command -v gtk-update-icon-cache 2>/dev/null)
-	DESKTOP_DB=$(command -v update-desktop-database 2>/dev/null)
-	MIME_DB=$(command -v update-mime-database 2>/dev/null)
-	MANDB=$(command -v mandb 2>/dev/null)
-	FC_CACHE=$(command -v fc-cache 2>/dev/null)
-	LDCONFIG=$(command -v ldconfig 2>/dev/null)
-	GDK_PIXBUF=$(command -v gdk-pixbuf-query-loaders 2>/dev/null)
-
-	[[ "$1" == "silent" ]] && verbose=false
-
-	run_update() {
-		local cmd="$1" desc="$2"; shift 2
-		# Si no existe o no es ejecutable, salir silenciosamente
-		[[ -z "$cmd" || ! -x "$cmd" ]] && return 0
-
-		if $verbose; then
-			echogn " --- Updating: "
-			echo "${desc}"
-		fi
-
-		if "$cmd" "$@" &>/dev/null; then
-			((update_count++))
-			$verbose && echog "\t** OK: Update completed successfully"
-		else
-			((update_errors++))
-			$verbose && echog "\t** Fail: Update failed"
-		fi
-	}
-
-	# 1. Update GLib Schemas
-	run_update "$GLIB_SCHEMAS" "$(echogn "schemas")" /usr/share/glib-2.0/schemas
-
-	# 2. Update icon cache (Silent per theme, only existing dirs)
-	if [[ -n "$ICON_CACHE" && -x "$ICON_CACHE" && -d /usr/share/icons ]]; then
-		if $verbose; then
-			echogn " --- Updating: "
-			echogn "icons"
-			echo
-		fi
-		for dir in /usr/share/icons/*/; do
-			[[ -d "$dir" ]] && "$ICON_CACHE" -q -t -f "$dir" &>/dev/null
-		done
-		((update_count++))
-		$verbose && echog "\t** OK: Update completed successfully"
-	fi
-
-	# 3. Update desktop database
-	run_update "$DESKTOP_DB" "$(echogn "desktop entries")" /usr/share/applications
-
-	# 4. Update MIME types
-	run_update "$MIME_DB" "$(echogn "MIME database")" /usr/share/mime
-
-	# 5. Update manual database (if changes exist)
-	if [[ -n "$MANDB" && -x "$MANDB" && -d /usr/share/man ]]; then
-		if [[ -e /var/cache/man/index.db ]]; then
-			if find /usr/share/man -newer /var/cache/man/index.db -type f -quit &>/dev/null; then
-				run_update "$MANDB" "$(echogn "manual pages")" -q
-			fi
-		fi
-	fi
-
-	# 6. Update font cache (if changes exist)
-	if [[ -n "$FC_CACHE" && -x "$FC_CACHE" && -d /usr/share/fonts ]]; then
-		if [[ -d /var/cache/fontconfig ]]; then
-			if find /usr/share/fonts -newer /var/cache/fontconfig -type f -quit &>/dev/null; then
-				run_update "$FC_CACHE" "$(echogn "font cache")" -f
-			fi
-		fi
-	fi
-
-	# 7. Update library cache (if changes exist)
-	if [[ -n "$LDCONFIG" && -x "$LDCONFIG" ]]; then
-		if [[ -e /etc/ld.so.cache ]]; then
-			if find /usr/lib /lib -newer /etc/ld.so.cache -type f -quit &>/dev/null; then
-				run_update "$LDCONFIG" "$(echogn "shared libraries")"
-			fi
-		fi
-	fi
-
-	# 8. Update GDK Pixbuf loaders
-	run_update "$GDK_PIXBUF" "$(echogn "gdk-pixbuf loaders")" --update-cache
-
-	# Summary
-	if $verbose; then
-		if ((update_count > 0 || update_errors > 0)); then
-			echog " - System updates completed"
-			((update_errors > 0)) && echog "   Some updates failed"
-		else
-			echog " - No updates were necessary"
-		fi
-	fi
-
-	return $((update_errors > 0 ? 1 : 0))
 }
 # ---------------------------------------------------------
 # print_background_title()
@@ -1072,10 +979,32 @@ bin_install_setting_up()
 	echo " ${PKG_DISPLAY_NAME}-${pkgversion}-${pkgrevision}"
 
 	# -------------------------------------------------
-	# MODO --root → NO ejecutar, solo acumular
+	# MODO --root → ejecutar npostinstall en chroot
 	# -------------------------------------------------
 	if [ -n "$NHOPKG_NO_EXEC_HOOKS" ]; then
-		append_ntrigger
+		# Check if nhoid has a real npostinstall body
+		local _hook_body
+		_hook_body="$(
+			sed -n '/^npostinstall() {/,/^}/p' "${NHOPKG_TMPDIR}/nhoid" 2>/dev/null \
+			| sed '1d;$d' \
+			| sed '/^[[:space:]]*$/d'
+		)"
+		[ -z "$_hook_body" ] && return 0
+		echo "$_hook_body" | grep -Eq '^(noemptyfuncs|:)[[:space:]]*$' && return 0
+
+		# Copy nhoid into target with random name and create execution script
+		local _nh_id="_nh_$(head -c 8 /dev/urandom | od -An -tx1 | tr -d ' \n')"
+		local _nh_path="/tmp/${_nh_id}"
+		cp "${NHOPKG_TMPDIR}/nhoid" "${INSTALL_ROOT}${_nh_path}"
+		local _ns_hook
+		_ns_hook="$(mktemp /tmp/_nh_hook.XXXXXX)"
+		cat > "$_ns_hook" << HOOK_SCRIPT
+#!/bin/sh
+source ${_nh_path}
+npostinstall
+HOOK_SCRIPT
+		ns_exec_in "${INSTALL_ROOT}" "$_ns_hook"
+		rm -f "$_ns_hook" "${INSTALL_ROOT}${_nh_path}"
 		return 0
 	fi
 
@@ -1421,10 +1350,34 @@ remove_package_all()
 		remove_package_config_files
 	done
 	# Configure desinstallation.
-	if [ "${VERBOSE_MODE}" = "yes" ]; then
-		npostremove		
+	if [ "${USE_INSTALL_ROOT}" = "yes" ]; then
+		# Execute npostremove in target root via chroot
+		local _hook_body
+		_hook_body="$(
+			sed -n '/^npostremove() {/,/^}/p' "${ROOT_PKG_STATE_DIR}/packages/${pkgname}-${pkgversion}-${pkgrevision}" 2>/dev/null \
+			| sed '1d;$d' \
+			| sed '/^[[:space:]]*$/d'
+		)"
+		if [ -n "$_hook_body" ] && ! echo "$_hook_body" | grep -Eq '^(noemptyfuncs|:)[[:space:]]*$'; then
+			local _nh_id="_nh_$(head -c 8 /dev/urandom | od -An -tx1 | tr -d ' \n')"
+			local _nh_path="/tmp/${_nh_id}"
+			cp "${ROOT_PKG_STATE_DIR}/packages/${pkgname}-${pkgversion}-${pkgrevision}" "${INSTALL_ROOT}${_nh_path}"
+			local _ns_hook
+			_ns_hook="$(mktemp /tmp/_nh_hook.XXXXXX)"
+			cat > "$_ns_hook" << HOOK_SCRIPT
+#!/bin/sh
+source ${_nh_path}
+npostremove
+HOOK_SCRIPT
+			ns_exec_in "${INSTALL_ROOT}" "$_ns_hook"
+			rm -f "$_ns_hook" "${INSTALL_ROOT}${_nh_path}"
+		fi
 	else
-		npostremove 2> /dev/null		
+		if [ "${VERBOSE_MODE}" = "yes" ]; then
+			npostremove		
+		else
+			npostremove 2> /dev/null		
+		fi
 	fi
 	
 }

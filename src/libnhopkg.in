@@ -787,4 +787,131 @@ generate_installed_db() {
 	return 0
 }
 
-# nhouser() moved to libnhopkg_nhouser (see /usr/lib/nhopkg/libnhopkg_nhouser)
+# ---------------------------------------------------------
+# shooter_updates()
+# Description: Generates schemas, updates icons, desktop, mime, etc.
+# Parameters: updates (optional: "silent")
+# ---------------------------------------------------------
+shooter_updates() {
+	# --- ROOT MODE: ejecutar nhopkg -x en el chroot ---
+	if [[ "${USE_INSTALL_ROOT}" = "yes" ]]; then
+		# Check if nhopkg exists in the target root
+		if [[ -f "${INSTALL_ROOT}/usr/lib/nhopkg/libnhopkg" ]]; then
+			local _shooter_script
+			_shooter_script="$(mktemp /tmp/_nh_shooter.XXXXXX)"
+			cat > "$_shooter_script" << 'SHOOTER_SCRIPT'
+#!/bin/sh
+source /usr/lib/nhopkg/libnhopkg
+shooter_updates
+SHOOTER_SCRIPT
+			ns_exec_in "${INSTALL_ROOT}" "$_shooter_script"
+			rm -f "$_shooter_script"
+		else
+			echog ""
+			echog " ! WARNING: libnhopkg not found in ${INSTALL_ROOT}"
+			echog " ! Skipped: shooter_updates (schemas, icons, fonts, ldconfig)"
+			echog " ! Run 'nhopkg -x' inside the target after installing nhopkg"
+			echog ""
+		fi
+		return 0
+	fi
+
+	local verbose=true update_count=0 update_errors=0
+	local GLIB_SCHEMAS ICON_CACHE DESKTOP_DB MIME_DB MANDB FC_CACHE LDCONFIG GDK_PIXBUF
+
+	# Detect commands
+	GLIB_SCHEMAS=$(command -v glib-compile-schemas 2>/dev/null)
+	ICON_CACHE=$(command -v gtk-update-icon-cache 2>/dev/null)
+	DESKTOP_DB=$(command -v update-desktop-database 2>/dev/null)
+	MIME_DB=$(command -v update-mime-database 2>/dev/null)
+	MANDB=$(command -v mandb 2>/dev/null)
+	FC_CACHE=$(command -v fc-cache 2>/dev/null)
+	LDCONFIG=$(command -v ldconfig 2>/dev/null)
+	GDK_PIXBUF=$(command -v gdk-pixbuf-query-loaders 2>/dev/null)
+
+	[[ "$1" == "silent" ]] && verbose=false
+
+	run_update() {
+		local cmd="$1" desc="$2"; shift 2
+		# Si no existe o no es ejecutable, salir silenciosamente
+		[[ -z "$cmd" || ! -x "$cmd" ]] && return 0
+
+		if $verbose; then
+			echogn " --- Updating: "
+			echo "${desc}"
+		fi
+
+		if "$cmd" "$@" &>/dev/null; then
+			((update_count++))
+			$verbose && echog "\t** OK: Update completed successfully"
+		else
+			((update_errors++))
+			$verbose && echog "\t** Fail: Update failed"
+		fi
+	}
+
+	# 1. Update GLib Schemas
+	run_update "$GLIB_SCHEMAS" "$(echogn "schemas")" /usr/share/glib-2.0/schemas
+
+	# 2. Update icon cache (Silent per theme, only existing dirs)
+	if [[ -n "$ICON_CACHE" && -x "$ICON_CACHE" && -d /usr/share/icons ]]; then
+		if $verbose; then
+			echogn " --- Updating: "
+			echogn "icons"
+			echo
+		fi
+		for dir in /usr/share/icons/*/; do
+			[[ -d "$dir" ]] && "$ICON_CACHE" -q -t -f "$dir" &>/dev/null
+		done
+		((update_count++))
+		$verbose && echog "\t** OK: Update completed successfully"
+	fi
+
+	# 3. Update desktop database
+	run_update "$DESKTOP_DB" "$(echogn "desktop entries")" /usr/share/applications
+
+	# 4. Update MIME types
+	run_update "$MIME_DB" "$(echogn "MIME database")" /usr/share/mime
+
+	# 5. Update manual database (if changes exist)
+	if [[ -n "$MANDB" && -x "$MANDB" && -d /usr/share/man ]]; then
+		if [[ -e /var/cache/man/index.db ]]; then
+			if find /usr/share/man -newer /var/cache/man/index.db -type f -quit &>/dev/null; then
+				run_update "$MANDB" "$(echogn "manual pages")" -q
+			fi
+		fi
+	fi
+
+	# 6. Update font cache (if changes exist)
+	if [[ -n "$FC_CACHE" && -x "$FC_CACHE" && -d /usr/share/fonts ]]; then
+		if [[ -d /var/cache/fontconfig ]]; then
+			if find /usr/share/fonts -newer /var/cache/fontconfig -type f -quit &>/dev/null; then
+				run_update "$FC_CACHE" "$(echogn "font cache")" -f
+			fi
+		fi
+	fi
+
+	# 7. Update library cache (if changes exist)
+	if [[ -n "$LDCONFIG" && -x "$LDCONFIG" ]]; then
+		if [[ -e /etc/ld.so.cache ]]; then
+			if find /usr/lib /lib -newer /etc/ld.so.cache -type f -quit &>/dev/null; then
+				run_update "$LDCONFIG" "$(echogn "shared libraries")"
+			fi
+		fi
+	fi
+
+	# 8. Update GDK Pixbuf loaders
+	run_update "$GDK_PIXBUF" "$(echogn "gdk-pixbuf loaders")" --update-cache
+
+	# Summary
+	if $verbose; then
+		if ((update_count > 0 || update_errors > 0)); then
+			echog " - System updates completed"
+			((update_errors > 0)) && echog "   Some updates failed"
+		else
+			echog " - No updates were necessary"
+		fi
+	fi
+
+	return $((update_errors > 0 ? 1 : 0))
+}

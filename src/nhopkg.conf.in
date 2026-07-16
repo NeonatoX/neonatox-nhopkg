@@ -238,15 +238,21 @@ TEXTDOMAINDIR=@localedir@
 # User can override any of these in this file.
 #==============================================================================
 
-# CPU tuning target (sandybridge, native, generic, x86-64, etc.)
-# If commented or empty, nhopkg will use 'generic' as fallback
-NHOPKG_MACHINE="sandybridge"
+# Target CPU:
+#   generic      -> -march=x86-64 -mtune=generic
+#   sandybridge  -> -march=sandybridge -mtune=sandybridge
+#   native       -> -march=native
+#
+# Empty = generic
+NHOPKG_MACHINE="generic"
 
-# Base compiler flags (MACHINE will be appended)
-NHOPKG_CFLAGS="-O2 -pipe -march=x86-64"
-NHOPKG_CXXFLAGS=""
+# Compiler flags
+NHOPKG_CFLAGS="-O2 -pipe -fstack-protector-strong -D_FORTIFY_SOURCE=3"
+NHOPKG_CXXFLAGS="$NHOPKG_CFLAGS"
 NHOPKG_CPPFLAGS=""
-NHOPKG_LDFLAGS="-Wl,-O1"
+
+# Linker flags
+NHOPKG_LDFLAGS="-Wl,-O1 -Wl,--as-needed -Wl,-z,relro"
 
 # Parallel build jobs (empty = auto-detect in nhopkg)
 NHOPKG_BUILD_JOBS=""
