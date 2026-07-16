@@ -2019,7 +2019,7 @@ build_make_binary_package()
 		fi
 	# Package and compress files.
 	echog " --- Compressing package."
-		tar cp --files-from="${NHOPKG_TMPDIR}/.${PKG_DISPLAY_NAME}-${pkgversion}-${pkgrevision}-installed.log" | zstd > "${NHOPKG_TMPDIR}/data.tar.zst" 2>/dev/null
+		tar cp --files-from="${NHOPKG_TMPDIR}/.${PKG_DISPLAY_NAME}-${pkgversion}-${pkgrevision}-installed.log" 2>/dev/null | zstd > "${NHOPKG_TMPDIR}/data.tar.zst" 2>/dev/null
 		# Sign data.tar.zst if enabled (via libnhopkg_crypto)
 		crypto_sign_package
 		# Go to the temp directory and package.
@@ -2043,6 +2043,10 @@ build_make_binary_package()
 		fi
 	else
 		echog " *** Unable to create binary package. Nhopkg can't install any file from this package." >&2
+		# Restore nhoid from .nhoid so downstream steps can access it
+		if [[ -f "${NHOPKG_TMPDIR}/.nhoid" && ! -f "${NHOPKG_TMPDIR}/nhoid" ]]; then
+			cp "${NHOPKG_TMPDIR}/.nhoid" "${NHOPKG_TMPDIR}/nhoid" 2>/dev/null || true
+		fi
 	fi
 	# Returns to initial directory.
 	cd "${CWD}"
@@ -3116,10 +3120,10 @@ case "${NHOPKG_OPTION}" in
 			zstd -d "${NHOPKG_LOCALSTATEDIR}/files/${pkgname}-${pkgversion}-${pkgrevision}.zst"
 			# Check that files begin with /.
 			if [[ $(grep -m 1 "^/" "${NHOPKG_LOCALSTATEDIR}/files/${pkgname}-${pkgversion}-${pkgrevision}") ]]; then
-				tar --files-from="${NHOPKG_LOCALSTATEDIR}/files/${pkgname}-${pkgversion}-${pkgrevision}" -c -p | zstd > "${NHOPKG_TMPDIR}/data.tar.zst" 2> /dev/null
+				tar --files-from="${NHOPKG_LOCALSTATEDIR}/files/${pkgname}-${pkgversion}-${pkgrevision}" -c -p 2>/dev/null | zstd > "${NHOPKG_TMPDIR}/data.tar.zst" 2>/dev/null
 			else
 				cd /
-				tar --files-from="${NHOPKG_LOCALSTATEDIR}/files/${pkgname}-${pkgversion}-${pkgrevision}" -c -p | zstd > "${NHOPKG_TMPDIR}/data.tar.zst" 2> /dev/null
+				tar --files-from="${NHOPKG_LOCALSTATEDIR}/files/${pkgname}-${pkgversion}-${pkgrevision}" -c -p 2>/dev/null | zstd > "${NHOPKG_TMPDIR}/data.tar.zst" 2>/dev/null
 				cd ${PWD}
 			fi
 			zstd --rm "${NHOPKG_LOCALSTATEDIR}/files/${pkgname}-${pkgversion}-${pkgrevision}" 2> /dev/null
@@ -3373,7 +3377,7 @@ case "${NHOPKG_OPTION}" in
 			# 2. Clone repo to temporary directory
 			build_clone_dir="${NHOPKG_TMPDIR}/.gitclone"
 			echog " - Cloning ${git_url}..."
-			NHOGET_REF="${NHOPKG_GIT_BRANCH:-master}" nhoget_vcs git "${git_url}" "${build_clone_dir}" || {
+			NHOGET_REF="${NHOPKG_GIT_BRANCH:-}" nhoget_vcs git "${git_url}" "${build_clone_dir}" || {
 				echog " * Failed to clone ${git_url}" >&2
 				cleanup_tmp_dir
 				exit 1
@@ -3493,7 +3497,7 @@ case "${NHOPKG_OPTION}" in
 					git_url="${NHOPKG_GIT_SOURCES}/${pkg_base_name}.git"
 
 					build_clone_dir="${NHOPKG_TMPDIR}/.gitclone"
-			NHOGET_REF="${NHOPKG_GIT_BRANCH:-master}" nhoget_vcs git "${git_url}" "${build_clone_dir}" || {
+			NHOGET_REF="${NHOPKG_GIT_BRANCH:-}" nhoget_vcs git "${git_url}" "${build_clone_dir}" || {
 						echog " * Failed to clone ${git_url}" >&2
 						cleanup_tmp_dir
 						exit 1
