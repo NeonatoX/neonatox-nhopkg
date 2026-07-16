@@ -3401,6 +3401,9 @@ case "${NHOPKG_OPTION}" in
 				cp -r "${build_clone_dir}/patches"/* "${NHOPKG_TMPDIR}/" 2>/dev/null || true
 			fi
 
+			# Return to a safe directory before removing the clone dir
+			# (nhoget_vcs_git cd's into the dest after clone)
+			cd / || true
 			rm -rf "${build_clone_dir}"
 
 			# 5. Load real data from the nhoid
@@ -3516,6 +3519,9 @@ case "${NHOPKG_OPTION}" in
 					if [[ -d "${build_clone_dir}/patches" ]]; then
 						cp -r "${build_clone_dir}/patches"/* "${NHOPKG_TMPDIR}/" 2>/dev/null || true
 					fi
+					# Return to a safe directory before removing the clone dir
+					# (nhoget_vcs_git cd's into the dest after clone)
+					cd / || true
 					rm -rf "${build_clone_dir}"
 
 					# Retrieve data from the main package
