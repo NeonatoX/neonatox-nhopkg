@@ -13,3 +13,4 @@ builddir
 PROPOSAL*
 docs/PROPOSAL*
 fake*
+test-*

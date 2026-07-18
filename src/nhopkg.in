@@ -510,6 +510,7 @@ nhopkg_help()
 	echog " -k, --check\tChecks if installed package is correct."
 	echog " -l, --list\tLists installed packages."
 	echog " -n, --info\tShows package details."
+	echog " -p, --preserve-files\tForce preservation of package files."
 	echog " -r, --remove\tRemoves package installed by Nhopkg."
 	echog " -s, --search\tSearch for package and its details."
 	echog " -t, --list-repo\tLists packages on repository and their details."
@@ -1282,9 +1283,16 @@ remove_package()
 {
 	local state_dir="${ROOT_PKG_STATE_DIR}"
 
+	# --preserve-files: force preservation of package files
+	if [[ -n "${PRESERVE_FILES}" ]]; then
+		echog " - ${pkgname}: Preserved via --preserve-files option. Files retained."
+		unset PRESERVE_FILES
+		return 0
+	fi
+
 	# NHOHOLD: skip file deletion for held packages
-	if [[ -n "$NHOHOLD" ]] && [[ " ${NHOHOLD} " =~ " ${pkgname} " ]]; then
-		echog " - ${pkgname} está en NHOHOLD. Archivos conservados."
+	if [[ " ${NHOHOLD:-} " =~ " ${pkgname} " ]]; then
+		echog " - ${pkgname}: It is declared in NHOHOLD (predefined list). Files retained."
 		return 0
 	fi
 
@@ -2466,8 +2474,8 @@ trap cleanup_all EXIT TERM
 # Section: Nhopkg parse options.
 #==============================================================================
 NHNAME=$(basename "$0")
-SHORTOPTIONS="RiSdXrBbklno:wxst:UehuvCyG"
-LONGOPTIONS="recursive,root:,no-check-deps,no-check-arch,no-check-sha256,force-check-deps,force-check-arch,force-check-sha256,install,super-install,dios,remove,backup,purge,build,check,list,info,output:,show,update-shooters,search,list-repo,update,clean,help,license,license-all,version,update-db,verbose,super-build,sign-package,no-sign-package,verify-package-signature,no-verify-package-signature,upgrade,install-group,strip-binaries"
+SHORTOPTIONS="RiSdXrBbklno:wxst:UehuvCyGp"
+LONGOPTIONS="recursive,root:,no-check-deps,no-check-arch,no-check-sha256,force-check-deps,force-check-arch,force-check-sha256,install,super-install,dios,remove,backup,purge,build,check,list,info,output:,show,update-shooters,search,list-repo,update,clean,help,license,license-all,version,update-db,verbose,super-build,sign-package,no-sign-package,verify-package-signature,no-verify-package-signature,upgrade,install-group,strip-binaries,preserve-files"
 NHPARAMS=$(getopt -o ${SHORTOPTIONS} -l ${LONGOPTIONS} -n ${NHNAME} -- "$@")
 if [[ "${?}" != "0" ]]; then
 	nhopkg_usage
@@ -2682,6 +2690,10 @@ while [[ "${1}" != "--" ]]; do
 				echog " * You have selected more than one valid option." >&2
 				exit 1
 			fi
+		;;
+		-p|--preserve-files)
+		shift
+		PRESERVE_FILES=1
 		;;
 		-s|--search)
 			shift
