@@ -104,6 +104,48 @@ noemptyfuncs()
 {
 	return 0 # Best than others.
 }
+# ---------------------------------------------------------
+# nhopicker()
+# Description: Move files from a source tree to a destination tree using
+#   find -path patterns. Handles symlinks. Strips trailing slashes from src.
+# Parameters:
+#   $1 - Source directory (staging / DESTDIR)
+#   $2 - Destination directory (subpackage dir or system root)
+#   $3... - One or more find -path patterns (e.g. "*/bin/*", "*.a", "*.h")
+# Returns: 0 on success. Prints picked files.
+# Usage:
+#   nhopicker "${NHOPKG_TMPDIR}/destdir" "${NHOPKG_TMPDIR}/pkg-main" "*/bin/*" "*/lib/*.so.*"
+#   nhopicker "${NHOPKG_TMPDIR}/destdir" "${NHOPKG_TMPDIR}/pkg-dev" "*.a" "*.h" "*.pc"
+# ---------------------------------------------------------
+nhopicker()
+{
+	local src="${1%/}"
+	local dst="$2"
+	shift 2
+
+	local file rel target
+
+	while (($#)); do
+		while IFS= read -r -d '' file; do
+			rel="${file#"$src"/}"
+			target="$dst/$rel"
+
+			mkdir -p "${target%/*}" || return 1
+
+			if mv "$file" "$target" 2>/dev/null; then
+				:
+			else
+				cp -a "$file" "$target" &&
+				rm -f "$file" || return 1
+			fi
+
+			printf '  Picked %s\n' "$rel"
+		done < <(find "$src" \( -type f -o -type l \) -path "*/$1" -print0)
+
+		shift
+	done
+}
+
 #==============================================================================
 # Section: Directory and permission functions
 #==============================================================================
