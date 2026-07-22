@@ -897,7 +897,7 @@ backup_config_files()
 	if [[ -f "${NHOPKG_TMPDIR}/nhoid" ]]; then
 		local __np_tmp
 		__np_tmp="$(mktemp -t nhopkg.XXXXXX 2>/dev/null || echo "/tmp/nhopkg.${$}")"
-		grep "^# Backup:" "${NHOPKG_TMPDIR}/nhoid" | awk -F'\t' '{print $2}' > "$__np_tmp"
+		grep -E "^# ?Backup:" "${NHOPKG_TMPDIR}/nhoid" | awk -F'\t' '{print $2}' > "$__np_tmp"
 		while IFS= read -r backup_file; do
 			[[ -n "$backup_file" ]] && BACKUP_FILES+=("$backup_file")
 		done < "$__np_tmp"
