@@ -3865,7 +3865,8 @@ case "${NHOPKG_OPTION}" in
 			current_versions+=("${current_pkgver}-${current_pkgrev}")
 			new_versions+=("${new_full_version}")
 		elif [[ "${pkgversion}" == "${current_pkgver}" ]] && [[ "${pkgrevision}" != "${current_pkgrev}" ]]; then
-			local repo_bd inst_bd
+			repo_bd=""
+			inst_bd=""
 			inst_bd=$(grep "^# Build-Date:" "${ROOT_PKG_STATE_DIR}/packages/${installed_pkg}" 2>/dev/null | awk -F'\t' '{print $2}')
 			repo_bd=$(grep "^# Build-Date:" "${REPO_PKG_FILE}" 2>/dev/null | awk -F'\t' '{print $2}')
 			if [[ -n "${inst_bd}" ]] && [[ -n "${repo_bd}" ]] && (( repo_bd > inst_bd )); then
@@ -3900,9 +3901,10 @@ case "${NHOPKG_OPTION}" in
 
 		# Check if package is already installed with same or newer version
 		if [[ -f "${ROOT_PKG_STATE_DIR}/packages/${pkgname}" ]]; then
-			local repo_ver="${pkgversion}"
-			local repo_rev="${pkgrevision}"
-			local inst_ver inst_rev
+			repo_ver="${pkgversion}"
+			repo_rev="${pkgrevision}"
+			inst_ver=""
+			inst_rev=""
 			inst_ver=$(grep "^# Version:" "${ROOT_PKG_STATE_DIR}/packages/${pkgname}" 2>/dev/null | awk -F'\t' '{print $2}')
 			inst_rev=$(grep "^# Release:" "${ROOT_PKG_STATE_DIR}/packages/${pkgname}" 2>/dev/null | awk -F'\t' '{print $2}')
 
@@ -3911,9 +3913,10 @@ case "${NHOPKG_OPTION}" in
 				echog " --- Skipping: $pkg_name (installed version ${inst_ver}-${inst_rev} is newer)"
 				continue
 			elif [[ "${repo_ver}" == "${inst_ver}" ]] && [[ "${repo_rev}" != "${inst_rev}" ]]; then
-				local repo_bd inst_bd
+				repo_bd=""
+				inst_bd=""
 				inst_bd=$(grep "^# Build-Date:" "${ROOT_PKG_STATE_DIR}/packages/${pkgname}" 2>/dev/null | awk -F'\t' '{print $2}')
-				local repo_file="${ROOT_PKG_STATE_DIR}/repo/${pkgrepo}/packages/${pkgname}"
+				repo_file="${ROOT_PKG_STATE_DIR}/repo/${pkgrepo}/packages/${pkgname}"
 				[[ ! -f "${repo_file}" ]] && repo_file="${ROOT_PKG_STATE_DIR}/repo/${pkgrepo}/packages/${pkgname}-${repo_ver}-${repo_rev}"
 				repo_bd=$(grep "^# Build-Date:" "${repo_file}" 2>/dev/null | awk -F'\t' '{print $2}')
 				if [[ -n "${inst_bd}" ]] && [[ -n "${repo_bd}" ]] && (( repo_bd <= inst_bd )); then
@@ -4093,9 +4096,10 @@ case "${NHOPKG_OPTION}" in
 				PROCESSED_PKGS[${pkgname}]=1
 				continue
 			elif [[ "${repo_ver}" == "${inst_ver}" ]] && [[ "${repo_rev}" != "${inst_rev}" ]]; then
-				local repo_bd inst_bd
+				repo_bd=""
+				inst_bd=""
 				inst_bd=$(grep "^# Build-Date:" "${ROOT_PKG_STATE_DIR}/packages/${pkgname}" 2>/dev/null | awk -F'\t' '{print $2}')
-				local repo_file="${ROOT_PKG_STATE_DIR}/repo/${pkgrepo}/packages/${pkgname}"
+				repo_file="${ROOT_PKG_STATE_DIR}/repo/${pkgrepo}/packages/${pkgname}"
 				[[ ! -f "${repo_file}" ]] && repo_file="${ROOT_PKG_STATE_DIR}/repo/${pkgrepo}/packages/${pkgname}-${repo_ver}-${repo_rev}"
 				repo_bd=$(grep "^# Build-Date:" "${repo_file}" 2>/dev/null | awk -F'\t' '{print $2}')
 				if [[ -n "${inst_bd}" ]] && [[ -n "${repo_bd}" ]] && (( repo_bd <= inst_bd )); then
