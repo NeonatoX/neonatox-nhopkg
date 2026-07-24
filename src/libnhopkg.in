@@ -11,6 +11,20 @@ OLDIFS="${IFS}"
 
 # Binary locate tool, set at build time via -D binlocate= (locate/plocate)
 export BINLOCATE="@BINLOCATE@"
+
+# BusyBox private PATH setup
+setup_busybox_path()
+{
+    [[ "${NHOPKG_USE_BUSYBOX}" != "yes" ]] && return 0
+    local bb_dir="@prefix@/lib/nhopkg/bin"
+    [[ ! -d "$bb_dir" ]] && return 0
+    [[ ! -x "$bb_dir/ls" ]] && return 0
+    export PATH="${bb_dir}:${PATH}"
+    return 0
+}
+
+setup_busybox_path
+
 #==============================================================================
 # Section: Nhopkg colorized script.
 #==============================================================================

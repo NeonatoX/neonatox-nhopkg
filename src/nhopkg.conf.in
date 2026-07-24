@@ -85,6 +85,19 @@ NHOHOLD="@NHOHOLD@"
 
 
 #==============================================================================
+# Section: BusyBox Private PATH
+#------------------------------------------------------------------------------
+# When enabled, nhopkg prepends /usr/lib/nhopkg/bin to PATH.
+# Requires BusyBox and zstd compiled as static binaries during build.
+#
+# Critical for rolling release: allows nhopkg to survive C library
+# (musl/glibc) updates because BusyBox and zstd are statically linked.
+#==============================================================================
+
+NHOPKG_USE_BUSYBOX=no
+
+
+#==============================================================================
 # Section: Download (nhoget)
 #------------------------------------------------------------------------------
 # Configuration for the unified download system (nhoget).

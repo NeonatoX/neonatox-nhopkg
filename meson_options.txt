@@ -53,3 +53,24 @@ option('git-branch',
   value: '',
   description: 'Default Git branch/tag for super-build (e.g. glibc, musl)'
 )
+
+option('static-busybox',
+  type: 'combo',
+  choices: ['yes', 'no'],
+  value: 'yes',
+  description: 'Build static BusyBox with musl-gcc (autocontained PATH)'
+)
+
+option('static-zstd',
+  type: 'combo',
+  choices: ['yes', 'no'],
+  value: 'yes',
+  description: 'Build static zstd with musl-gcc (required for package decompression)'
+)
+
+option('use-busybox',
+  type: 'combo',
+  choices: ['yes', 'no'],
+  value: 'no',
+  description: 'Enable BusyBox private PATH at runtime (user enables in nhopkg.conf)'
+)

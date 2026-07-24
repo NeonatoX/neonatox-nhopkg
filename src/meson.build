@@ -86,6 +86,56 @@ install_data(
   install_mode: 'rw-r--r--'
 )
 
+# --- BusyBox symlinks setup script (always installed) ---
+nhopkg_bb_setup = configure_file(
+  input: 'nhopkg-bb-setup.in',
+  output: 'nhopkg-bb-setup',
+  configuration: conf
+)
+
+install_data(
+  [nhopkg_bb_setup],
+  install_dir: join_paths(get_option('libdir'), 'nhopkg'),
+  install_mode: 'rwxr-xr-x'
+)
+
+# --- Static BusyBox ---
+if static_busybox == 'yes'
+  busybox_build = custom_target(
+    'busybox-static',
+    input: ['nhopkg-build-busybox.sh', 'busybox.config'],
+    output: 'busybox',
+    command: [
+      'sh', '@INPUT0@',
+      '1.37.0',
+      meson.current_build_dir(),
+      meson.current_build_dir(),
+      '@INPUT1@',
+    ],
+    install: true,
+    install_dir: join_paths(get_option('libdir'), 'nhopkg', 'bin'),
+  )
+
+  meson.add_install_script(nhopkg_bb_setup)
+endif
+
+# --- Static zstd ---
+if static_zstd == 'yes'
+  zstd_build = custom_target(
+    'zstd-static',
+    input: 'nhopkg-build-zstd.sh',
+    output: 'zstd',
+    command: [
+      'sh', '@INPUT@',
+      '1.5.7',
+      meson.current_build_dir(),
+      meson.current_build_dir(),
+    ],
+    install: true,
+    install_dir: join_paths(get_option('libdir'), 'nhopkg', 'bin'),
+  )
+endif
+
 # Configurar nhopkg.conf.in → nhopkg.conf
 nhopkg_conf = configure_file(
   input: 'nhopkg.conf.in',

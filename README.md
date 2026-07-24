@@ -61,6 +61,77 @@ Nhopkg requires the following tools to be installed:
 
 Optional tools: `git`, `gettext` (for i18n support).
 
+**For building with BusyBox support (recommended for rolling release):** `musl-gcc` is required to compile static binaries.
+
+## BusyBox Private PATH
+
+Nhopkg can use its own **statically-linked BusyBox + zstd** binaries, providing a self-contained toolset that survives C library (musl/glibc) updates during rolling release.
+
+When enabled, nhopkg prepends `/usr/lib/nhopkg/bin/` to `PATH` at runtime. This directory contains:
+
+```
+/usr/lib/nhopkg/bin/
+├── busybox     # Static BusyBox (musl-gcc)
+├── zstd        # Static zstd (musl-gcc)
+├── awk → busybox
+├── sed → busybox
+├── grep → busybox
+├── sort → busybox
+├── cp → busybox
+├── tar → busybox
+├── wget → busybox
+└── ... (37 applets total)
+```
+
+### Why?
+
+On a rolling release system, updating musl/glibc overwrites dynamic `.so` files, breaking every dynamically-linked tool — including the package manager itself. With static binaries, nhopkg keeps working even when the C library is replaced.
+
+### Activation
+
+Edit `/etc/nhopkg/nhopkg.conf`:
+
+```bash
+NHOPKG_USE_BUSYBOX=yes
+```
+
+Then restart nhopkg. The private PATH is active on the next run.
+
+### Build Options
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `static-busybox` | `yes` | Build static BusyBox with musl-gcc during `ninja` |
+| `static-zstd` | `yes` | Build static zstd with musl-gcc during `ninja` |
+| `use-busybox` | `no` | Enable private PATH at runtime (user enables in config) |
+
+Example with BusyBox enabled:
+
+```bash
+meson setup builddir \
+  --prefix=/usr \
+  --sysconfdir=/etc \
+  --localstatedir=/var \
+  -D static-busybox=yes \
+  -D static-zstd=yes \
+  -D use-busybox=yes
+```
+
+### BusyBox Applets
+
+nhopkg uses these BusyBox applets (all from the private PATH when enabled):
+
+| Category | Applets |
+|----------|---------|
+| Text processing | `awk`, `sed`, `grep`, `sort`, `cut`, `tr`, `head`, `tail`, `wc`, `xargs` |
+| File management | `mkdir`, `cp`, `mv`, `rm`, `ln`, `ls`, `du`, `stat`, `basename`, `dirname`, `mktemp` |
+| Archive | `tar`, `gzip`, `gunzip` |
+| Crypto | `md5sum`, `sha1sum`, `sha256sum`, `sha512sum` |
+| Network | `wget` |
+| System | `id`, `date`, `sleep`, `cat`, `nproc`, `unshare`, `od`, `realpath`, `chroot` |
+
+> **Note:** `find`, `file`, `gpg`, `curl`, `git`, `make`, and `plocate` are NOT included — they are used from the system.
+
 ## Installation
 
 Nhopkg uses **Meson** for building (not Autotools).
@@ -126,6 +197,9 @@ This installs:
 | `/usr/bin/nhopkg-repos` | Repository management tool |
 | `/usr/bin/nhopkg-overlay` | Isolated build environment (overlayfs) |
 | `/usr/lib/nhopkg/libnhopkg` | Shared library with common functions |
+| `/usr/lib/nhopkg/nhopkg-bb-setup` | BusyBox symlink generator (post-install) |
+| `/usr/lib/nhopkg/bin/busybox` | Static BusyBox binary (when `static-busybox=yes`) |
+| `/usr/lib/nhopkg/bin/zstd` | Static zstd binary (when `static-zstd=yes`) |
 | `/etc/nhopkg/nhopkg.conf` | Configuration file |
 | `/usr/share/man/man8/nhopkg.8` | Man page (nhopkg) |
 | `/usr/share/man/man8/nhopkg-src.8` | Man page (nhopkg-src) |
@@ -234,6 +308,7 @@ Default config is at `/etc/nhopkg/nhopkg.conf`. Key options:
 | `NHOPKG_LOCALSTATEDIR` | `/var/nhopkg` | Runtime data directory |
 | `NHOPKG_CHECKDEPS` | `yes` | Enable dependency resolution |
 | `NHOPKG_GETTEXT` | `yes` | Enable i18n translations |
+| `NHOPKG_USE_BUSYBOX` | `no` | Enable BusyBox private PATH (see [BusyBox Private PATH](#busybox-private-path)) |
 | `NHOHOLD` | `nhopkg glibc gcc` | Packages never deleted on uninstall (varies per `-D libc=`) |
 | `NHOPKG_GIT_BRANCH` | *(empty)* | Default git branch for `--super-build` |
 

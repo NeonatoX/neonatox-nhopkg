@@ -1,0 +1,35 @@
+#!/bin/bash
+# nhopkg-bb-setup: Generate BusyBox symlinks for nhopkg private PATH
+# Called automatically as post-install step.
+
+NHOPKG_BB_DIR="@prefix@/lib/nhopkg/bin"
+BUSYBOX_BIN="${NHOPKG_BB_DIR}/busybox"
+
+NHOPKG_BB_APPLETS=(
+    awk sed grep sort cut tr head tail wc xargs
+    mkdir cp mv rm ln ls du stat basename dirname mktemp
+    tar gzip gunzip
+    md5sum sha1sum sha256sum sha512sum
+    wget id date sleep cat nproc unshare od realpath chroot
+)
+
+if [[ ! -x "$BUSYBOX_BIN" ]]; then
+    echo "BusyBox not found at $BUSYBOX_BIN. Skipping symlinks."
+    exit 0
+fi
+
+# Clean stale symlinks from previous versions
+for applet in "${NHOPKG_BB_APPLETS[@]}"; do
+    [[ -L "${NHOPKG_BB_DIR}/${applet}" ]] && rm -f "${NHOPKG_BB_DIR}/${applet}"
+done
+
+mkdir -p "$NHOPKG_BB_DIR"
+_created=0
+for applet in "${NHOPKG_BB_APPLETS[@]}"; do
+    if "$BUSYBOX_BIN" --list 2>/dev/null | grep -qx "$applet"; then
+        ln -sf busybox "${NHOPKG_BB_DIR}/${applet}"
+        _created=$(( _created + 1 ))
+    fi
+done
+
+echo "Created ${_created} symlinks in ${NHOPKG_BB_DIR}"
