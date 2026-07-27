@@ -2,7 +2,69 @@
 # /usr/lib/nhopkg/libnhopkg_nhouser
 # Idempotent user/group creation for nhopkg package scripts
 #
+# Supports two backends:
+#   - GNU shadow-utils (useradd/groupadd) — preferred
+#   - BusyBox (adduser/addgroup) — fallback for static/embedded environments
+#
 # Depends on: libnhopkg (for echog)
+
+# ---------------------------------------------------------
+# Backend detection
+# ---------------------------------------------------------
+_nhouser_backend=""
+
+# Verify tools actually execute, not just exist.
+# Broken dynamic binaries (e.g. after musl/glibc update) still
+# exist on disk but fail with "libc.so.X not found".
+_nhouser_shadow_ok() {
+	local cmd
+	for cmd in useradd groupadd; do
+		command -v "$cmd" >/dev/null 2>&1 || return 1
+		"$cmd" --help >/dev/null 2>&1 || return 1
+	done
+	return 0
+}
+
+if _nhouser_shadow_ok; then
+	_nhouser_backend="shadow"
+elif command -v adduser >/dev/null 2>&1 && command -v addgroup >/dev/null 2>&1; then
+	_nhouser_backend="busybox"
+else
+	echog " * ERROR: no user/group creation backend available"
+	echog "   Need shadow-utils (useradd/groupadd) or BusyBox (adduser/addgroup)"
+	return 1
+fi
+
+_nhouser_create_group() {
+	local gname="$1" gid="$2"
+	if [ "$_nhouser_backend" = "shadow" ]; then
+		groupadd -g "$gid" "$gname"
+	else
+		addgroup -g "$gid" "$gname"
+	fi
+}
+
+_nhouser_create_user() {
+	local user="$1" uid="$2" comment="$3" home="$4" shell="$5" group="$6" groups="$7"
+	if [ "$_nhouser_backend" = "shadow" ]; then
+		useradd -M \
+			-u "$uid" \
+			${comment:+-c "$comment"} \
+			${home:+-d "$home"} \
+			${shell:+-s "$shell"} \
+			${group:+-g "$group"} \
+			${groups:+-G "$groups"} \
+			"$user"
+	else
+		adduser -D -H \
+			-u "$uid" \
+			${comment:+-g "$comment"} \
+			${home:+-h "$home"} \
+			${shell:+-s "$shell"} \
+			${groups:+-G "$groups"} \
+			"$user" ${group:+ "$group"}
+	fi
+}
 
 # ---------------------------------------------------------
 # nhouser()
@@ -115,8 +177,8 @@ nhouser()
 				G_ID=$(find_free_id gid 100)
 				[ -z "$G_ID" ] && { echog " * No free GID available below 999" >&2; return 1; }
 			fi
-			echog " * Creating group $GNAME"
-			groupadd -g "$G_ID" "$GNAME" || return 1
+			echog " * Creating group $GNAME (backend: $_nhouser_backend)"
+			_nhouser_create_group "$GNAME" "$G_ID" || return 1
 			GROUP_DONE=1
 		fi
 	fi
@@ -156,15 +218,8 @@ nhouser()
 				U_ID=$(find_free_id uid 100)
 				[ -z "$U_ID" ] && { echog " * No free UID available below 999" >&2; return 1; }
 			fi
-			echog " * Creating user $USER"
-			useradd -M \
-				-u "$U_ID" \
-				${COMMENT:+-c "$COMMENT"} \
-				${HOME:+-d "$HOME"} \
-				${SHELL:+-s "$SHELL"} \
-				${GNAME:+-g "$GNAME"} \
-				${ADDITIONAL_GROUPS:+-G "$ADDITIONAL_GROUPS"} \
-				"$USER" || return 1
+			echog " * Creating user $USER (backend: $_nhouser_backend)"
+			_nhouser_create_user "$USER" "$U_ID" "$COMMENT" "$HOME" "$SHELL" "$GNAME" "$ADDITIONAL_GROUPS" || return 1
 			if [ -n "$LOCKED" ]; then
 				passwd -l "$USER" >/dev/null 2>&1 || true
 				log " - User $USER locked"
