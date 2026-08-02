@@ -7,8 +7,8 @@
 [![Build system: Meson](https://img.shields.io/badge/build-Meson-orange.svg)](https://mesonbuild.com/)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/cargabsj175/neonatox-nhopkg)
 
-🌐 [English](README.md) | [Español](docs/es/README.md)
-
+🌐 [English](README.md) | [Español](docs/es/README.md) | [Русский](docs/ru/README.md)
+ 
 **Nhopkg** is a universal package manager designed to work on any GNU/Linux distribution. It uses binary packages (`.nho`) and source packages (`.srcnho`), allowing you to create, install, convert, and manage software in a simple, consistent, and portable way.
 
 Originally developed in 2010, Nhopkg combines simplicity, power, and full control over packaging, making it especially useful for Slackware-like systems or minimal environments.
