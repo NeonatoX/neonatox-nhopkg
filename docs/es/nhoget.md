@@ -62,6 +62,16 @@ Los tarballs se extraen con `--strip-components=1` en el directorio de destino. 
 
 Para tipos VCS, `nhoget fetch` intenta una actualización incremental (fetch + checkout) si el destino ya existe, recurriendo a un clon nuevo si falla.
 
+### `patch`
+
+Descarga un archivo de parche o diff, guardándolo con el nombre de archivo original de la URL.
+
+```
+nhoget patch <url>
+```
+
+El archivo se guarda como `../<nombre-de-archivo>` (directorio padre del directorio de trabajo).
+
 ## Opciones
 
 | Corta | Larga | Descripción |
@@ -89,6 +99,22 @@ El backend `auto` sondea en este orden:
 2. **curl** — usado si GNU wget no está disponible
 3. **BusyBox wget** — soporta HTTPS; los reintentos se implementan mediante un bucle manual (BusyBox no dispone de la opción `-t`)
 
+## La librería `libnhopkg_download`
+
+Toda la lógica de descarga reside en la librería **`libnhopkg_download`** (instalada como `/usr/lib/nhopkg/libnhopkg_download`). El CLI `nhoget` es un envoltorio ligero sobre ella, y la librería también es cargada directamente por `nhopkg`, `nhopkg-src` y el resolutor de dependencias. Funciones principales:
+
+Función | Propósito
+---|---
+`nhoget_detect_backend()` | Selecciona el backend de descarga (`wget`, `curl`, `wget-bb`) respetando `NHOGET_BACKEND`.
+`nhoget_url()` | Descarga una única URL con reintentos, tiempo de espera y reanudación opcional.
+`nhoget_url_wget_bb()` | Variante para BusyBox wget (bucle de reintentos manual; BusyBox no tiene `-t`).
+`nhoget_verify_hash()` | Verifica un archivo descargado contra una especificación de hash `TIPO:VALOR`.
+`nhoget_vcs()` / `nhoget_vcs_git()` / `nhoget_vcs_svn()` / `nhoget_vcs_hg()` | Operaciones de clonado/checkout VCS.
+`nhoget_fetch()` | Detecta automáticamente el tipo de fuente y lo redirige a las rutas URL o VCS.
+`nhoget_fetch_tarball()` | Descarga y extrae automáticamente un tarball (con `--strip-components=1`).
+
+El comportamiento de reanudación y verificación de hash es, por tanto, idéntico tanto si la descarga se dispara desde el CLI `nhoget`, desde una receta de compilación, o desde las llamadas `nhoget_url` del resolutor de dependencias.
+
 ## Configuración
 
 El comportamiento se controla mediante variables de entorno o `/etc/nhopkg/nhopkg.conf`:
@@ -98,7 +124,7 @@ El comportamiento se controla mediante variables de entorno o `/etc/nhopkg/nhopk
 | `NHOGET_BACKEND` | `auto` | Selección de backend (`wget`, `curl`, `wget-bb`, `auto`) |
 | `NHOGET_TIMEOUT` | `20` | Tiempo de espera de conexión en segundos |
 | `NHOGET_RETRIES` | `3` | Número de reintentos de descarga |
-| `NHOGET_RESUME` | `no` | Habilitar reanudación de descargas parciales |
+| `NHOGET_RESUME` | `yes` | Habilitar reanudación de descargas parciales |
 
 ## Prefijos de URL
 
@@ -113,6 +139,5 @@ Para compatibilidad hacia atrás, las URLs que terminan en `.git` también se tr
 
 ## Véase también
 
-- [PROPOSAL-nhoget.md](/PROPOSAL-nhoget.md) — Especificación completa con decisiones de diseño
 - [Referencia de comandos](comandos.md) — Comandos principales de nhopkg
 - [Visión general de la arquitectura](arquitectura.md)

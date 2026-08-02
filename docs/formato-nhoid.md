@@ -144,9 +144,11 @@ nbuild() {
 
 Installation commands. Must have real content.
 
+Files are installed directly onto the live system root. Newly installed files are then detected by scanning `FIND_DIRS`.
+
 ```bash
 ninstall() {
-    DESTDIR="${PKGDEST}" ninja -C build install
+    ninja -C build install
 }
 ```
 
@@ -156,7 +158,7 @@ Installation commands for a split sub-package.
 
 ```bash
 ninstall_dev() {
-    DESTDIR="${PKGDEST}" cp -r include/* "${PKGDEST}/usr/include/"
+    cp -r include/* /usr/include/
 }
 ```
 
@@ -224,7 +226,7 @@ nbuild() {
 }
 
 ninstall() {
-    DESTDIR="${PKGDEST}" make install
+    make install
 }
 
 npostinstall() {
@@ -261,7 +263,7 @@ nbuild() {
 }
 
 ninstall() {
-    DESTDIR="${PKGDEST}" ninja -C build install
+    ninja -C build install
 }
 
 npostinstall() {
@@ -273,7 +275,7 @@ npostremove() {
 }
 
 ninstall_xcb_private_headers() {
-    DESTDIR="${PKGDEST}" cp -r include/* "${PKGDEST}/usr/include/"
+    cp -r include/* /usr/include/
 }
 
 npostinstall_xcb_private_headers() {

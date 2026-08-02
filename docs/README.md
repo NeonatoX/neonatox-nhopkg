@@ -15,13 +15,15 @@ This documentation is divided into independent sections to make maintenance and 
   * [7\. Package groups](grupos.md)
   * [8\. Safe updates](actualizaciones.md)
   * [9\. Package building](construccion.md)
-  * [10\. System maintenance](mantenimiento.md)
-  * [11\. Multiple repositories](repositorios.md)
-  * [12\. Dependency resolution](dependencias.md)
-  * [13\. nhopkg-src (source packages)](nhopkg-src.md)
-  * [14\. Ready for production?](produccion.md)
-  * [15\. Next steps](proximos-pasos.md)
-  * [16\. Internationalization (i18n)](i18n.md)
+  * [10\. nhopkg-overlay (isolated builds)](nhopkg-overlay.md)
+  * [11\. System maintenance](mantenimiento.md)
+  * [12\. Multiple repositories](repositorios.md)
+  * [13\. Dependency resolution](dependencias.md)
+  * [14\. nhopkg-src (source packages)](nhopkg-src.md)
+  * [15\. The `libnhopkg` base library](libnhopkg.md)
+  * [16\. Ready for production?](produccion.md)
+  * [17\. Next steps](proximos-pasos.md)
+  * [18\. Internationalization (i18n)](i18n.md)
 
 
 Documentation for **nhopkg v0.5.1** — January 2026

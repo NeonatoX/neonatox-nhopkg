@@ -15,13 +15,15 @@ Esta documentación está dividida en secciones independientes para facilitar su
   * [7\. Grupos de paquetes](grupos.md)
   * [8\. Actualizaciones seguras](actualizaciones.md)
   * [9\. Construcción de paquetes](construccion.md)
-  * [10\. Mantenimiento del sistema](mantenimiento.md)
-  * [11\. Repositorios múltiples](repositorios.md)
-  * [12\. Resolución de dependencias](dependencias.md)
-  * [13\. nhopkg-src (paquetes fuente)](nhopkg-src.md)
-  * [14\. ¿Listo para producción?](produccion.md)
-  * [15\. Próximos pasos](proximos-pasos.md)
-  * [16\. Internacionalización (i18n)](i18n.md)
+  * [10\. nhopkg-overlay (compilación aislada)](nhopkg-overlay.md)
+  * [11\. Mantenimiento del sistema](mantenimiento.md)
+  * [12\. Repositorios múltiples](repositorios.md)
+  * [13\. Resolución de dependencias](dependencias.md)
+  * [14\. nhopkg-src (paquetes fuente)](nhopkg-src.md)
+  * [15\. La librería base `libnhopkg`](libnhopkg.md)
+  * [16\. ¿Listo para producción?](produccion.md)
+  * [17\. Próximos pasos](proximos-pasos.md)
+  * [18\. Internacionalización (i18n)](i18n.md)
 
 
 Documentación de **nhopkg v0.5.1** — Enero 2026

@@ -27,14 +27,13 @@ nhopkg is a universal binary and source package manager. This page documents eve
 | `-e` | `--clean` | Remove cached `.nho` packages from the download cache; with `-R` also cleans the build directory |
 | `-G` | `--install-group` | Install every package belonging to a named group (e.g. `base`, `libs`, `xorg`) across all active repositories |
 | `-X` | `--strip-binaries` | Strip debug symbols from ELF binaries and shared objects during `--build` (experimental) |
-| `-z` | `--tgz2nho` | Convert a Slackware `.tgz` package to `.nho` format (legacy; requires patch) |
-| `-g` | `--create-repo` | Create or update a local repository from a directory of `.nho` files (implemented by `nhopkg-repos`) |
 
 ## Options (flags)
 
 | Long | Description |
 |------|-------------|
 | `-v`, `--verbose` | Enable verbose output |
+| `-p`, `--preserve-files` | Force retention of package files when removing a package |
 | `-R`, `--recursive` | Answer "yes" to all prompts (non-interactive mode) |
 | `-o`, `--output DIR` | Write command output (list, info, show) to a log file in DIR |
 | `--root DIR` | Operate on an alternate root directory (for bootstrap, chroot, or containers); defers post-install hooks and system-cache updates to a generated script |
@@ -123,8 +122,8 @@ sudo nhopkg -G base
 # Strip debug symbols during build
 sudo nhopkg -X -b foo.srcnho
 
-# Convert a Slackware package
-sudo nhopkg -z slackware-package.tgz
+# Remove a package keeping its files
+sudo nhopkg -r gimp -p
 ```
 
 ## Companion tools
@@ -135,7 +134,7 @@ sudo nhopkg -z slackware-package.tgz
 | `nhopkg-src` | Source-package creation wizard | [`docs/nhopkg-src.md`](nhopkg-src.md) |
 | `nhopkg-repos` | Repository creation and maintenance (`--create-repo`, `--add-to-repo`) | [`docs/repositorios.md`](repositorios.md) |
 | `nhouser` | Idempotent system user/group creation (used in `npostinstall()`) | [`docs/usuarios-servicios.md`](usuarios-servicios.md) |
-| `nhopkg-overlay` | Build directory overlay for custom builds | [`docs/construccion.md`](construccion.md) |
+| `nhopkg-overlay` | Isolated overlay build environment | [`docs/nhopkg-overlay.md`](nhopkg-overlay.md) |
 
 ## See also
 

@@ -61,9 +61,9 @@ Comando | Efecto
 
 ## 10.4. Verificación de integridad (`--check`)
 
-El comando `--check` (o `-k`) verifica la integridad de un paquete instalado. Compara la lista de archivos registrada en `/var/nhopkg/files/<paquete>.files.tar.zst` con el sistema de archivos real.
+El comando `--check` (o `-k`) verifica la integridad de un paquete instalado. Compara la lista de archivos registrada en `/var/nhopkg/files/<paquete>-<versión>-<release>.zst` con el sistema de archivos real.
 
-Si un archivo está faltante o ha sido modificado, el comando lo reportará.
+Si un archivo está faltante, el comando lo reportará con el porcentaje de archivos presentes.
     
     
     # Verificar la integridad del paquete 'gimp'

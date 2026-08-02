@@ -23,7 +23,6 @@ This project has been actively maintained for over a decade, adapting to new too
 ## Features
 
 * Binary (`.nho`) and source (`.srcnho`) package support
-* Automatic Slackware package conversion (`.tgz` → `.nho`)
 * Advanced dependency resolution (required & optional)
 * Automatic compilation and installation from source
 * Local repository creation and management

@@ -53,6 +53,29 @@ Opções gerais de comportamento para manipulação de dependências, verificaç
 | `VERBOSE_MODE` | `no` | `yes`, `no` | Ativar saída detalhada |
 | `STRIP_BINARIES` | `no` | `yes`, `no` | Remover símbolos de binários e bibliotecas após instalação (experimental) |
 | `NHOHOLD` | `"nhopkg glibc gcc"` | Nomes de pacotes separados por espaço | Pacotes a reter — nunca excluir seus arquivos ao desinstalar |
+| `NHOPKG_USE_BUSYBOX` | `no` | `yes`, `no` | Usar o PATH privado do BusyBox estático (ver [PATH privado do BusyBox](#path-privado-do-busybox)) |
+
+### PATH privado do BusyBox
+
+Quando `NHOPKG_USE_BUSYBOX=yes`, o nhopkg antepõe `/usr/lib/nhopkg/bin` ao
+`PATH` (via `setup_busybox_path()` na `libnhopkg`). Esse diretório contém um
+BusyBox **linkado estaticamente** mais os symlinks para seus applets, gerados
+na instalação pelo helper **`nhopkg-bb-setup`** (instalado como
+`/usr/lib/nhopkg/nhopkg-bb-setup` e invocado automaticamente como passo de
+pós-instalação).
+
+Isso é crítico para distribuições rolling: como BusyBox e zstd são linkados
+estaticamente, o nhopkg continua funcionando mesmo após uma atualização da
+biblioteca C (musl/glibc) que de outra forma quebraria todos os binários
+dinâmicos. Os applets provisionados são: `awk`, `sed`, `grep`, `sort`, `cut`,
+`tr`, `head`, `tail`, `wc`, `xargs`, `mkdir`, `cp`, `mv`, `rm`, `ln`, `ls`,
+`du`, `stat`, `basename`, `dirname`, `mktemp`, `chmod`, `chown`, `tar`, `gzip`,
+`gunzip`, `md5sum`, `sha1sum`, `sha256sum`, `sha512sum`, `wget`, `id`, `date`,
+`sleep`, `cat`, `nproc`, `unshare`, `od`, `realpath`, `chroot`, `adduser`,
+`addgroup` e `passwd`.
+
+O helper omite qualquer applet não compilado no BusyBox instalado, limpa os
+symlinks obsoletos de versões anteriores e informa quantos symlinks criou.
 
 ---
 
@@ -205,6 +228,7 @@ NHOPKG_CHECKARCH=yes
 VERBOSE_MODE=no
 STRIP_BINARIES=no
 NHOHOLD="nhopkg glibc gcc"
+NHOPKG_USE_BUSYBOX=no
 
 # --- Sistema de Inicialização ---
 INITSYSTEM=systemd

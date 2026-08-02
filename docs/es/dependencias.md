@@ -2,7 +2,7 @@
 
 # Resolución de dependencias — nhopkg v0.5.1
 
-El Sistema Unificado de Resolución de Dependencias (UDEPSYS) es el módulo responsable de resolver, descargar e instalar las dependencias de los paquetes. Está implementado en `libnhopkg_udepsys` y es utilizado por el binario principal `nhopkg`.
+El Sistema Unificado de Resolución de Dependencias (UDEPSYS) es el módulo responsable de resolver, descargar e instalar las dependencias de los paquetes. Está implementado en la librería **`libnhopkg_udepsys`** (instalada como `/usr/lib/nhopkg/libnhopkg_udepsys`) y es cargada por el binario principal `nhopkg`. Expone los puntos de entrada públicos `dep_resolve_from_nhoid()`, `dep_install_queue()` y `dep_check_conflicts()`, además de las funciones auxiliares `version_compare()` (comparación de versiones mediante `sort -V`) y `get_repo_url()` (construcción de URL de repositorio). Las descargas de paquetes se delegan en el backend de descarga unificado `nhoget_url` de [`libnhopkg_download`](nhoget.md).
 
 Para conocer la sintaxis completa de los campos nhoid (incluyendo los campos de dependencias específicas para subpaquetes), consulte [formato-nhoid.md](formato-nhoid.md).
 
@@ -169,7 +169,7 @@ Los paquetes encontrados en repositorios se añaden a `RCASEPACKAGES` (requerido
 Instala todos los paquetes acumulados en las colas de resolución.:
 
 1. Muestra la lista de paquetes al usuario y solicita confirmación (a menos que `ask_user=no`).
-2. Llama a `_dep_download_all()` que descarga cada paquete desde su repositorio usando `wget`.
+2. Llama a `_dep_download_all()` que descarga cada paquete desde su repositorio mediante `nhoget_url` (el backend de descarga unificado: GNU wget, curl o BusyBox wget).
 3. Llama a `_dep_install_all_from_queue()` (definida en `nhopkg.in`) que instala cada paquete descargado mediante `_dep_install_single()`.
 
 `_dep_install_single()` maneja la verificación de conflictos (mediante `dep_check_conflicts`), actualizaciones, reemplazos, verificación de hash, checksum de arquitectura, verificación de firmas y la instalación real de archivos.

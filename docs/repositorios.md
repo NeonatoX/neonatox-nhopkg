@@ -23,6 +23,9 @@
 Only repositories listed in `NHOPKG_ACTIVE_REPOS` are searched.
 
 ## Creating repositories
+
+Repositories are created and maintained with the companion tool `nhopkg-repos`:
+
     
     
-    sudo nhopkg --create-repo /path/to/packages
+    sudo nhopkg-repos -g /path/to/packages

@@ -51,7 +51,7 @@ Si `# Packageurl:` apunta a un archivo comprimido (ej. `.tar.xz`), nhopkg lo des
 El archivo `nhoid` debe contener al menos dos funciones Bash:
 
   * `nbuild()`: compila el software (ej. con `meson`, `cmake`, `make`). Solo se ejecuta una vez, para el paquete principal.
-  * `ninstall()`: instala los archivos en el directorio de construcción (`${NHOPKG_TMPDIR}`).
+  * `ninstall()`: instala los archivos directamente en el sistema real; los archivos nuevos se detectan después escaneando `FIND_DIRS`.
 
 
 
@@ -64,7 +64,7 @@ Ejemplo:
     }
     
     ninstall() {
-      DESTDIR="${NHOPKG_TMPDIR}" ninja -C build install
+      ninja -C build install
     }
 
 ## Subpaquetes (_Split Packages_)
@@ -95,8 +95,8 @@ Ejemplo para un subpaquete `dev`:
     
     ninstall_dev() {
       # No hay nbuild_dev(), todo va aquí
-      mkdir -p "${NHOPKG_TMPDIR}/usr/include"
-      cp -r include/* "${NHOPKG_TMPDIR}/usr/include/"
+      mkdir -p /usr/include
+      cp -r include/* /usr/include/
       # Incluso podrías compilar algo específico aquí si fuera necesario
     }
 

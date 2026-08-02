@@ -4,29 +4,26 @@
 
 Although **nhopkg v0.5.1** is stable, there is room for growth.
 
-## For package maintainers
+## Completed
 
-  * Create more `.srcnho` packages
-  * Improve split package definitions
-  * Add reproducible build flags
+The following roadmap items are now implemented:
 
+| Item | Where |
+|---|---|
+| Create more `.srcnho` packages | `nhopkg-src` tool (`--init`, `--createpackage`, `--buildpackage`) |
+| Improve split package definitions | Per-part fields `# Description_part:`, `# Group_part:`, `# Repository_part:`, `# Backup_part:` (plus `Provides_/Conflicts_/Dep_/OptionalDep_`) |
+| Reproducible build flags | `nhopkg.conf` section "Build Configuration — Compilation Optimizations" (`NHOPKG_MACHINE`, `NHOPKG_CFLAGS`, ...) |
+| Sandboxed builds | `nhopkg-overlay` (build-directory overlay) |
+| Unified downloads | `libnhopkg_download` / `nhoget` (GNU wget, curl, BusyBox wget, VCS) |
+| GPG signing and verification | `libnhopkg_crypto`, `nhopkg-repos` signing, `NHOPKG_REQUIRE_SIGNATURE` |
+| Automate repository creation | `nhopkg-repos` (`--create-repo`, `--add-to-repo`) |
+| Resilient private PATH | Static BusyBox in `lib/nhopkg/bin` with symlinks via `nhopkg-bb-setup` |
+| Man pages | `nhopkg.8`, `nhoget.8`, `nhopkg-repos.8`, `nhopkg-src.8`, `nhopkg-overlay.8`, `nhouser.8`, `nhopkg.conf.5` |
+| Clear package groups | `--install-group` / `get_packages_by_group()` |
 
-
-## For core development
+## Still on the roadmap
 
   * Automated test suite
-  * Sandboxed builds
-  * Man pages
   * Delta downloads
-
-
-
-## For distributions
-
-  * Define clear package groups
-  * Use mandatory GPG signatures
-  * Automate repository creation
-
-
 
 **nhopkg** is a foundation — how far it goes depends on its users.

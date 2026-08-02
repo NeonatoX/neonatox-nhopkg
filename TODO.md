@@ -57,7 +57,6 @@ fi
 
 | Meta | Descripción |
 |------|-------------|
-| **Auto-package** | Buscar dependencias automáticamente desde `configure.ac` o similar |
 | **Build más rápido** | Reducir tiempo para crear paquetes binarios |
 | **Config local** | Soporte para archivo de configuración local (`~/.nhopkg/nhopkg.conf`) |
 | **Barra de progreso** | Barra de progreso para descargas (sin depender de wget) |

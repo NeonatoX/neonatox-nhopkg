@@ -11,14 +11,27 @@
 
 Ambas funciones están diseñadas para integrarse en los scripts de post-instalación (`npostinstall()`) de los paquetes, siguiendo las convenciones de **Beyond Linux From Scratch (BLFS)**.
 
-## 6.1. Gestión de usuarios y grupos: `nhouser()`
+## 6.1. Gestión de usuarios y grupos
 
-La función `nhouser` permite crear cuentas de sistema de forma segura, repetible y compatible con BLFS. Es idempotente: si el usuario ya existe, no falla ni lo modifica.
+La gestión de usuarios y grupos está implementada en la librería **`libnhopkg_nhouser`** (instalada en `/usr/lib/nhopkg/libnhopkg_nhouser`), que proporciona la función `nhouser()` y soporta **dos backends**, detectados en tiempo de ejecución:
 
-### Sintaxis
-    
-    
+  * **GNU shadow-utils** (`useradd`/`groupadd`) — preferido en sistemas completos.
+  * **BusyBox** (`adduser`/`addgroup`) — alternativa para entornos estáticos/embebidos.
+
+La detección de backend no se limita a comprobar que los binarios existen: verifica que realmente *ejecutan* (protegiendo contra binarios dinámicos rotos tras una actualización de libc). La librería también busca UID/GID libres por debajo de 999 cuando el solicitado está ocupado o fuera de rango, y avisa ante desajustes de UID/GID.
+
+### La herramienta de línea de comandos `nhouser`
+
+`nhouser` también se instala como comando independiente (`/usr/bin/nhouser`). Es un envoltorio que carga `nhopkg.conf`, la librería base y `libnhopkg_nhouser`, y luego llama a `nhouser()` con los argumentos ya analizados. Así se puede usar tanto desde `npostinstall()` como de forma interactiva:
+
+    nhouser --check|--create --user NOMBRE [opciones]
+    nhouser --check|--create --group NOMBRE [--gid GID]
+
+### Sintaxis de `nhouser()`
+
     nhouser --check|--create [opciones]
+
+La función es idempotente: si el usuario o grupo ya existe, no se modifica nada (solo registra un aviso si hay desajuste de UID/GID).
 
 ### Opciones disponibles
 
@@ -30,8 +43,12 @@ Opción | Descripción
 `--group <nombre>`| Nombre del grupo primario.  
 `--uid <id>`| ID numérico del usuario (recomendado en BLFS).  
 `--gid <id>`| ID numérico del grupo.  
+`--uname <comentario>`| Campo de comentario GECOS del usuario.  
+`--udir <ruta>`| Directorio home del usuario.  
 `--shell <ruta>`| Shell asignado (ej. `/bin/false`, `/sbin/nologin`).  
 `--groups <lista>`| Grupos secundarios (separados por comas).  
+`--locked`| Bloquea la cuenta inmediatamente (`passwd -l`).  
+`-v, --verbose`| Operaciones detalladas.  
   
 ### Ejemplos reales (BLFS)
 
@@ -118,17 +135,18 @@ Esto descargará e instalará la unidad desde el repositorio de BLFS para system
 
 ## 6.3. Configuración del sistema
 
-Para que `install_init_unit()` funcione, tu sistema debe definir variables como:
+Para que `install_init_unit()` funcione, el sistema define estas variables en `/etc/nhopkg/nhopkg.conf` (valores por defecto):
     
     
-    # En /etc/profile.d/nhopkg-init.sh o similar
-    export INITSYSTEM="systemd"
-    export SYSTEMD_BLFS_URL="https://anduin.linuxfromscratch.org/BLFS/blfs-bootscripts/blfs-bootscripts-systemd-20250101.tar.xz"
-    export SYSTEMD_BLFS_DIR="/usr/src/blfs-bootscripts-systemd"
-    export SYSV_BLFS_URL="https://anduin.linuxfromscratch.org/BLFS/blfs-bootscripts/blfs-bootscripts-20250101.tar.xz"
-    export SYSV_BLFS_DIR="/usr/src/blfs-bootscripts"
+    INITSYSTEM="systemd"
+    SYSTEMD_BLFS_VER=20251204
+    SYSTEMD_BLFS_DIR="/usr/src/blfs-systemd-units-${SYSTEMD_BLFS_VER}"
+    SYSTEMD_BLFS_URL="https://www.linuxfromscratch.org/blfs/downloads/systemd/blfs-systemd-units-${SYSTEMD_BLFS_VER}.tar.xz"
+    SYSV_BLFS_VER=20251220
+    SYSV_BLFS_DIR="/usr/src/blfs-bootscripts-${SYSV_BLFS_VER}"
+    SYSV_BLFS_URL="https://anduin.linuxfromscratch.org/BLFS/blfs-bootscripts/blfs-bootscripts-${SYSV_BLFS_VER}.tar.xz"
 
-La primera vez que se use, `install_init_unit` descargará y descomprimirá el archivo correspondiente en el directorio indicado.
+La primera vez que se use, `install_init_unit` descargará y descomprimirá el archivo correspondiente en `/usr/src/`.
 
 ## Conclusión
 

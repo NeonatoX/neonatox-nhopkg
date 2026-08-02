@@ -53,6 +53,29 @@ General behavior options for dependency handling, verification, verbosity, and e
 | `VERBOSE_MODE` | `no` | `yes`, `no` | Enable verbose output |
 | `STRIP_BINARIES` | `no` | `yes`, `no` | Strip binaries and libraries after installation (experimental) |
 | `NHOHOLD` | `"nhopkg glibc gcc"` | Space-separated package names | Packages to hold — never delete their files on uninstall |
+| `NHOPKG_USE_BUSYBOX` | `no` | `yes`, `no` | Use the static BusyBox private PATH (see [BusyBox Private PATH](#busybox-private-path)) |
+
+### BusyBox Private PATH
+
+When `NHOPKG_USE_BUSYBOX=yes`, nhopkg prepends `/usr/lib/nhopkg/bin` to
+`PATH` (via `setup_busybox_path()` in `libnhopkg`). That directory holds a
+**statically linked** BusyBox plus symlinks to its applets, generated at
+install time by the helper **`nhopkg-bb-setup`** (installed as
+`/usr/lib/nhopkg/nhopkg-bb-setup` and invoked automatically as a
+post-install step).
+
+This is critical for rolling releases: because BusyBox and zstd are statically
+linked, nhopkg keeps working even across a C library (musl/glibc) update that
+would otherwise break every dynamic binary. The applets provisioned are:
+`awk`, `sed`, `grep`, `sort`, `cut`, `tr`, `head`, `tail`, `wc`, `xargs`,
+`mkdir`, `cp`, `mv`, `rm`, `ln`, `ls`, `du`, `stat`, `basename`, `dirname`,
+`mktemp`, `chmod`, `chown`, `tar`, `gzip`, `gunzip`, `md5sum`, `sha1sum`,
+`sha256sum`, `sha512sum`, `wget`, `id`, `date`, `sleep`, `cat`, `nproc`,
+`unshare`, `od`, `realpath`, `chroot`, `adduser`, `addgroup` and `passwd`.
+
+The helper skips any applet not compiled into the installed BusyBox, cleans up
+stale symlinks from previous versions, and reports how many symlinks it
+created.
 
 ---
 
@@ -149,11 +172,11 @@ Variables read by nhopkg and exported before `nbuild()` execution. Used when bui
 
 | Variable | Default | Description |
 |---|---|---|
-| `NHOPKG_MACHINE` | `sandybridge` | CPU tuning target (e.g. `sandybridge`, `native`, `generic`, `x86-64`). If empty or commented, nhopkg falls back to `generic` |
-| `NHOPKG_CFLAGS` | `"-O2 -pipe -march=x86-64"` | Base C compiler flags (machine target is appended) |
-| `NHOPKG_CXXFLAGS` | `""` (empty) | C++ compiler flags. If empty, defaults to `NHOPKG_CFLAGS` |
+| `NHOPKG_MACHINE` | `generic` | CPU tuning target (e.g. `generic`, `sandybridge`, `native`, `x86-64`). If empty, nhopkg falls back to `generic` |
+| `NHOPKG_CFLAGS` | `"-O2 -pipe -fstack-protector-strong -D_FORTIFY_SOURCE=3"` | Base C compiler flags |
+| `NHOPKG_CXXFLAGS` | `$NHOPKG_CFLAGS` | C++ compiler flags. If empty, defaults to `NHOPKG_CFLAGS` |
 | `NHOPKG_CPPFLAGS` | `""` (empty) | C preprocessor flags |
-| `NHOPKG_LDFLAGS` | `"-Wl,-O1"` | Linker flags |
+| `NHOPKG_LDFLAGS` | `"-Wl,-O1 -Wl,--as-needed -Wl,-z,relro"` | Linker flags |
 | `NHOPKG_BUILD_JOBS` | `""` (empty) | Parallel build jobs. If empty, auto-detected as `nproc - 2` (minimum 1) |
 | `NHOPKG_MAKEFLAGS` | `""` (empty) | Make flags. If empty, auto-generated from `NHOPKG_BUILD_JOBS` |
 | `NHOPKG_CMAKE_BUILD_PARALLEL_LEVEL` | `""` (empty) | CMake parallel level. If empty, set from `NHOPKG_BUILD_JOBS` |
@@ -205,6 +228,7 @@ NHOPKG_CHECKARCH=yes
 VERBOSE_MODE=no
 STRIP_BINARIES=no
 NHOHOLD="nhopkg glibc gcc"
+NHOPKG_USE_BUSYBOX=no
 
 # --- Init System ---
 INITSYSTEM=systemd
@@ -239,11 +263,11 @@ NHOPKG_GIT_SOURCES=https://gitlab.com/neonatox-sources
 NHOPKG_GETTEXT=yes
 
 # --- Build Configuration ---
-NHOPKG_MACHINE="sandybridge"
-NHOPKG_CFLAGS="-O2 -pipe -march=x86-64"
-NHOPKG_CXXFLAGS=""
+NHOPKG_MACHINE="generic"
+NHOPKG_CFLAGS="-O2 -pipe -fstack-protector-strong -D_FORTIFY_SOURCE=3"
+NHOPKG_CXXFLAGS="$NHOPKG_CFLAGS"
 NHOPKG_CPPFLAGS=""
-NHOPKG_LDFLAGS="-Wl,-O1"
+NHOPKG_LDFLAGS="-Wl,-O1 -Wl,--as-needed -Wl,-z,relro"
 NHOPKG_BUILD_JOBS=""
 NHOPKG_MAKEFLAGS=""
 NHOPKG_CMAKE_BUILD_PARALLEL_LEVEL=""

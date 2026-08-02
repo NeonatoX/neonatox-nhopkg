@@ -60,6 +60,16 @@ Tarballs are extracted with `--strip-components=1` into the destination director
 
 For VCS types, `nhoget fetch` tries an incremental update (fetch + checkout) if the destination already exists, falling back to a fresh clone.
 
+### `patch`
+
+Download a patch or diff file, saving it with the original filename from the URL.
+
+```
+nhoget patch <url>
+```
+
+The file is saved as `../<filename>` (parent of the working directory).
+
 ## Options
 
 | Short | Long | Description |
@@ -87,6 +97,27 @@ The `auto` backend probes in this order:
 2. **curl** — used if GNU wget is unavailable
 3. **BusyBox wget** — handles HTTPS; retries implemented via a manual loop (BusyBox lacks the `-t` flag)
 
+## The `libnhopkg_download` library
+
+All download logic lives in the library **`libnhopkg_download`** (installed as
+`/usr/lib/nhopkg/libnhopkg_download`). The `nhoget` CLI is a thin wrapper over
+it, and the library is also sourced directly by `nhopkg`, `nhopkg-src` and the
+dependency resolver. Main functions:
+
+Function | Purpose
+---|---
+`nhoget_detect_backend()` | Selects the download backend (`wget`, `curl`, `wget-bb`) honouring `NHOGET_BACKEND`.
+`nhoget_url()` | Downloads a single URL with retries, timeout and optional resume.
+`nhoget_url_wget_bb()` | BusyBox wget variant (manual retry loop; BusyBox has no `-t`).
+`nhoget_verify_hash()` | Verifies a downloaded file against a `TYPE:VALUE` hash spec.
+`nhoget_vcs()` / `nhoget_vcs_git()` / `nhoget_vcs_svn()` / `nhoget_vcs_hg()` | VCS clone/checkout operations.
+`nhoget_fetch()` | Auto-detects the source type and dispatches to the URL or VCS paths.
+`nhoget_fetch_tarball()` | Downloads and auto-extracts a tarball (with `--strip-components=1`).
+
+Resume and hash-check behaviour is therefore identical whether a download is
+triggered from the `nhoget` CLI, from a build recipe, or from the dependency
+resolver's `nhoget_url` calls.
+
 ## Configuration
 
 Behaviour is controlled by environment variables or `/etc/nhopkg/nhopkg.conf`:
@@ -96,7 +127,7 @@ Behaviour is controlled by environment variables or `/etc/nhopkg/nhopkg.conf`:
 | `NHOGET_BACKEND` | `auto` | Backend selection (`wget`, `curl`, `wget-bb`, `auto`) |
 | `NHOGET_TIMEOUT` | `20` | Connection timeout in seconds |
 | `NHOGET_RETRIES` | `3` | Number of download retries |
-| `NHOGET_RESUME` | `no` | Enable resume of partial downloads |
+| `NHOGET_RESUME` | `yes` | Enable resume of partial downloads |
 
 ## URL prefixes
 
@@ -111,6 +142,5 @@ For backward compatibility, URLs ending in `.git` are also treated as Git reposi
 
 ## See also
 
-- [PROPOSAL-nhoget.md](/PROPOSAL-nhoget.md) — Full specification with design decisions
 - [Commands reference](comandos.md) — nhopkg main commands
 - [Arquitecture overview](arquitectura.md)

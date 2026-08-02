@@ -4,7 +4,13 @@
 
 O Sistema Unificado de Resolução de Dependências (UDEPSYS) é o módulo responsável
 por resolver, baixar e instalar dependências de pacotes. Ele é implementado
-em `libnhopkg_udepsys` e carregado pelo binário principal `nhopkg`.
+na biblioteca **`libnhopkg_udepsys`** (instalada como
+`/usr/lib/nhopkg/libnhopkg_udepsys`) e carregada pelo binário principal `nhopkg`.
+Ela expõe os pontos de entrada públicos `dep_resolve_from_nhoid()`,
+`dep_install_queue()` e `dep_check_conflicts()`, além das funções auxiliares
+`version_compare()` (comparação de versões via `sort -V`) e `get_repo_url()`
+(construção da URL do repositório). Os downloads de pacotes são delegados ao
+backend de download unificado `nhoget_url` de [`libnhopkg_download`](nhoget.md).
 
 Para a sintaxe completa do campo nhoid (incluindo campos de dependência específicos
 de split), consulte [formato-nhoid.md](formato-nhoid.md).
@@ -214,7 +220,8 @@ Instala todos os pacotes acumulados nas filas de resolução. Ela:
 1. Exibe a lista de pacotes ao usuário e solicita confirmação
    (a menos que `ask_user=no`).
 2. Chama `_dep_download_all()` que baixa cada pacote do seu
-   repositório usando `wget`.
+   repositório via `nhoget_url` (o backend de download unificado: GNU wget,
+   curl ou BusyBox wget).
 3. Chama `_dep_install_all_from_queue()` (definida em `nhopkg.in`) que
    instala cada pacote baixado via `_dep_install_single()`.
 

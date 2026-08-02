@@ -4,23 +4,26 @@
 
 Embora **nhopkg v0.5.1** seja estável, há espaço para crescimento.
 
-## Para mantenedores de pacotes
+## Concluído
 
-  * Criar mais pacotes `.srcnho`
-  * Melhorar definições de pacotes divididos (split)
-  * Adicionar flags de construção reproduzível
+Os seguintes itens do roteiro já estão implementados:
 
-## Para o desenvolvimento principal
+| Item | Onde |
+|---|---|
+| Criar mais pacotes `.srcnho` | Ferramenta `nhopkg-src` (`--init`, `--createpackage`, `--buildpackage`) |
+| Melhorar definições de pacotes divididos | Campos por parte `# Description_<parte>:`, `# Group_<parte>:`, `# Repository_<parte>:`, `# Backup_<parte>:` (além de `Provides_/Conflicts_/Dep_/OptionalDep_`) |
+| Flags de construção reproduzível | Seção "Build Configuration — Compilation Optimizations" do `nhopkg.conf` (`NHOPKG_MACHINE`, `NHOPKG_CFLAGS`, ...) |
+| Construções em ambiente isolado (sandbox) | `nhopkg-overlay` (sobreposição do diretório de construção) |
+| Downloads unificados | `libnhopkg_download` / `nhoget` (GNU wget, curl, BusyBox wget, VCS) |
+| Assinatura e verificação GPG | `libnhopkg_crypto`, assinatura do `nhopkg-repos`, `NHOPKG_REQUIRE_SIGNATURE` |
+| Automatizar criação de repositórios | `nhopkg-repos` (`--create-repo`, `--add-to-repo`) |
+| PATH privado resiliente com BusyBox | BusyBox estático em `lib/nhopkg/bin` com symlinks via `nhopkg-bb-setup` |
+| Páginas man | `nhopkg.8`, `nhoget.8`, `nhopkg-repos.8`, `nhopkg-src.8`, `nhopkg-overlay.8`, `nhouser.8`, `nhopkg.conf.5` |
+| Grupos de pacotes claros | `--install-group` / `get_packages_by_group()` |
+
+## Ainda no roteiro
 
   * Suíte de testes automatizada
-  * Construções em ambiente isolado (sandbox)
-  * Páginas man
   * Downloads delta
-
-## Para distribuições
-
-  * Definir grupos de pacotes claros
-  * Usar assinaturas GPG obrigatórias
-  * Automatizar criação de repositórios
 
 **nhopkg** é uma fundação — até onde irá depende de seus usuários.

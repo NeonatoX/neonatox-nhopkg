@@ -27,14 +27,13 @@ nhopkg é um gerenciador universal de pacotes binários e fonte. Esta página do
 | `-e` | `--clean` | Remover pacotes `.nho` em cache do diretório de download; com `-R` também limpa o diretório de compilação |
 | `-G` | `--install-group` | Instalar todos os pacotes pertencentes a um grupo nomeado (ex. `base`, `libs`, `xorg`) em todos os repositórios ativos |
 | `-X` | `--strip-binaries` | Remover símbolos de depuração de binários ELF e objetos compartilhados durante `--build` (experimental) |
-| `-z` | `--tgz2nho` | Converter um pacote Slackware `.tgz` para o formato `.nho` (legado; requer patch) |
-| `-g` | `--create-repo` | Criar ou atualizar um repositório local a partir de um diretório de arquivos `.nho` (implementado por `nhopkg-repos`) |
 
 ## Opções (flags)
 
 | Longo | Descrição |
 |------|-------------|
 | `-v`, `--verbose` | Ativar saída detalhada |
+| `-p`, `--preserve-files` | Forçar a retenção dos arquivos do pacote ao removê-lo |
 | `-R`, `--recursive` | Responder "sim" a todos os prompts (modo não interativo) |
 | `-o`, `--output DIR` | Escrever a saída do comando (list, info, show) em um arquivo de log em DIR |
 | `--root DIR` | Operar em um diretório raiz alternativo (para bootstrap, chroot ou contêineres); adia ganchos pós-instalação e atualizações de cache do sistema para um script gerado |
@@ -123,8 +122,8 @@ sudo nhopkg -G base
 # Remover símbolos de depuração durante a compilação
 sudo nhopkg -X -b foo.srcnho
 
-# Converter um pacote Slackware
-sudo nhopkg -z slackware-package.tgz
+# Remover um pacote mantendo seus arquivos
+sudo nhopkg -r gimp -p
 ```
 
 ## Ferramentas Complementares
@@ -134,7 +133,7 @@ sudo nhopkg -z slackware-package.tgz
 | `nhopkg-src` | Assistente de criação de pacotes fonte | [`docs/pt_BR/nhopkg-src.md`](nhopkg-src.md) |
 | `nhopkg-repos` | Criação e manutenção de repositórios (`--create-repo`, `--add-to-repo`) | [`docs/pt_BR/repositorios.md`](repositorios.md) |
 | `nhouser` | Criação idempotente de usuários/grupos do sistema (usado em `npostinstall()`) | [`docs/pt_BR/usuarios-servicos.md`](usuarios-servicos.md) |
-| `nhopkg-overlay` | Sobreposição de diretório de compilação para compilações personalizadas | [`docs/pt_BR/construcao.md`](construcao.md) |
+| `nhopkg-overlay` | Ambiente de construção isolado via overlay | [`docs/pt_BR/nhopkg-overlay.md`](nhopkg-overlay.md) |
 
 ## Veja também
 

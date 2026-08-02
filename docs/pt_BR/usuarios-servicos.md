@@ -9,14 +9,27 @@
 
 Ambas as funções são projetadas para serem usadas em scripts pós-instalação de pacotes (`npostinstall()`), seguindo as convenções do **Beyond Linux From Scratch (BLFS)**.
 
-## 6.1. Gerenciamento de usuários e grupos: `nhouser()`
+## 6.1. Gerenciamento de usuários e grupos
 
-A função `nhouser` permite a criação segura e repetível de contas de sistema. Ela é idempotente: se o usuário já existir, nada é alterado.
+O gerenciamento de usuários e grupos é implementado na biblioteca **`libnhopkg_nhouser`** (instalada em `/usr/lib/nhopkg/libnhopkg_nhouser`), que fornece a função `nhouser()` e suporta **dois backends**, detectados em tempo de execução:
 
-### Sintaxe
-    
-    
+  * **GNU shadow-utils** (`useradd`/`groupadd`) — preferido em sistemas completos.
+  * **BusyBox** (`adduser`/`addgroup`) — alternativa para ambientes estáticos/embarcados.
+
+A detecção de backend não se limita a verificar se os binários existem: ela confirma que eles realmente *executam* (protegendo contra binários dinâmicos quebrados após uma atualização de libc). A biblioteca também busca UID/GID livres abaixo de 999 quando o solicitado está em uso ou fora da faixa, e avisa sobre divergências de UID/GID.
+
+### A ferramenta de linha de comando `nhouser`
+
+`nhouser` também é instalado como um comando autônomo (`/usr/bin/nhouser`). É um wrapper que carrega `nhopkg.conf`, a biblioteca base e `libnhopkg_nhouser`, e então chama `nhouser()` com os argumentos já analisados. Isso permite usá-lo tanto em scripts `npostinstall()` quanto interativamente:
+
+    nhouser --check|--create --user NOME [opções]
+    nhouser --check|--create --group NOME [--gid GID]
+
+### Sintaxe de `nhouser()`
+
     nhouser --check|--create [opções]
+
+A função é idempotente: se o usuário ou grupo já existir, nada é alterado (apenas registra um aviso se houver divergência de UID/GID).
 
 ### Opções disponíveis
 
@@ -28,8 +41,12 @@ Opção | Descrição
 `--group <nome>`| Grupo primário.  
 `--uid <id>`| ID numérico do usuário (recomendado pelo BLFS).  
 `--gid <id>`| ID numérico do grupo.  
+`--uname <comentário>`| Campo de comentário GECOS do usuário.  
+`--udir <caminho>`| Diretório home do usuário.  
 `--shell <caminho>`| Shell atribuído (ex.: `/sbin/nologin`).  
 `--groups <lista>`| Grupos secundários (separados por vírgula).  
+`--locked`| Bloquear a conta imediatamente (`passwd -l`).  
+`-v, --verbose`| Operações detalhadas.  
 
 ### Exemplos reais (BLFS)
 
@@ -102,13 +119,16 @@ Esta função instala unidades de serviço dos repositórios BLFS, detectando au
     }
 
 ## 6.3. Configuração do sistema
-    
-    
-    export INITSYSTEM="systemd"
-    export SYSTEMD_BLFS_URL="https://anduin.linuxfromscratch.org/BLFS/blfs-bootscripts/blfs-bootscripts-systemd-20250101.tar.xz"
-    export SYSTEMD_BLFS_DIR="/usr/src/blfs-bootscripts-systemd"
-    export SYSV_BLFS_URL="https://anduin.linuxfromscratch.org/BLFS/blfs-bootscripts/blfs-bootscripts-20250101.tar.xz"
-    export SYSV_BLFS_DIR="/usr/src/blfs-bootscripts"
+
+Essas variáveis são definidas no `nhopkg.conf` e podem ser sobrescritas por pacote:
+
+    export INITSYSTEM="systemd"                    # systemd ou sysvinit
+    export SYSTEMD_BLFS_VER="20251204"
+    export SYSTEMD_BLFS_DIR="/usr/src/blfs-systemd-units-${SYSTEMD_BLFS_VER}"
+    export SYSTEMD_BLFS_URL="https://www.linuxfromscratch.org/blfs/downloads/systemd/blfs-systemd-units-${SYSTEMD_BLFS_VER}.tar.xz"
+    export SYSV_BLFS_VER="20251220"
+    export SYSV_BLFS_DIR="/usr/src/blfs-bootscripts-${SYSV_BLFS_VER}"
+    export SYSV_BLFS_URL="https://anduin.linuxfromscratch.org/BLFS/blfs-bootscripts/blfs-bootscripts-${SYSV_BLFS_VER}.tar.xz"
 
 ## Conclusão
 

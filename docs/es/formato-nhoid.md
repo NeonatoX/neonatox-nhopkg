@@ -1,142 +1,288 @@
-[← Índice](README.md)
+# Formato de archivo nhoid — nhopkg v0.5.1
 
-# 3\. Formato del paquete: `nhoid`
+El archivo nhoid es el descriptor de metadatos utilizado tanto en los paquetes binarios (`.nho`) como en los de fuente (`.srcnho`). Define la identidad del paquete, las dependencias, los pasos de compilación, la lógica de instalación y las tareas posteriores a la instalación.
 
-El archivo `nhoid` es el núcleo de cualquier paquete **nhopkg**. Define metadatos, dependencias, fuentes y comportamiento.
+## Reglas del formato
 
-Existen dos tipos de paquetes, y sus `nhoid` son fundamentalmente distintos:
+- Los campos usan la sintaxis `# FieldName:\tvalue` (separados por tabulador)
+- Los comentarios usan `##` (doble almohadilla) — los ignora el analizador
+- El archivo debe comenzar con la cabecera `#%NHO-0.5`
+- Las funciones (`nbuild()`, `ninstall()`, etc.) definen código ejecutable
 
-  * **Paquetes fuente** (`.srcnho`): contienen recetas para compilar e instalar software.
-  * **Paquetes binarios** (`.nho`): contienen archivos listos para instalar en el sistema.
+## Cabecera
 
+```nhoid
+#%NHO-0.5
+# Package Maintainer:	Nombre <email>
+```
 
+Si la versión de la cabecera no coincide con `NHOID_VERSION`, el paquete se rechaza.
 
-## Estructura común
+## Campos de metadatos
 
-Todos los `nhoid` deben comenzar con la versión del formato:
-    
-    
-    #%NHO-0.5
+| Campo | Obligatorio | Descripción |
+|---|---|---|
+| `# Name:` | Sí | Nombre del paquete |
+| `# Version:` | Sí | Versión del paquete (p. ej. `1.0`, `2.15.6`) |
+| `# Release:` | Sí | Release del paquete (p. ej. `n2026`) |
+| `# License:` | No | Licencia del software (p. ej. `GPL-3.0-only`, `MIT`) |
+| `# Group:` | No | Clasificación de grupo del paquete |
+| `# Repository:` | No | Repositorio de destino (`core`, `extra`, `multilib`) |
+| `# Arch:` | No | Arquitectura(s) de destino, separadas por espacios (p. ej. `i686 x86_64`) |
+| `# OS:` | No | Sistema operativo de destino |
+| `# Url:` | No | Sitio web del proyecto upstream |
+| `# Description:` | No | Descripción del paquete |
+| `# Installed-Size:` | No | Tamaño instalado en bytes (calculado automáticamente durante la compilación) |
+| `# Build-Duration:` | No | Tiempo de compilación (registrado automáticamente) |
+| `# Build-Date:` | No | Marca de tiempo de compilación (registrada automáticamente) |
+| `# Build-Host:` | No | Nombre de host de compilación (registrado automáticamente) |
 
-Cada línea sigue el patrón: `# NombreDelCampo: <valor>` (usando un tabulador después de los dos puntos).
+### Metadatos de fuente
 
-## Campos comunes a ambos tipos
+| Campo | Obligatorio | Descripción |
+|---|---|---|
+| `# Packageurl:` | Sí | URL de la fuente. Para tarballs: `https://...tar.gz`. Para git: `git+https://...` |
+| `# Packageref:` | Solo si es git | Referencia git: tag, commit o rama |
+| `# SHA256:` | Recomendado para tarballs | Suma SHA256 + nombre de archivo. Alternativa: `# MD5:`, `# SHA512:`, `# BSUM:` |
 
-Campo | Descripción | Obligatorio  
----|---|---  
-`# Name:` | Nombre del paquete (solo letras, números, guiones y guiones bajos). | Sí  
-`# Version:` | Versión del software (sin el número de release). | Sí  
-`# Release:` | Número de release del paquete (ej. `n2025`). | Sí  
-`# Description:` | Descripción breve del paquete. | Sí  
-`# Package Maintainer:` | Correo del mantenedor. | No  
-`# License:` | Licencia del software. | No  
-`# Url:` | Sitio web oficial del proyecto. | No  
-`# Group:` | Grupo lógico (para instalación por grupos). | No  
-`# Repository:` | Repositorio destino (ej. `extra`, `multilib`). | No  
-`# Arch:` | Arquitectura objetivo. Usa `noarch`, `all` o `any` si es independiente. | No (pero recomendado)  
-`# Dep(post):` | Dependencias en tiempo de ejecución (con operadores de versión opcionales). | No  
-`# OptionalDep(post):` | Dependencias opcionales en tiempo de ejecución. | No  
-`# Provides:` | Interfaces o nombres virtuales que este paquete satisface. | No  
-`# Conflicts:` | Paquetes incompatibles (con operadores de versión). | No  
-`# Splitpackage:` | Lista de subpaquetes (ej. `dev docs`). | No  
-  
-## Paquetes fuente (`.srcnho`)
+Ejemplo:
 
-Estos paquetes contienen la receta para construir software. Pueden usar **Git** o **tarball** como fuente.
+```nhoid
+# Packageurl:	https://example.com/pkg-1.0.tar.gz
+# SHA256:	a1b2c3d4...  pkg-1.0.tar.gz
+```
 
-### Opción A: Fuente Git
+Para fuentes git:
 
-**Regla:** Si se usa Git, **no se incluye** archivo fuente ni `SHA256`. 
+```nhoid
+# Packageurl:	git+https://github.com/user/repo
+# Packageref:	v1.0
+```
 
-Campo | Descripción | Obligatorio  
----|---|---  
-`# Packageurl:` | URL del repositorio Git (debe empezar con `git+` o terminar en `.git`). | Sí  
-`# Packageref:` | Referencia Git (tag, rama o commit). | Sí  
-  
-Ejemplo: `git+https://gitlab.gnome.org/GNOME/gimp.git` \+ `GIMP_3_0_4`
+### Paquetes divididos (split)
 
-### Opción B: Tarball (local o remoto)
+Los paquetes divididos permiten que una única fuente produzca varios subpaquetes.
 
-**Regla:** Si se usa tarball (ya sea embebido en el `.srcnho` o descargado), **el campo`SHA256` es obligatorio** y corresponde al hash del archivo fuente. 
+```nhoid
+# Splitpackage:	dev lib docs
+```
 
-Campo | Descripción | Obligatorio  
----|---|---  
-`# Packageurl:` | URL del tarball (si es remoto) o nombre del archivo dentro del `.srcnho` (si es local). | Sí  
-`# SHA256:` | Checksum SHA256 del archivo fuente (tarball). | Sí  
-  
-### Dependencias de construcción (solo en fuente)
+Cada parte dividida tiene su propio conjunto de campos de metadatos usando el sufijo `_<parte>`:
 
-Campo | Descripción | Obligatorio  
----|---|---  
-`# BuildDep:` | Dependencias requeridas para compilar. | No  
-`# OptionalBuildDep:` | Dependencias opcionales para compilar. | No  
-  
-## Paquetes binarios (`.nho`)
+```nhoid
+# Description_dev:	Cabeceras de desarrollo
+# Description_lib:	Bibliotecas compartidas
+# Provides_dev:	libfoo-dev
+# Conflicts_lib32:	lib32-libfoo
+# Group_docs:	doc
+# Repository_dev:	extra
+# Dep_dev(post):	algúnpaquete
+```
 
-**Reglas clave:**
+### Provides y Conflicts
 
-  * **Nunca** contienen `Packageurl`, `Packageref`, ni archivos fuente.
-  * **Siempre** incluyen el campo `SHA256`, que corresponde al hash de `data.tar.zst`.
-  * **Siempre** incluyen los campos técnicos de construcción.
+```nhoid
+# Provides:	sdl2
+# Provides_lib32:	lib32-sdl2
+# Conflicts:	sdl2
+# Conflicts_lib32:	lib32-sdl2
+```
 
+### Backup
 
+Los archivos listados en `# Backup:` se preservan antes de la extracción y se restauran después. Útil para archivos de configuración.
 
-### Campos exclusivos de binarios
+```nhoid
+# Backup:	/etc/foo.conf /etc/foo.d/*
+```
 
-Campo | Descripción | Obligatorio  
----|---|---  
-`# OS:` | Sistema operativo (normalmente `linux`). | Sí  
-`# Installed-Size:` | Tamaño estimado en KB del paquete instalado. | Sí  
-`# Build-Duration:` | Tiempo de compilación en segundos. | Sí  
-`# Build-Date:` | Fecha y hora de construcción (formato ISO). | Sí  
-`# Build-Host:` | Nombre del host donde se construyó. | Sí  
-`# SHA256:` | Checksum SHA256 de `data.tar.zst`. | Sí  
-  
-## Funciones de post-instalación/eliminación
+### Dependencias
 
-Ambos tipos pueden incluir funciones Bash (definidas al final del archivo):
+Todos los campos de dependencias son opcionales. Los paquetes múltiples se separan con espacios. Operadores de versión: `>=`, `<=`, `!=`, `>`, `<`, `=`.
 
-  * `nbuild()`: solo en paquetes fuente.
-  * `ninstall()`: solo en paquetes fuente.
-  * `npostinstall()`: se ejecuta tras instalar (ambos tipos, pero más común en binarios).
-  * `npostremove()`: se ejecuta tras desinstalar.
+```nhoid
+# BuildDep:	cmake ninja
+# OptionalBuildDep:	gtk4>=4.10
+# Dep(post):	libfoo
+# OptionalDep(post):	bar<2.0
+```
 
+Las dependencias específicas de subpaquetes usan el sufijo `_<parte>`:
 
+```nhoid
+# Dep_dev(post):	libfoo-dev
+# OptionalDep_lib(post):	lib32-gcc
+```
 
-Para subpaquetes, se usan sufijos: `npostinstall_dev()`, etc.
+### Tipos de dependencia
 
-## Ejemplo: paquete fuente (Git)
-    
-    
-    #%NHO-0.5
-    # Name:			greetd
-    # Version:		0.9.0
-    # Release:		n2025
-    # Description:		Lightweight display manager
-    # Packageurl:		git+https://git.sr.ht/~kennylevinsen/greetd
-    # Packageref:		v0.9.0
-    # Dep(post):		pam systemd
-    # BuildDep:		meson>=0.56 ninja
-    
-    nbuild() {
-      meson setup build --prefix=/usr
-      ninja -C build
-    }
+| Campo | Cuándo se evalúa | Descripción |
+|---|---|---|
+| `# BuildDep:` | Antes de `nbuild()` | Dependencias de compilación requeridas |
+| `# OptionalBuildDep:` | Antes de `nbuild()` | Dependencias de compilación opcionales |
+| `# Dep(post):` | Antes de `ninstall()` | Dependencias de ejecución requeridas |
+| `# OptionalDep(post):` | Antes de `ninstall()` | Dependencias de ejecución opcionales |
 
-## Ejemplo: paquete binario
-    
-    
-    #%NHO-0.5
-    # Name:			greetd
-    # Version:		0.9.0
-    # Release:		n2025
-    # Description:		Lightweight display manager
-    # Arch:			x86_64
-    # OS:			linux
-    # Installed-Size:	1200 KB
-    # Build-Duration:	45
-    # Build-Date:		2026-01-14T10:30:00Z
-    # Build-Host:		buildhost.local
-    # SHA256:		a1b2c3d4e5f6...
-    # Dep(post):		pam systemd
-    # Repository:		extra
+---
+
+## Funciones
+
+Las funciones definen código ejecutable. Deben ser bash válido.
+
+### nbuild()
+
+Comandos de compilación. Debe tener contenido real (no solo `noemptyfuncs`).
+
+```bash
+nbuild() {
+    cmake -B build -G Ninja
+    ninja -C build
+}
+```
+
+### ninstall()
+
+Comandos de instalación. Debe tener contenido real.
+
+Los archivos se instalan directamente en la raíz del sistema en vivo. Después, los archivos recién instalados se detectan escaneando `FIND_DIRS`.
+
+```bash
+ninstall() {
+    ninja -C build install
+}
+```
+
+### ninstall_\<parte\>()
+
+Comandos de instalación para un subpaquete dividido.
+
+```bash
+ninstall_dev() {
+    cp -r include/* /usr/include/
+}
+```
+
+### npostinstall()
+
+Comandos posteriores a la instalación (ldconfig, hardlinks, etc.). Puede ser `noemptyfuncs`.
+
+```bash
+npostinstall() {
+    ldconfig
+}
+```
+
+### npostinstall_\<parte\>()
+
+Post-instalación para un subpaquete dividido.
+
+### npostremove()
+
+Comandos posteriores a la eliminación. Puede ser `noemptyfuncs`.
+
+```bash
+npostremove() {
+    rm -f /etc/ld.so.cache
+}
+```
+
+### npostremove_\<parte\>()
+
+Post-eliminación para un subpaquete dividido.
+
+### noemptyfuncs
+
+Marcador de posición para funciones opcionales. Evita errores de bash cuando el cuerpo de una función está intencionadamente vacío.
+
+```bash
+npostinstall() {
+    noemptyfuncs
+}
+```
+
+---
+
+## Ejemplos
+
+### Paquete tarball simple
+
+```nhoid
+#%NHO-0.5
+# Package Maintainer:	usuario <usuario@host>
+
+# Name:	mktorrent
+# Version:	1.1
+# Release:	n2026
+# License:	GPL-2.0-only
+# Repository:	extra
+# Arch:	x86_64
+# Url:	https://github.com/pobrn/mktorrent
+# Description:	Utilidad de línea de comandos para crear archivos de metadatos BitTorrent.
+# Packageurl:	https://github.com/pobrn/mktorrent/archive/v1.1/mktorrent-1.1.tar.gz
+# SHA256:	d0f47500192605d01b5a2569c605e51ed319f557d24cfcbcb23a26d51d6138c9  mktorrent-1.1.tar.gz
+
+nbuild() {
+    make
+}
+
+ninstall() {
+    make install
+}
+
+npostinstall() {
+    noemptyfuncs
+}
+
+npostremove() {
+    noemptyfuncs
+}
+```
+
+### Fuente Git con paquetes divididos
+
+```nhoid
+#%NHO-0.5
+# Package Maintainer:	cargabsj175 <cargabsj175@gmail.com>
+
+# Name:	qt6
+# Version:	6.10.2
+# Release:	n2026
+# License:	GPL-3.0-only LGPL-3.0-only
+# Repository:	extra
+# Arch:	i686 x86_64
+# Url:	https://www.qt.io/
+# Description:	Un framework multiplataforma de aplicaciones e interfaz de usuario.
+# Description_xcb_private_headers:	Cabeceras privadas para Qt6 Xcb.
+# Packageurl:	git+https://github.com/qt/qtbase
+# Packageref:	v6.10.2
+# Splitpackage:	xcb_private_headers
+
+nbuild() {
+    cmake -B build -G Ninja
+    ninja -C build
+}
+
+ninstall() {
+    ninja -C build install
+}
+
+npostinstall() {
+    noemptyfuncs
+}
+
+npostremove() {
+    noemptyfuncs
+}
+
+ninstall_xcb_private_headers() {
+    cp -r include/* /usr/include/
+}
+
+npostinstall_xcb_private_headers() {
+    noemptyfuncs
+}
+
+npostremove_xcb_private_headers() {
+    noemptyfuncs
+}
+```
