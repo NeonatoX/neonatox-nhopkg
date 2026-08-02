@@ -703,7 +703,8 @@ check_if_installed_package()
 	fi
 	# If NO is selected exits.
 	check_if_ok " * Package will not be installed."
-	# If YES is selected remove old package.
+	# If YES is selected backup config files before removing old package.
+	backup_config_files
 	remove_package
 	remove_package_config_files
 }
@@ -2822,10 +2823,11 @@ case "${NHOPKG_OPTION}" in
 				exit 1
 			fi
 			# Backup config files before removing old version
-			backup_config_files
-			# Checks if package is aready installed.
+			# (check_if_installed_package does the backup internally)
 			if [[ "${USE_INSTALL_ROOT}" != "yes" ]]; then
 				check_if_installed_package
+			else
+				backup_config_files
 			fi
 			
 			## 3. Security checks.
@@ -2903,10 +2905,6 @@ case "${NHOPKG_OPTION}" in
 			# Is possible that package are a package (evident xD) or a file.
 			getpackage
 			downloadpackage
-			# Checks if package is aready installed.
-			if [[ "${USE_INSTALL_ROOT}" != "yes" ]]; then
-				check_if_installed_package
-			fi
 			## 4. Checks dependencies.
 			if [[ "${NHOPKG_CHECKDEPS}" = "yes" ]]; then
 				echog " - Resolving Dependencies."
@@ -2927,7 +2925,11 @@ case "${NHOPKG_OPTION}" in
 			
 			pkg_basename="${pkgname}-${pkgversion}-${pkgrevision}.${pkgos}-${pkgarch}.nho"
 			
-			_dep_install_single "${pkg_basename}"
+			if [[ "${USE_INSTALL_ROOT}" != "yes" ]]; then
+				_dep_install_single "${pkg_basename}" "ask"
+			else
+				_dep_install_single "${pkg_basename}"
+			fi
 
 			echog " - Installation finished sucessfuly!"
 		done
@@ -3222,9 +3224,6 @@ case "${NHOPKG_OPTION}" in
 					get_basic_data "${NHOPKG_TMPDIR}/nhoid"
 					cp "${NHOPKG_TMPDIR}/nhoid" "${NHOPKG_TMPDIR}/.nhoid"
 					
-					# Check that the split package is installed
-					check_if_installed_package "${part}"
-					
 					# Generate a temporary nhoid for the split package
 					build_nhoid_to_bin "${part}"
 					# Now check conflicts using this split-specific metadata
@@ -3232,6 +3231,9 @@ case "${NHOPKG_OPTION}" in
 					if [[ -n "${REPLACES_PACKAGE}" ]]; then
 						remove_replaced_package "${REPLACES_PACKAGE}"
 					fi
+					# Check that the split package is installed
+					# (backup_config_files uses the split nhoid generated above)
+					check_if_installed_package "${part}"
 					# Restore original .nhoid for build steps
 					cp "${NHOPKG_TMPDIR}/.nhoid" "${NHOPKG_TMPDIR}/nhoid"
 					get_basic_data "${NHOPKG_TMPDIR}/nhoid"
@@ -3464,9 +3466,6 @@ case "${NHOPKG_OPTION}" in
 					get_basic_data "${NHOPKG_TMPDIR}/nhoid"
 					cp "${NHOPKG_TMPDIR}/nhoid" "${NHOPKG_TMPDIR}/.nhoid"
 					
-					# Check that the split package is installed
-					check_if_installed_package "${part}"
-					
 					# Generate a temporary nhoid for the split package
 					build_nhoid_to_bin "${part}"
 					# Now check conflicts using this split-specific metadata
@@ -3474,6 +3473,9 @@ case "${NHOPKG_OPTION}" in
 					if [[ -n "${REPLACES_PACKAGE}" ]]; then
 						remove_replaced_package "${REPLACES_PACKAGE}"
 					fi
+					# Check that the split package is installed
+					# (backup_config_files uses the split nhoid generated above)
+					check_if_installed_package "${part}"
 					# Restore original .nhoid for build steps
 					cp "${NHOPKG_TMPDIR}/.nhoid" "${NHOPKG_TMPDIR}/nhoid"
 					get_basic_data "${NHOPKG_TMPDIR}/nhoid"

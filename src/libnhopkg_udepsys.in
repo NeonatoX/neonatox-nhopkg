@@ -754,6 +754,7 @@ get_repo_url()
 #----------------------------------------------------------
 _dep_install_single() {
     local pkg_basename="$1"
+    local ask="$2"
     make_tmp_dir
         
     local pkgfile="${ROOT_PKG_STATE_DIR}/cache/${pkg_basename}"
@@ -777,30 +778,46 @@ _dep_install_single() {
     if [[ -f "${ROOT_PKG_STATE_DIR}/packages/${pkgname}" ]]; then
         local pkg_ver="${pkgversion}"
         local pkg_rev="${pkgrevision}"
-        local inst_ver inst_rev
+        local inst_ver inst_rev action
         inst_ver=$(grep "^# Version:" "${ROOT_PKG_STATE_DIR}/packages/${pkgname}" 2>/dev/null | awk -F'\t' '{print $2}')
         inst_rev=$(grep "^# Release:" "${ROOT_PKG_STATE_DIR}/packages/${pkgname}" 2>/dev/null | awk -F'\t' '{print $2}')
 
         if version_compare "${pkg_ver}" "<" "${inst_ver}"; then
-            echog " - Skipping dependency: ${pkgname} (installed ${inst_ver}-${inst_rev} is newer)"
-            cleanup_tmp_dir
-            return 0
+            action="downgrade"
         elif [[ "${pkg_ver}" == "${inst_ver}" ]] && [[ "${pkg_rev}" != "${inst_rev}" ]]; then
             local repo_bd inst_bd
             inst_bd=$(grep "^# Build-Date:" "${ROOT_PKG_STATE_DIR}/packages/${pkgname}" 2>/dev/null | awk -F'\t' '{print $2}')
             repo_bd=$(grep "^# Build-Date:" "${NHOPKG_TMPDIR}/nhoid" 2>/dev/null | awk -F'\t' '{print $2}')
             if [[ -n "${inst_bd}" ]] && [[ -n "${repo_bd}" ]] && (( repo_bd <= inst_bd )); then
-                echog " - Skipping dependency: ${pkgname} (Build-Date not newer)"
-                cleanup_tmp_dir
-                return 0
+                action="downgrade"
+            else
+                action="update"
             fi
         elif version_compare "${pkg_ver}-${pkg_rev}" "<=" "${inst_ver}-${inst_rev}"; then
+            action="reinstall"
+        else
+            action="update"
+        fi
+
+        if [[ "${ask}" = "ask" ]]; then
+            case "${action}" in
+                update)    echog " - ${pkgname} is installed in your system, but is deprecated. Package will be UPDATE." ;;
+                downgrade) echog " - ${pkgname} is installed in your system and is newer. Package will be DOWNGRADE." ;;
+                reinstall) echog " - ${pkgname} is already installed in your system. Package will be REINSTALL." ;;
+            esac
+            nhopkg_ask_follow
+            check_if_ok " * Package will not be installed."
+        elif [[ "${action}" = "update" ]]; then
+            echog " - Upgrading dependency: ${pkgname} (${inst_ver}-${inst_rev} -> ${pkg_ver}-${pkg_rev})"
+        elif [[ "${action}" = "downgrade" ]]; then
+            echog " - Skipping dependency: ${pkgname} (installed ${inst_ver}-${inst_rev} is newer)"
+            cleanup_tmp_dir
+            return 0
+        else
             echog " - Skipping dependency: ${pkgname} (already installed: ${inst_ver}-${inst_rev})"
             cleanup_tmp_dir
             return 0
         fi
-
-        echog " - Upgrading dependency: ${pkgname} (${inst_ver}-${inst_rev} -> ${pkg_ver}-${pkg_rev})"
     fi
     
     # Security checks.
