@@ -1,7 +1,31 @@
 #!/bin/bash
-# /usr/lib/nhopkg/libnhopkg_crypto
+###############################################################################
 # Cryptographic functions for nhopkg signing and verification.
-# Shared by nhopkg.in, nhopkg-repos.in, and future tools.
+#==============================================================================
+#	libnhopkg_crypto v. @PACKAGE_VERSION@ @RELEASEDATE@
+#	<https://github.com/NeonatoX/neonatox-nhopkg>
+#
+#	Part of nhopkg package manager.
+#
+#	Copyright (C) 2008-2009  Jaime Gil de Sagredo Luna <jaimegildesagredo@gmail.com>
+#	Copyright (C) 2009-@RELEASEDATE@  Carlos Sánchez <cargabsj175@gmail.com>
+#
+# Functions provided:
+#   crypto_init_keyring()          — Description at the bottom of the function
+#   crypto_verify_signature()      — Description at the bottom of the function
+#   crypto_sign_package()          — Description at the bottom of the function
+#   crypto_sign_package_ext()      — Description at the bottom of the function
+#   crypto_sign_file()             — Description at the bottom of the function
+#   crypto_verify_file()           — Description at the bottom of the function
+#   crypto_verify_repo_metadata()  — Description at the bottom of the function
+#   crypto_sign_repo_metadata()    — Description at the bottom of the function
+#   crypto_generate_key()          — Description at the bottom of the function
+#   crypto_import_key()            — Description at the bottom of the function
+#   crypto_export_key()            — Description at the bottom of the function
+#   crypto_list_keys()             — Description at the bottom of the function
+#   crypto_remove_key()            — Description at the bottom of the function
+#   crypto_verify_incoming()       — Description at the bottom of the function
+###############################################################################
 
 #==============================================================================
 # Section: GPG presence check

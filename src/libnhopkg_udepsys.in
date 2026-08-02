@@ -1,9 +1,14 @@
 #!/bin/bash
-#==============================================================================
+###############################################################################
 # libnhopkg_udepsys — Unified Dependency Resolution System
+#==============================================================================
+#	nhopkg_udepsys v. @PACKAGE_VERSION@ @RELEASEDATE@
+#	<https://github.com/NeonatoX/neonatox-nhopkg>
 #
-# Part of nhopkg package manager.
-# Extracted from nhopkg.in for modular use.
+#	Part of nhopkg package manager.
+#
+#	Copyright (C) 2008-2009  Jaime Gil de Sagredo Luna <jaimegildesagredo@gmail.com>
+#	Copyright (C) 2009-@RELEASEDATE@  Carlos Sánchez <cargabsj175@gmail.com>
 #
 # Dependencies:
 #   - libnhopkg (echog, echogn, get_basic_data, get_nhoid_data,
@@ -13,21 +18,23 @@
 #   - ROOT_PKG_STATE_DIR (set by caller before calling any function)
 #
 # Functions provided:
-#   dep_resolve_from_nhoid()   — Resolve deps from a nhoid file
-#   dep_install_queue()        — Install all queued dependencies
-#   dep_check_conflicts()      — Check Conflicts / Provides
-#   check_package_conflicts()  — Legacy wrapper
-#   resolve_virtual_package()  — Find a package by Provides
-#   version_compare()          — Compare version strings
-#   get_repo_url()             — Get URL for a repository
-#   _dep_resolve_single()      — Resolve one dependency (internal)
-#   _dep_parse_spec()          — Parse "name>=ver" spec (internal)
-#   _dep_find_installed()      — Search installed packages (internal)
-#   _dep_find_in_repos()       — Search repository packages (internal)
-#   _dep_resolve_children()    — Recurse into child deps (internal)
-#   _dep_provides_package()    — Check Provides (internal)
-#   _dep_download_all()        — Download queue (internal)
-#==============================================================================
+#   dep_resolve_from_nhoid()    Resolve deps from a nhoid file
+#   dep_install_queue()         — Install all queued dependencies
+#   dep_check_conflicts()       — Check Conflicts / Provides
+#   check_package_conflicts()   — Legacy wrapper
+#   resolve_virtual_package()   — Find a package by Provides
+#   version_compare()           — Compare version strings
+#   get_repo_url()              — Get URL for a repository
+#   _dep_resolve_single()       — Resolve one dependency (internal)
+#   _dep_parse_spec()           — Parse "name>=ver" spec (internal)
+#   _dep_find_installed()       — Search installed packages (internal)
+#   _dep_find_in_repos()        — Search repository packages (internal)
+#   _dep_resolve_children()     — Recurse into child deps (internal)
+#   _dep_provides_package()     — Check Provides (internal)
+#   _dep_download_all()         — Download queue (internal)
+#   _dep_install_single         — Install a single package  (internal)
+#   _dep_install_all_from_queue — Install all downloaded packages  (internal)
+###############################################################################
 
 #==============================================================================
 # Global Dependency Resolution Arrays
@@ -740,4 +747,97 @@ get_repo_url()
 
 	echog " *** ERROR: All mirrors failed for repository '${repo}'." >&2
 	exit 1
+}
+
+#----------------------------------------------------------
+# _dep_install_single() - Install a single package
+#----------------------------------------------------------
+_dep_install_single() {
+    local pkg_basename="$1"
+    make_tmp_dir
+        
+    local pkgfile="${ROOT_PKG_STATE_DIR}/cache/${pkg_basename}"
+    [[ -f "$pkgfile" ]] || return 1
+    
+    tar xf "$pkgfile" -C "$NHOPKG_TMPDIR"
+    check_if_ok " * Unable to uncompress package."
+    
+    # Get data from package. Checks that is good package and get data from it.
+    if [[ -f "${NHOPKG_TMPDIR}/nhoid" ]]; then
+        get_nhoid_data "${NHOPKG_TMPDIR}/nhoid"
+        check_package_conflicts "${NHOPKG_TMPDIR}/nhoid"
+    else
+        echog " * The selected package is not valid." >&2
+        # Clean and exits with error.
+        cleanup_tmp_dir
+        return 1
+    fi
+    
+    # Check if package is already installed in root (skip if same or newer version)
+    if [[ -f "${ROOT_PKG_STATE_DIR}/packages/${pkgname}" ]]; then
+        local pkg_ver="${pkgversion}"
+        local pkg_rev="${pkgrevision}"
+        local inst_ver inst_rev
+        inst_ver=$(grep "^# Version:" "${ROOT_PKG_STATE_DIR}/packages/${pkgname}" 2>/dev/null | awk -F'\t' '{print $2}')
+        inst_rev=$(grep "^# Release:" "${ROOT_PKG_STATE_DIR}/packages/${pkgname}" 2>/dev/null | awk -F'\t' '{print $2}')
+
+        if version_compare "${pkg_ver}" "<" "${inst_ver}"; then
+            echog " - Skipping dependency: ${pkgname} (installed ${inst_ver}-${inst_rev} is newer)"
+            cleanup_tmp_dir
+            return 0
+        elif [[ "${pkg_ver}" == "${inst_ver}" ]] && [[ "${pkg_rev}" != "${inst_rev}" ]]; then
+            local repo_bd inst_bd
+            inst_bd=$(grep "^# Build-Date:" "${ROOT_PKG_STATE_DIR}/packages/${pkgname}" 2>/dev/null | awk -F'\t' '{print $2}')
+            repo_bd=$(grep "^# Build-Date:" "${NHOPKG_TMPDIR}/nhoid" 2>/dev/null | awk -F'\t' '{print $2}')
+            if [[ -n "${inst_bd}" ]] && [[ -n "${repo_bd}" ]] && (( repo_bd <= inst_bd )); then
+                echog " - Skipping dependency: ${pkgname} (Build-Date not newer)"
+                cleanup_tmp_dir
+                return 0
+            fi
+        elif version_compare "${pkg_ver}-${pkg_rev}" "<=" "${inst_ver}-${inst_rev}"; then
+            echog " - Skipping dependency: ${pkgname} (already installed: ${inst_ver}-${inst_rev})"
+            cleanup_tmp_dir
+            return 0
+        fi
+
+        echog " - Upgrading dependency: ${pkgname} (${inst_ver}-${inst_rev} -> ${pkg_ver}-${pkg_rev})"
+    fi
+    
+    # Security checks.
+    check_package_hash
+    check_package_arch
+    verify_package_signature
+    
+    # Handle package replacement
+    if [[ -n "$DEP_REPLACE_PACKAGE" ]]; then
+        remove_replaced_package "$DEP_REPLACE_PACKAGE"
+    fi
+    
+    # Backup config files before removing old version
+    backup_config_files
+    
+    # Remove old version if upgrading
+    if [[ -f "${ROOT_PKG_STATE_DIR}/packages/${pkgname}" ]]; then
+        get_basic_data "${ROOT_PKG_STATE_DIR}/packages/${pkgname}"
+        echog " --- Removing old: ${pkgname}-${pkgversion}-${pkgrevision}"
+        remove_package
+        remove_package_config_files
+    fi
+    
+    # Install & configure
+    bin_install
+    bin_install_setting_up
+    bin_install_create_config_files
+    
+    cleanup_tmp_dir
+}
+
+#----------------------------------------------------------
+# _dep_install_all_from_queue() - Install all downloaded packages
+#----------------------------------------------------------
+_dep_install_all_from_queue() {
+	for DCASEPACKAGE in ${DCASEPACKAGES[*]}; do
+		_dep_install_single "$DCASEPACKAGE"
+	done
+	DCASEPACKAGES=()
 }

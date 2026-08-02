@@ -1,6 +1,7 @@
 #!/bin/bash
 ###############################################################################
-#	nhopkg-src v. @PACKAGE_VERSION@ @RELEASEDATE@  <https://github.com/cargabsj175/neonatox-nhopkg/>
+#	nhopkg-src v. @PACKAGE_VERSION@ @RELEASEDATE@
+#	<https://github.com/NeonatoX/neonatox-nhopkg/>
 #
 #	Copyright (C) 2009-@RELEASEDATE@  Carlos Sánchez <cargabsj175@gmail.com>
 #

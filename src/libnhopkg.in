@@ -1,6 +1,16 @@
 #!/bin/bash
-# /usr/lib/nhopkg/libnhopkg
+###############################################################################
 # Shared functions for nhopkg and standalone tools
+#==============================================================================
+#	libnhopkg v. @PACKAGE_VERSION@ @RELEASEDATE@
+#	<https://github.com/NeonatoX/neonatox-nhopkg>
+#
+#	Part of nhopkg package manager.
+#
+#	Copyright (C) 2008-2009  Jaime Gil de Sagredo Luna <jaimegildesagredo@gmail.com>
+#	Copyright (C) 2009-@RELEASEDATE@  Carlos Sánchez <cargabsj175@gmail.com>
+#
+###############################################################################
 
 # Nhopkg version.
 NHOPKG_VERSION="@PACKAGE_VERSION@"

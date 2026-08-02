@@ -1,8 +1,14 @@
 #!/bin/bash
-#==============================================================================
+###############################################################################
 # libnhopkg_download — Unified Download Management Library
 #==============================================================================
-# Provides: nhoget_url, nhoget_vcs, nhoget_fetch, nhoget_verify_hash
+#	libnhopkg_download v. @PACKAGE_VERSION@ @RELEASEDATE@
+#	<https://github.com/NeonatoX/neonatox-nhopkg>
+#
+#	Part of nhopkg package manager.
+#
+#	Copyright (C) 2008-2009  Jaime Gil de Sagredo Luna <jaimegildesagredo@gmail.com>
+#	Copyright (C) 2009-@RELEASEDATE@  Carlos Sánchez <cargabsj175@gmail.com>
 #
 # This library is self-contained and can be sourced by:
 #   - nhopkg.in (via NHOPKG_DOWNLOAD_LIB)
@@ -11,7 +17,21 @@
 #
 # Backend detection order (auto mode): GNU wget > curl > BusyBox wget
 # Default when NHOGET_BACKEND=auto prefers wget for backward compatibility.
-#==============================================================================
+#
+# Functions provided:
+#   nhoget_msg()             — Message type
+#   nhoget_detect_backend()  — Backend detection (bb-wget, wget, curl, none)
+#   nhoget_url()             — HTTP/HTTPS download
+#   nhoget_url_wget_bb()     — Busybox wget backend
+#   nhoget_verify_hash()     — Hash verification
+#   nhoget_vcs()             — VCS (Version Control) operations
+#   nhoget_vcs_git()         — VCS git backend
+#   nhoget_vcs_svn()         — VCS subversion backend
+#   nhoget_vcs_hg()          — VCS mercurial backend
+#   nhoget_fetch()           — High-level: auto-detect source type from URL
+#   nhoget_fetch_tarball()   — Tarball: download to temp and extract
+#   nhoget_usage()           — Show help
+###############################################################################
 
 # ---- Default configuration ----
 NHOGET_BACKEND="${NHOGET_BACKEND:-auto}"

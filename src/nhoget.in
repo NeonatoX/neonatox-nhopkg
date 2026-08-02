@@ -1,6 +1,7 @@
-#!/usr/bin/env bash
+#!/bin/bash
 #==============================================================================
-#	nhoget v. @PACKAGE_VERSION@ @RELEASEDATE@  <https://github.com/cargabsj175/neonatox-nhopkg/>
+#	nhoget v. @PACKAGE_VERSION@ @RELEASEDATE@
+#	<https://github.com/NeonatoX/neonatox-nhopkg/>
 #
 #	Copyright (C) 2009-@RELEASEDATE@  Carlos Sánchez <cargabsj175@gmail.com>
 #

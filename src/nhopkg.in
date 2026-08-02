@@ -1,6 +1,7 @@
 #!/bin/bash
 ###############################################################################
-#	nhopkg v. @PACKAGE_VERSION@ @RELEASEDATE@  <http://nhopkg.sourceforge.net>
+#	nhopkg v. @PACKAGE_VERSION@ @RELEASEDATE@
+#	<https://github.com/NeonatoX/neonatox-nhopkg>
 #
 #	Nhopkg is an universal package manager.
 #	It can be used in any GNU/linux distribution and uses .nho  packages
@@ -109,7 +110,7 @@ fi
 
 
 #==============================================================================
-# Section: Download library (nhoget)
+# Section: Download library (nhoget) (external library)
 #==============================================================================
 NHOPKG_DOWNLOAD_LIB="@prefix@/lib/nhopkg/libnhopkg_download"
 if [[ -e "${NHOPKG_DOWNLOAD_LIB}" ]]; then
@@ -118,105 +119,13 @@ fi
 
 
 #==============================================================================
-# Section: Crypto library (signing/verification)
+# Section: Crypto library (signing/verification) (external library)
 #==============================================================================
 NHOPKG_CRYPTO_LIB="@prefix@/lib/nhopkg/libnhopkg_crypto"
 if [[ -e "${NHOPKG_CRYPTO_LIB}" ]]; then
 	source "${NHOPKG_CRYPTO_LIB}" 2> /dev/null
 fi
 
-
-#----------------------------------------------------------
-# _dep_install_all_from_queue() - Install all downloaded packages
-#----------------------------------------------------------
-_dep_install_all_from_queue() {
-	for DCASEPACKAGE in ${DCASEPACKAGES[*]}; do
-		_dep_install_single "$DCASEPACKAGE"
-	done
-	DCASEPACKAGES=()
-}
-#----------------------------------------------------------
-# _dep_install_single() - Install a single package
-#----------------------------------------------------------
-_dep_install_single() {
-    local pkg_basename="$1"
-    make_tmp_dir
-        
-    local pkgfile="${ROOT_PKG_STATE_DIR}/cache/${pkg_basename}"
-    [[ -f "$pkgfile" ]] || return 1
-    
-    tar xf "$pkgfile" -C "$NHOPKG_TMPDIR"
-    check_if_ok " * Unable to uncompress package."
-    
-    # Get data from package. Checks that is good package and get data from it.
-    if [[ -f "${NHOPKG_TMPDIR}/nhoid" ]]; then
-        get_nhoid_data "${NHOPKG_TMPDIR}/nhoid"
-        check_package_conflicts "${NHOPKG_TMPDIR}/nhoid"
-    else
-        echog " * The selected package is not valid." >&2
-        # Clean and exits with error.
-        cleanup_tmp_dir
-        return 1
-    fi
-    
-    # Check if package is already installed in root (skip if same or newer version)
-    if [[ -f "${ROOT_PKG_STATE_DIR}/packages/${pkgname}" ]]; then
-        local pkg_ver="${pkgversion}"
-        local pkg_rev="${pkgrevision}"
-        local inst_ver inst_rev
-        inst_ver=$(grep "^# Version:" "${ROOT_PKG_STATE_DIR}/packages/${pkgname}" 2>/dev/null | awk -F'\t' '{print $2}')
-        inst_rev=$(grep "^# Release:" "${ROOT_PKG_STATE_DIR}/packages/${pkgname}" 2>/dev/null | awk -F'\t' '{print $2}')
-
-        if version_compare "${pkg_ver}" "<" "${inst_ver}"; then
-            echog " - Skipping dependency: ${pkgname} (installed ${inst_ver}-${inst_rev} is newer)"
-            cleanup_tmp_dir
-            return 0
-        elif [[ "${pkg_ver}" == "${inst_ver}" ]] && [[ "${pkg_rev}" != "${inst_rev}" ]]; then
-            local repo_bd inst_bd
-            inst_bd=$(grep "^# Build-Date:" "${ROOT_PKG_STATE_DIR}/packages/${pkgname}" 2>/dev/null | awk -F'\t' '{print $2}')
-            repo_bd=$(grep "^# Build-Date:" "${NHOPKG_TMPDIR}/nhoid" 2>/dev/null | awk -F'\t' '{print $2}')
-            if [[ -n "${inst_bd}" ]] && [[ -n "${repo_bd}" ]] && (( repo_bd <= inst_bd )); then
-                echog " - Skipping dependency: ${pkgname} (Build-Date not newer)"
-                cleanup_tmp_dir
-                return 0
-            fi
-        elif version_compare "${pkg_ver}-${pkg_rev}" "<=" "${inst_ver}-${inst_rev}"; then
-            echog " - Skipping dependency: ${pkgname} (already installed: ${inst_ver}-${inst_rev})"
-            cleanup_tmp_dir
-            return 0
-        fi
-
-        echog " - Upgrading dependency: ${pkgname} (${inst_ver}-${inst_rev} -> ${pkg_ver}-${pkg_rev})"
-    fi
-    
-    # Security checks.
-    check_package_hash
-    check_package_arch
-    verify_package_signature
-    
-    # Handle package replacement
-    if [[ -n "$DEP_REPLACE_PACKAGE" ]]; then
-        remove_replaced_package "$DEP_REPLACE_PACKAGE"
-    fi
-    
-    # Backup config files before removing old version
-    backup_config_files
-    
-    # Remove old version if upgrading
-    if [[ -f "${ROOT_PKG_STATE_DIR}/packages/${pkgname}" ]]; then
-        get_basic_data "${ROOT_PKG_STATE_DIR}/packages/${pkgname}"
-        echog " --- Removing old: ${pkgname}-${pkgversion}-${pkgrevision}"
-        remove_package
-        remove_package_config_files
-    fi
-    
-    # Install & configure
-    bin_install
-    bin_install_setting_up
-    bin_install_create_config_files
-    
-    cleanup_tmp_dir
-}
 # ---------------------------------------------------------
 # ns_exec_in()
 # Description: Executes a script inside a target root using
@@ -888,8 +797,13 @@ verify_package_signature()
 		exit 1
 	fi
 }
-## backup_config_files(). Saves files listed in # Backup: from nhoid before old package removal.
+
+# ---------------------------------------------------------
+# backup_config_files(). 
+# Description: Saves files listed in '# Backup:'
+#   from nhoid before old package removal.
 # Usage: backup_config_files (without arguments)
+# ---------------------------------------------------------
 backup_config_files()
 {
 	declare -a BACKUP_FILES=()
@@ -1921,6 +1835,17 @@ build_nhoid_to_bin()
 		grep -h "^# Conflicts:" "${NHOPKG_TMPDIR}/.nhoid" >> "${NHOPKG_TMPDIR}/nhoid" 2>/dev/null || true
 	fi
 	echo >> "${NHOPKG_TMPDIR}/nhoid"
+	
+	# Add Backup (support split packages)  
+	if [[ -n "${part}" ]]; then  
+		# Subpackage: look for Backup_$part  
+		grep -h "^# Backup_${part}:" "${NHOPKG_TMPDIR}/.nhoid" | sed "s/^# Backup_${part}:/# Backup:/" >> "${NHOPKG_TMPDIR}/nhoid" 2>/dev/null || true  
+	else  
+		# Main package: use base Backup  
+		grep -h "^# Backup:" "${NHOPKG_TMPDIR}/.nhoid" >> "${NHOPKG_TMPDIR}/nhoid" 2>/dev/null || true  
+	fi
+	
+	echo >> "${NHOPKG_TMPDIR}/nhoid"
 	# Add dependencies.
 	# === Add dependencies: one line per Dep(post):, preserving both fields ===
 	local dep_pattern="^# Dep${part:+_${part}}(post):"
@@ -2934,6 +2859,7 @@ case "${NHOPKG_OPTION}" in
 			bin_install_create_config_files
 			# 8. Clean up.
 			cleanup_tmp_dir
+			
 			echog " - Installation finished sucessfuly!"
 		done
 		# Run "shooter_updates" at the end.
@@ -2995,16 +2921,14 @@ case "${NHOPKG_OPTION}" in
 			
 			cleanup_tmp_dir
 			
-			## 6-8. Install binary package (includes SHA256, arch, signature checks) (using _dep_install_single).
+			## 6-9. Install binary package (includes SHA256, arch, signature checks) (using _dep_install_single).
 			CASEPACKAGE="$ORIG_CASEPKG"
 			getpackage
 			
 			pkg_basename="${pkgname}-${pkgversion}-${pkgrevision}.${pkgos}-${pkgarch}.nho"
 			
 			_dep_install_single "${pkg_basename}"
-			
-			# 9. Clean up.
-			cleanup_tmp_dir
+
 			echog " - Installation finished sucessfuly!"
 		done
 		# Run "shooter_updates" at the end.
