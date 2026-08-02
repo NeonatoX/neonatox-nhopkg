@@ -2,7 +2,7 @@
 
 # 9\. Construcción de paquetes
 
-**nhopkg** permite construir paquetes binarios (`.nho`) a partir de recetas de compilación definidas en paquetes fuente (`.srcnho`) o directamente desde repositorios Git.
+**nhopkg** permite construir paquetes binarios (`.nho`) a partir de recetas de compilación definidas en paquetes fuente (`.srcnho`) o directamente desde repositorios de control de versiones.
 
 Este proceso es fundamental para distribuciones personalizadas, ya que garantiza reproducibilidad, control total sobre las dependencias y la posibilidad de generar paquetes optimizados para el sistema objetivo.
 
@@ -23,19 +23,22 @@ Este proceso es fundamental para distribuciones personalizadas, ya que garantiza
 Comando | Descripción  
 ---|---  
 `--build` o `-b` | Construye e instala un paquete a partir de un archivo `.srcnho` local.  
-`--super-build` o `-C` | Clona un repositorio Git, construye e instala un paquete directamente desde fuentes remotas.  
+`--super-build` o `-C` | Clona un repositorio de control de versiones (Git, Subversion o Mercurial), construye e instala un paquete directamente desde fuentes remotas.  
   
 ## Fuentes de código
 
 El código fuente puede provenir de dos fuentes distintas, según lo definido en el `nhoid`:
 
-### 1\. Repositorio Git
+### 1\. Repositorios de control de versiones (VCS)
 
-Si el campo `# Packageurl:` comienza con `git+` o termina en `.git`, nhopkg clonará el repositorio y, opcionalmente, cambiará a una referencia específica usando `# Packageref:`.
+El campo `# Packageurl:` selecciona el sistema de control de versiones mediante un prefijo de esquema: `git+` (Git), `svn+` (Subversion) o `hg+` (Mercurial). Una URL que termine en `.git` también se trata como Git. nhopkg clonará el repositorio y, opcionalmente, cambiará a una referencia específica usando `# Packageref:` (tag, rama o commit para git; revisión para svn y hg).
     
     
     # Packageurl:	git+https://gitlab.gnome.org/GNOME/gimp.git
     # Packageref:	GIMP_3_0_4
+    
+    # Packageurl:	svn+https://svn.example.com/project
+    # Packageref:	r42
 
 ### 2\. Tarball (local o remoto)
 
@@ -125,7 +128,7 @@ Estas funciones también admiten variantes por subpaquete: `npostinstall_dev()`,
     # Construir desde un .srcnho local
     sudo nhopkg --build gimp-3.0.4.srcnho
     
-    # Construir desde Git (usa NHOPKG_GIT_SOURCES)
+    # Construir directamente desde un repositorio de control de versiones
     sudo nhopkg --super-build gimp
     
     # Construir en modo verboso

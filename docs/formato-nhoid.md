@@ -26,7 +26,7 @@ If the header version does not match `NHOID_VERSION`, the package is rejected.
 | `# Version:` | Yes | Package version (e.g. `1.0`, `2.15.6`) |
 | `# Release:` | Yes | Package release (e.g. `n2026`) |
 | `# License:` | No | Software license (e.g. `GPL-3.0-only`, `MIT`) |
-| `# Group:` | No | Package group classification |
+| `# Group:` | No | Package group classification (may appear more than once; a package can belong to multiple groups) |
 | `# Repository:` | No | Target repository (`core`, `extra`, `multilib`) |
 | `# Arch:` | No | Target architecture(s), space-separated (e.g. `i686 x86_64`) |
 | `# OS:` | No | Target operating system |
@@ -41,8 +41,8 @@ If the header version does not match `NHOID_VERSION`, the package is rejected.
 
 | Field | Required | Description |
 |---|---|---|
-| `# Packageurl:` | Yes | Source URL. For tarballs: `https://...tar.gz`. For git: `git+https://...` |
-| `# Packageref:` | Only if git | Git tag, commit or branch reference |
+| `# Packageurl:` | Yes | Source URL. For tarballs: `https://...tar.gz`. For version-control sources, use a scheme prefix: `git+`, `svn+` or `hg+` (a URL ending in `.git` is also treated as Git) |
+| `# Packageref:` | Only if VCS | Version-control reference: tag, commit or branch (git); revision (svn, hg) |
 | `# SHA256:` | Recommended for tarballs | SHA256 checksum + filename. Alternative: `# MD5:`, `# SHA512:`, `# BSUM:` |
 
 Example:
@@ -52,11 +52,17 @@ Example:
 # SHA256:	a1b2c3d4...  pkg-1.0.tar.gz
 ```
 
-For git sources:
+For version-control sources, the scheme prefix selects the system:
 
 ```nhoid
 # Packageurl:	git+https://github.com/user/repo
 # Packageref:	v1.0
+
+# Packageurl:	svn+https://svn.example.com/project
+# Packageref:	r42
+
+# Packageurl:	hg+https://hg.example.com/project
+# Packageref:	1.0
 ```
 
 ### Split Packages
@@ -77,7 +83,10 @@ Each split part has its own set of metadata fields using the `_<part>` suffix:
 # Group_docs:	doc
 # Repository_dev:	extra
 # Dep_dev(post):	somepackage
+# Backup_dev:	/etc/foo-dev.conf
 ```
+
+Split-specific `# Backup_<part>:` fields work like the main `# Backup:` field: the sub-package's files are preserved before extraction and restored afterward. `# Group_<part>:`, `# Repository_<part>:` and `# Provides_<part>:` / `# Conflicts_<part>:` override the corresponding main fields for the sub-package.
 
 ### Provides and Conflicts
 
@@ -95,6 +104,8 @@ Files listed in `# Backup:` are preserved before extraction and restored afterwa
 ```nhoid
 # Backup:	/etc/foo.conf /etc/foo.d/*
 ```
+
+Split sub-packages use their own `# Backup_<part>:` field (see the Split Packages section above).
 
 ### Dependencies
 

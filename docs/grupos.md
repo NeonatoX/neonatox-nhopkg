@@ -21,6 +21,9 @@
   3. Resolves dependencies
   4. Installs all packages in the group
 
+A package can belong to **multiple groups**: the `# Group:` field may appear more than once in the `nhoid`, and a package is matched if any of its group lines matches.
 
+    # Group:	base
+    # Group:	development
 
 Groups are ideal for defining system profiles such as `base`, `desktop`, or `server`.

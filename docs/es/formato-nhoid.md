@@ -26,7 +26,7 @@ Si la versión de la cabecera no coincide con `NHOID_VERSION`, el paquete se rec
 | `# Version:` | Sí | Versión del paquete (p. ej. `1.0`, `2.15.6`) |
 | `# Release:` | Sí | Release del paquete (p. ej. `n2026`) |
 | `# License:` | No | Licencia del software (p. ej. `GPL-3.0-only`, `MIT`) |
-| `# Group:` | No | Clasificación de grupo del paquete |
+| `# Group:` | No | Clasificación de grupo del paquete (puede aparecer más de una vez; un paquete puede pertenecer a varios grupos) |
 | `# Repository:` | No | Repositorio de destino (`core`, `extra`, `multilib`) |
 | `# Arch:` | No | Arquitectura(s) de destino, separadas por espacios (p. ej. `i686 x86_64`) |
 | `# OS:` | No | Sistema operativo de destino |
@@ -41,8 +41,8 @@ Si la versión de la cabecera no coincide con `NHOID_VERSION`, el paquete se rec
 
 | Campo | Obligatorio | Descripción |
 |---|---|---|
-| `# Packageurl:` | Sí | URL de la fuente. Para tarballs: `https://...tar.gz`. Para git: `git+https://...` |
-| `# Packageref:` | Solo si es git | Referencia git: tag, commit o rama |
+| `# Packageurl:` | Sí | URL de la fuente. Para tarballs: `https://...tar.gz`. Para fuentes de control de versiones, usa un prefijo de esquema: `git+`, `svn+` o `hg+` (una URL que termine en `.git` también se trata como Git) |
+| `# Packageref:` | Solo si es VCS | Referencia de control de versiones: tag, commit o rama (git); revisión (svn, hg) |
 | `# SHA256:` | Recomendado para tarballs | Suma SHA256 + nombre de archivo. Alternativa: `# MD5:`, `# SHA512:`, `# BSUM:` |
 
 Ejemplo:
@@ -52,11 +52,17 @@ Ejemplo:
 # SHA256:	a1b2c3d4...  pkg-1.0.tar.gz
 ```
 
-Para fuentes git:
+Para fuentes de control de versiones, el prefijo de esquema selecciona el sistema:
 
 ```nhoid
 # Packageurl:	git+https://github.com/user/repo
 # Packageref:	v1.0
+
+# Packageurl:	svn+https://svn.example.com/project
+# Packageref:	r42
+
+# Packageurl:	hg+https://hg.example.com/project
+# Packageref:	1.0
 ```
 
 ### Paquetes divididos (split)
@@ -77,7 +83,10 @@ Cada parte dividida tiene su propio conjunto de campos de metadatos usando el su
 # Group_docs:	doc
 # Repository_dev:	extra
 # Dep_dev(post):	algúnpaquete
+# Backup_dev:	/etc/foo-dev.conf
 ```
+
+Los campos `# Backup_<parte>:` específicos de subpaquetes funcionan igual que el campo principal `# Backup:`: los archivos del subpaquete se preservan antes de la extracción y se restauran después. `# Group_<parte>:`, `# Repository_<parte>:` y `# Provides_<parte>:` / `# Conflicts_<parte>:` sobrescriben los campos principales correspondientes para el subpaquete.
 
 ### Provides y Conflicts
 
@@ -95,6 +104,8 @@ Los archivos listados en `# Backup:` se preservan antes de la extracción y se r
 ```nhoid
 # Backup:	/etc/foo.conf /etc/foo.d/*
 ```
+
+Los subpaquetes divididos usan su propio campo `# Backup_<parte>:` (ver la sección Paquetes divididos más arriba).
 
 ### Dependencias
 

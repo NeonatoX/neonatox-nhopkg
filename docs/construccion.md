@@ -2,7 +2,7 @@
 
 # 9\. Package building
 
-**nhopkg** can build binary packages (`.nho`) from source recipes (`.srcnho`) or directly from Git repositories.
+**nhopkg** can build binary packages (`.nho`) from source recipes (`.srcnho`) or directly from version-control repositories.
 
 ## Build workflow
 
@@ -22,8 +22,21 @@
     # Build from local source package
     sudo nhopkg --build foo.srcnho
     
-    # Build directly from Git
+    # Build directly from a VCS repository
     sudo nhopkg --super-build foo
+
+## Source types
+
+The `# Packageurl:` field in the `nhoid` selects how the source is fetched:
+
+| Prefix | Source |
+|---|---|
+| `https://...tar.gz` (or another tarball) | Download and extract a tarball |
+| `git+https://...` (or a URL ending in `.git`) | Git clone |
+| `svn+https://...` | Subversion checkout |
+| `hg+https://...` | Mercurial clone |
+
+For version-control sources, `# Packageref:` pins the reference (tag, branch or commit for git; revision for svn and hg). Without a scheme prefix, the URL is treated as a tarball.
 
 ## Split packages
 

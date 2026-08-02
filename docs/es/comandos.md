@@ -36,7 +36,7 @@ nhopkg es un gestor universal de paquetes binarios y fuente. Esta página docume
 | `-p`, `--preserve-files` | Fuerza la retención de los archivos del paquete al eliminarlo |
 | `-R`, `--recursive` | Responde "sí" a todos los avisos (modo no interactivo) |
 | `-o`, `--output DIR` | Escribe la salida del comando (list, info, show) en un archivo de registro en DIR |
-| `--root DIR` | Opera en un directorio raíz alternativo (para bootstrap, chroot o contenedores); difiere los ganchos posteriores a la instalación y las actualizaciones de caché del sistema a un script generado |
+| `--root DIR` | Opera en un directorio raíz alternativo (para bootstrap, chroot o contenedores); el estado, los repositorios y las dependencias se resuelven dentro del destino, y los ganchos posteriores a la instalación / actualizaciones de caché se ejecutan allí mediante chroot |
 | `--no-check-deps` | Omite la resolución de dependencias |
 | `--force-check-deps` | Fuerza la resolución de dependencias aunque esté deshabilitada en la configuración |
 | `--no-check-arch` | Omite la validación de arquitectura |
@@ -125,6 +125,31 @@ sudo nhopkg -X -b foo.srcnho
 # Eliminar un paquete conservando sus archivos
 sudo nhopkg -r gimp -p
 ```
+
+## Modo raíz (`--root`)
+
+`--root DIR` instala, actualiza o elimina paquetes en un **directorio raíz alternativo** en lugar del sistema en vivo. Útil para el bootstrap de un sistema nuevo, chroots o contenedores. El directorio de destino ya debe existir.
+
+- El estado del paquete (`/var/nhopkg/packages`, `files`, `repo`, `cache`) vive **dentro del destino** (`DIR/var/nhopkg`).
+- La sincronización de repositorios (`--update`), la resolución de dependencias y las comprobaciones de conflictos operan contra la raíz de destino, no contra el host.
+- Los archivos se extraen dentro de `DIR`.
+- Los ganchos `npostinstall()` y las actualizaciones de caché (`shooter_updates`: esquemas GLib, cachés de iconos/MIME/escritorio, fuentes, `ldconfig`) **no** se ejecutan en el host: se ejecutan **dentro del destino** mediante un chroot en un namespace de montaje privado que monta `/dev`, `/proc`, `/sys` y `/run` del host. Esto requiere `/bin/sh` dentro del destino.
+- Si nhopkg aún no está instalado dentro del destino, las actualizaciones de caché se omiten con una advertencia; ejecuta `nhopkg -x` una vez dentro del destino.
+- Los archivos `# Backup:` se leen y se restauran dentro de la raíz de destino.
+- No interactivo: los avisos se omiten durante las instalaciones desde repositorio.
+
+```bash
+# Instalar en un destino chroot
+sudo nhopkg -i foo.nho --root /mnt/chroot
+
+# Instalar desde un repositorio dentro del destino (con resolución de dependencias)
+sudo nhopkg -S foo --root /mnt/chroot
+
+# Actualizar todo dentro del destino
+sudo nhopkg -y --root /mnt/chroot
+```
+
+> **Nota:** `--root` no es un envoltorio completo de `chroot`. Debe ejecutarse como root, y el destino ya debe contener los paquetes esenciales (p. ej. glibc, bash, nhopkg) antes de poder ejecutar ganchos dentro de él.
 
 ## Herramientas complementarias
 

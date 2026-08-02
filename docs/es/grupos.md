@@ -69,10 +69,14 @@ Grupo | Propósito | Paquetes de ejemplo
   
 ## Consideraciones importantes
 
-  * Un paquete **solo puede pertenecer a un grupo** a la vez (el campo `# Group:` es único en el `nhoid`).
+  * Un paquete puede pertenecer a **varios grupos**: el campo `# Group:` puede aparecer más de una vez en el `nhoid`, y el paquete se incluye si cualquiera de sus líneas de grupo coincide.
   * La instalación por grupo **respeta todas las políticas de seguridad** (verificación de firmas, arquitectura, etc.).
   * Si un paquete del grupo ya está instalado, **se omitirá** a menos que haya una actualización disponible.
   * El comando fallará si **no se encuentra ningún paquete** para el grupo especificado.
+    
+    
+    # Group:	base
+    # Group:	development
 
 
 

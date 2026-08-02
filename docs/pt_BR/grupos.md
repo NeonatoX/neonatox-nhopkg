@@ -21,5 +21,10 @@
   3. Resolve dependências
   4. Instala todos os pacotes do grupo
 
+Um pacote pode pertencer a **vários grupos**: o campo `# Group:` pode aparecer mais de uma vez no `nhoid`, e o pacote é incluído se qualquer uma de suas linhas de grupo coincidir.
+
+    # Group:	base
+    # Group:	development
+
 Grupos são ideais para definir perfis de sistema como `base`, `desktop` ou `server`.
 
