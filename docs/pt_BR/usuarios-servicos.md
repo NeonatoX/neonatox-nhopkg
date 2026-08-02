@@ -123,11 +123,12 @@ Esta função instala unidades de serviço dos repositórios BLFS, detectando au
 Essas variáveis são definidas no `nhopkg.conf` e podem ser sobrescritas por pacote:
 
     export INITSYSTEM="systemd"                    # systemd ou sysvinit
+    export BLFS_DIR="${NHOPKG_LOCALSTATEDIR}/cache/blfs"
     export SYSTEMD_BLFS_VER="20251204"
-    export SYSTEMD_BLFS_DIR="/usr/src/blfs-systemd-units-${SYSTEMD_BLFS_VER}"
+    export SYSTEMD_BLFS_DIR="${BLFS_DIR}/blfs-systemd-units-${SYSTEMD_BLFS_VER}"
     export SYSTEMD_BLFS_URL="https://www.linuxfromscratch.org/blfs/downloads/systemd/blfs-systemd-units-${SYSTEMD_BLFS_VER}.tar.xz"
     export SYSV_BLFS_VER="20251220"
-    export SYSV_BLFS_DIR="/usr/src/blfs-bootscripts-${SYSV_BLFS_VER}"
+    export SYSV_BLFS_DIR="${BLFS_DIR}/blfs-bootscripts-${SYSV_BLFS_VER}"
     export SYSV_BLFS_URL="https://anduin.linuxfromscratch.org/BLFS/blfs-bootscripts/blfs-bootscripts-${SYSV_BLFS_VER}.tar.xz"
 
 ## Conclusão

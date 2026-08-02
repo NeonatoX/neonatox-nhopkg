@@ -139,14 +139,15 @@ Para que `install_init_unit()` funcione, el sistema define estas variables en `/
     
     
     INITSYSTEM="systemd"
+    BLFS_DIR="${NHOPKG_LOCALSTATEDIR}/cache/blfs"
     SYSTEMD_BLFS_VER=20251204
-    SYSTEMD_BLFS_DIR="/usr/src/blfs-systemd-units-${SYSTEMD_BLFS_VER}"
+    SYSTEMD_BLFS_DIR="${BLFS_DIR}/blfs-systemd-units-${SYSTEMD_BLFS_VER}"
     SYSTEMD_BLFS_URL="https://www.linuxfromscratch.org/blfs/downloads/systemd/blfs-systemd-units-${SYSTEMD_BLFS_VER}.tar.xz"
     SYSV_BLFS_VER=20251220
-    SYSV_BLFS_DIR="/usr/src/blfs-bootscripts-${SYSV_BLFS_VER}"
+    SYSV_BLFS_DIR="${BLFS_DIR}/blfs-bootscripts-${SYSV_BLFS_VER}"
     SYSV_BLFS_URL="https://anduin.linuxfromscratch.org/BLFS/blfs-bootscripts/blfs-bootscripts-${SYSV_BLFS_VER}.tar.xz"
 
-La primera vez que se use, `install_init_unit` descargará y descomprimirá el archivo correspondiente en `/usr/src/`.
+Los archivos se descomprimen en `${BLFS_DIR}` (fuera de `FIND_DIRS`), por lo que nunca se capturan en el `data.tar.*` del paquete binario en construcción. Además, la copia extraída permanece intacta para posteriores compilaciones que usen `install_init_unit()`.
 
 ## Conclusión
 

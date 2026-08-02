@@ -95,8 +95,9 @@ Configuration for BLFS-provided systemd unit files. Used only when `INITSYSTEM=s
 
 | Variable | Default | Description |
 |---|---|---|
+| `BLFS_DIR` | `${NHOPKG_LOCALSTATEDIR}/cache/blfs` | Base cache directory for extracted BLFS bundles (outside `FIND_DIRS`) |
 | `SYSTEMD_BLFS_VER` | `20251204` | Version of the BLFS systemd units bundle |
-| `SYSTEMD_BLFS_DIR` | `/usr/src/blfs-systemd-units-${SYSTEMD_BLFS_VER}` | Local directory for the extracted units |
+| `SYSTEMD_BLFS_DIR` | `${BLFS_DIR}/blfs-systemd-units-${SYSTEMD_BLFS_VER}` | Local directory for the extracted units |
 | `SYSTEMD_BLFS_URL` | `https://www.linuxfromscratch.org/blfs/downloads/systemd/blfs-systemd-units-${SYSTEMD_BLFS_VER}.tar.xz` | Download URL |
 
 ---
@@ -108,7 +109,7 @@ Configuration for BLFS SysVinit boot scripts. Used only when `INITSYSTEM=sysvini
 | Variable | Default | Description |
 |---|---|---|
 | `SYSV_BLFS_VER` | `20251220` | Version of the BLFS bootscripts bundle |
-| `SYSV_BLFS_DIR` | `/usr/src/blfs-bootscripts-${SYSV_BLFS_VER}` | Local directory for the extracted scripts |
+| `SYSV_BLFS_DIR` | `${BLFS_DIR}/blfs-bootscripts-${SYSV_BLFS_VER}` | Local directory for the extracted scripts |
 | `SYSV_BLFS_URL` | `https://anduin.linuxfromscratch.org/BLFS/blfs-bootscripts/blfs-bootscripts-${SYSV_BLFS_VER}.tar.xz` | Download URL |
 
 ---
@@ -234,13 +235,14 @@ NHOPKG_USE_BUSYBOX=no
 INITSYSTEM=systemd
 
 # --- BLFS Systemd Units ---
+BLFS_DIR=${NHOPKG_LOCALSTATEDIR}/cache/blfs
 SYSTEMD_BLFS_VER=20251204
-SYSTEMD_BLFS_DIR=/usr/src/blfs-systemd-units-${SYSTEMD_BLFS_VER}
+SYSTEMD_BLFS_DIR=${BLFS_DIR}/blfs-systemd-units-${SYSTEMD_BLFS_VER}
 SYSTEMD_BLFS_URL=https://www.linuxfromscratch.org/blfs/downloads/systemd/blfs-systemd-units-${SYSTEMD_BLFS_VER}.tar.xz
 
 # --- BLFS SysVinit Scripts ---
 SYSV_BLFS_VER=20251220
-SYSV_BLFS_DIR=/usr/src/blfs-bootscripts-${SYSV_BLFS_VER}
+SYSV_BLFS_DIR=${BLFS_DIR}/blfs-bootscripts-${SYSV_BLFS_VER}
 SYSV_BLFS_URL=https://anduin.linuxfromscratch.org/BLFS/blfs-bootscripts/blfs-bootscripts-${SYSV_BLFS_VER}.tar.xz
 
 # --- Package Signing ---

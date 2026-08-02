@@ -95,8 +95,9 @@ Configuração para arquivos de unidades systemd fornecidos pelo BLFS. Usado ape
 
 | Variável | Padrão | Descrição |
 |---|---|---|
+| `BLFS_DIR` | `${NHOPKG_LOCALSTATEDIR}/cache/blfs` | Diretório base de cache para pacotes BLFS extraídos (fora de `FIND_DIRS`) |
 | `SYSTEMD_BLFS_VER` | `20251204` | Versão do pacote de unidades systemd BLFS |
-| `SYSTEMD_BLFS_DIR` | `/usr/src/blfs-systemd-units-${SYSTEMD_BLFS_VER}` | Diretório local para as unidades extraídas |
+| `SYSTEMD_BLFS_DIR` | `${BLFS_DIR}/blfs-systemd-units-${SYSTEMD_BLFS_VER}` | Diretório local para as unidades extraídas |
 | `SYSTEMD_BLFS_URL` | `https://www.linuxfromscratch.org/blfs/downloads/systemd/blfs-systemd-units-${SYSTEMD_BLFS_VER}.tar.xz` | URL de download |
 
 ---
@@ -108,7 +109,7 @@ Configuração para scripts de inicialização SysVinit BLFS. Usado apenas quand
 | Variável | Padrão | Descrição |
 |---|---|---|
 | `SYSV_BLFS_VER` | `20251220` | Versão do pacote de scripts de inicialização BLFS |
-| `SYSV_BLFS_DIR` | `/usr/src/blfs-bootscripts-${SYSV_BLFS_VER}` | Diretório local para os scripts extraídos |
+| `SYSV_BLFS_DIR` | `${BLFS_DIR}/blfs-bootscripts-${SYSV_BLFS_VER}` | Diretório local para os scripts extraídos |
 | `SYSV_BLFS_URL` | `https://anduin.linuxfromscratch.org/BLFS/blfs-bootscripts/blfs-bootscripts-${SYSV_BLFS_VER}.tar.xz` | URL de download |
 
 ---
@@ -234,13 +235,14 @@ NHOPKG_USE_BUSYBOX=no
 INITSYSTEM=systemd
 
 # --- Unidades Systemd BLFS ---
+BLFS_DIR=${NHOPKG_LOCALSTATEDIR}/cache/blfs
 SYSTEMD_BLFS_VER=20251204
-SYSTEMD_BLFS_DIR=/usr/src/blfs-systemd-units-${SYSTEMD_BLFS_VER}
+SYSTEMD_BLFS_DIR=${BLFS_DIR}/blfs-systemd-units-${SYSTEMD_BLFS_VER}
 SYSTEMD_BLFS_URL=https://www.linuxfromscratch.org/blfs/downloads/systemd/blfs-systemd-units-${SYSTEMD_BLFS_VER}.tar.xz
 
 # --- Scripts SysVinit BLFS ---
 SYSV_BLFS_VER=20251220
-SYSV_BLFS_DIR=/usr/src/blfs-bootscripts-${SYSV_BLFS_VER}
+SYSV_BLFS_DIR=${BLFS_DIR}/blfs-bootscripts-${SYSV_BLFS_VER}
 SYSV_BLFS_URL=https://anduin.linuxfromscratch.org/BLFS/blfs-bootscripts/blfs-bootscripts-${SYSV_BLFS_VER}.tar.xz
 
 # --- Assinatura de Pacotes ---

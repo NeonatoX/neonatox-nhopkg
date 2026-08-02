@@ -136,12 +136,17 @@ This function installs service units from BLFS repositories, automatically detec
 These variables are defined in `nhopkg.conf` and can be overridden per package:
 
     export INITSYSTEM="systemd"                    # systemd or sysvinit
+    export BLFS_DIR="${NHOPKG_LOCALSTATEDIR}/cache/blfs"
     export SYSTEMD_BLFS_VER="20251204"
-    export SYSTEMD_BLFS_DIR="/usr/src/blfs-systemd-units-${SYSTEMD_BLFS_VER}"
+    export SYSTEMD_BLFS_DIR="${BLFS_DIR}/blfs-systemd-units-${SYSTEMD_BLFS_VER}"
     export SYSTEMD_BLFS_URL="https://www.linuxfromscratch.org/blfs/downloads/systemd/blfs-systemd-units-${SYSTEMD_BLFS_VER}.tar.xz"
     export SYSV_BLFS_VER="20251220"
-    export SYSV_BLFS_DIR="/usr/src/blfs-bootscripts-${SYSV_BLFS_VER}"
+    export SYSV_BLFS_DIR="${BLFS_DIR}/blfs-bootscripts-${SYSV_BLFS_VER}"
     export SYSV_BLFS_URL="https://anduin.linuxfromscratch.org/BLFS/blfs-bootscripts/blfs-bootscripts-${SYSV_BLFS_VER}.tar.xz"
+
+The bundles are extracted to `${BLFS_DIR}` (outside `FIND_DIRS`), so they are never
+captured into the `data.tar.*` of the binary package being built. This also keeps the
+extracted copy intact for later builds that call `install_init_unit()`.
 
 ## Conclusion
 

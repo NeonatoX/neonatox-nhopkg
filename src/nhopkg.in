@@ -272,7 +272,8 @@ install_init_unit()
 	if [ ! -d "$dir" ]; then
 		local tmp_archive="/tmp/nhoget-$$.tar.xz"
 		nhoget_url "$url" "$tmp_archive" || return 1
-		tar -xJf "$tmp_archive" -C /usr/src || { rm -f "$tmp_archive"; return 1; }
+		mkdir -p "$(dirname "$dir")" || { rm -f "$tmp_archive"; return 1; }
+		tar -xJf "$tmp_archive" -C "$(dirname "$dir")" || { rm -f "$tmp_archive"; return 1; }
 		rm -f "$tmp_archive"
 	fi
 

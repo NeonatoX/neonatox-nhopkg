@@ -96,8 +96,9 @@
 
 | Переменная | По умолчанию | Описание |
 |---|---|---|
+| `BLFS_DIR` | `${NHOPKG_LOCALSTATEDIR}/cache/blfs` | Базовый каталог кэша для распакованных комплектов BLFS (вне `FIND_DIRS`) |
 | `SYSTEMD_BLFS_VER` | `20251204` | Версия пакета systemd units BLFS |
-| `SYSTEMD_BLFS_DIR` | `/usr/src/blfs-systemd-units-${SYSTEMD_BLFS_VER}` | Локальный каталог распакованных units |
+| `SYSTEMD_BLFS_DIR` | `${BLFS_DIR}/blfs-systemd-units-${SYSTEMD_BLFS_VER}` | Локальный каталог распакованных units |
 | `SYSTEMD_BLFS_URL` | `https://www.linuxfromscratch.org/blfs/downloads/systemd/blfs-systemd-units-${SYSTEMD_BLFS_VER}.tar.xz` | URL загрузки |
 
 ---
@@ -109,7 +110,7 @@
 | Переменная | По умолчанию | Описание |
 |---|---|---|
 | `SYSV_BLFS_VER` | `20251220` | Версия пакета загрузочных сценариев BLFS |
-| `SYSV_BLFS_DIR` | `/usr/src/blfs-bootscripts-${SYSV_BLFS_VER}` | Локальный каталог распакованных сценариев |
+| `SYSV_BLFS_DIR` | `${BLFS_DIR}/blfs-bootscripts-${SYSV_BLFS_VER}` | Локальный каталог распакованных сценариев |
 | `SYSV_BLFS_URL` | `https://anduin.linuxfromscratch.org/BLFS/blfs-bootscripts/blfs-bootscripts-${SYSV_BLFS_VER}.tar.xz` | URL загрузки |
 
 ---
@@ -235,13 +236,14 @@ NHOPKG_USE_BUSYBOX=no
 INITSYSTEM=systemd
 
 # --- BLFS Systemd Units ---
+BLFS_DIR=${NHOPKG_LOCALSTATEDIR}/cache/blfs
 SYSTEMD_BLFS_VER=20251204
-SYSTEMD_BLFS_DIR=/usr/src/blfs-systemd-units-${SYSTEMD_BLFS_VER}
+SYSTEMD_BLFS_DIR=${BLFS_DIR}/blfs-systemd-units-${SYSTEMD_BLFS_VER}
 SYSTEMD_BLFS_URL=https://www.linuxfromscratch.org/blfs/downloads/systemd/blfs-systemd-units-${SYSTEMD_BLFS_VER}.tar.xz
 
 # --- BLFS SysVinit Scripts ---
 SYSV_BLFS_VER=20251220
-SYSV_BLFS_DIR=/usr/src/blfs-bootscripts-${SYSV_BLFS_VER}
+SYSV_BLFS_DIR=${BLFS_DIR}/blfs-bootscripts-${SYSV_BLFS_VER}
 SYSV_BLFS_URL=https://anduin.linuxfromscratch.org/BLFS/blfs-bootscripts/blfs-bootscripts-${SYSV_BLFS_VER}.tar.xz
 
 # --- Package Signing ---

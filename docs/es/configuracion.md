@@ -96,8 +96,9 @@ Configuración para los archivos de unidades systemd proporcionados por BLFS. Se
 
 | Variable | Valor por defecto | Descripción |
 |---|---|---|
+| `BLFS_DIR` | `${NHOPKG_LOCALSTATEDIR}/cache/blfs` | Directorio base de caché para los paquetes BLFS extraídos (fuera de `FIND_DIRS`) |
 | `SYSTEMD_BLFS_VER` | `20251204` | Versión del paquete de unidades systemd de BLFS |
-| `SYSTEMD_BLFS_DIR` | `/usr/src/blfs-systemd-units-${SYSTEMD_BLFS_VER}` | Directorio local de las unidades extraídas |
+| `SYSTEMD_BLFS_DIR` | `${BLFS_DIR}/blfs-systemd-units-${SYSTEMD_BLFS_VER}` | Directorio local de las unidades extraídas |
 | `SYSTEMD_BLFS_URL` | `https://www.linuxfromscratch.org/blfs/downloads/systemd/blfs-systemd-units-${SYSTEMD_BLFS_VER}.tar.xz` | URL de descarga |
 
 ---
@@ -109,7 +110,7 @@ Configuración para los scripts de arranque SysVinit de BLFS. Se usa solo cuando
 | Variable | Valor por defecto | Descripción |
 |---|---|---|
 | `SYSV_BLFS_VER` | `20251220` | Versión del paquete de bootscripts de BLFS |
-| `SYSV_BLFS_DIR` | `/usr/src/blfs-bootscripts-${SYSV_BLFS_VER}` | Directorio local de los scripts extraídos |
+| `SYSV_BLFS_DIR` | `${BLFS_DIR}/blfs-bootscripts-${SYSV_BLFS_VER}` | Directorio local de los scripts extraídos |
 | `SYSV_BLFS_URL` | `https://anduin.linuxfromscratch.org/BLFS/blfs-bootscripts/blfs-bootscripts-${SYSV_BLFS_VER}.tar.xz` | URL de descarga |
 
 ---
@@ -235,13 +236,14 @@ NHOPKG_USE_BUSYBOX=no
 INITSYSTEM=systemd
 
 # --- Unidades Systemd de BLFS ---
+BLFS_DIR=${NHOPKG_LOCALSTATEDIR}/cache/blfs
 SYSTEMD_BLFS_VER=20251204
-SYSTEMD_BLFS_DIR=/usr/src/blfs-systemd-units-${SYSTEMD_BLFS_VER}
+SYSTEMD_BLFS_DIR=${BLFS_DIR}/blfs-systemd-units-${SYSTEMD_BLFS_VER}
 SYSTEMD_BLFS_URL=https://www.linuxfromscratch.org/blfs/downloads/systemd/blfs-systemd-units-${SYSTEMD_BLFS_VER}.tar.xz
 
 # --- Scripts SysVinit de BLFS ---
 SYSV_BLFS_VER=20251220
-SYSV_BLFS_DIR=/usr/src/blfs-bootscripts-${SYSV_BLFS_VER}
+SYSV_BLFS_DIR=${BLFS_DIR}/blfs-bootscripts-${SYSV_BLFS_VER}
 SYSV_BLFS_URL=https://anduin.linuxfromscratch.org/BLFS/blfs-bootscripts/blfs-bootscripts-${SYSV_BLFS_VER}.tar.xz
 
 # --- Firma de paquetes ---

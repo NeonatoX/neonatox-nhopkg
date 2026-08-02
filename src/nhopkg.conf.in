@@ -141,10 +141,15 @@ INITSYSTEM=systemd
 #------------------------------------------------------------------------------
 # Configuration for BLFS-provided systemd unit files.
 # Used only when INITSYSTEM=systemd.
+#
+# BLFS_DIR is the base cache directory for extracted BLFS bundles. It must be
+# OUTSIDE FIND_DIRS (e.g. not under /usr) so that install_init_unit() extracts
+# during a build are never captured into data.tar.* binary packages.
 #==============================================================================
 
+BLFS_DIR=${NHOPKG_LOCALSTATEDIR}/cache/blfs
 SYSTEMD_BLFS_VER=20251204
-SYSTEMD_BLFS_DIR=/usr/src/blfs-systemd-units-${SYSTEMD_BLFS_VER}
+SYSTEMD_BLFS_DIR=${BLFS_DIR}/blfs-systemd-units-${SYSTEMD_BLFS_VER}
 SYSTEMD_BLFS_URL=https://www.linuxfromscratch.org/blfs/downloads/systemd/blfs-systemd-units-${SYSTEMD_BLFS_VER}.tar.xz
 
 
@@ -156,7 +161,7 @@ SYSTEMD_BLFS_URL=https://www.linuxfromscratch.org/blfs/downloads/systemd/blfs-sy
 #==============================================================================
 
 SYSV_BLFS_VER=20251220
-SYSV_BLFS_DIR=/usr/src/blfs-bootscripts-${SYSV_BLFS_VER}
+SYSV_BLFS_DIR=${BLFS_DIR}/blfs-bootscripts-${SYSV_BLFS_VER}
 SYSV_BLFS_URL=https://anduin.linuxfromscratch.org/BLFS/blfs-bootscripts/blfs-bootscripts-${SYSV_BLFS_VER}.tar.xz
 
 
