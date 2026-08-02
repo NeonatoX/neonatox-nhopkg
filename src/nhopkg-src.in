@@ -141,6 +141,30 @@ prompt_multi() {
 #==============================================================================
 # Section: nhoid generation helpers
 #==============================================================================
+get_checksum() {
+	local type="$1"
+	local file="$2"
+
+	case "$type" in
+		MD5)    md5sum "$file" ;;
+		SHA256) sha256sum "$file" ;;
+		SHA512) sha512sum "$file" ;;
+		BSUM)   b2sum "$file" ;;
+	esac
+}
+
+normalize_hash_type() {
+	local type="${1:-sha256}"
+	type=$(echo "$type" | tr '[:upper:]' '[:lower:]')
+	case "$type" in
+		md5)         echo "MD5" ;;
+		sha256)      echo "SHA256" ;;
+		sha512)      echo "SHA512" ;;
+		bsum|b2sum)  echo "BSUM" ;;
+		*)           echo "SHA256" ;;
+	esac
+}
+
 write_nhoid_header() {
 	local nhoid_file="$1"
 	cat > "$nhoid_file" <<EOF
@@ -152,18 +176,25 @@ write_nhoid_header() {
 # Release:	${PKG_RELEASE}
 EOF
 	[[ -n "$PKG_LICENSE" ]] && echo -e "# License:\t${PKG_LICENSE}" >> "$nhoid_file"
-	echo -e "# Repository:\textra" >> "$nhoid_file"
+	if [[ -n "$PKG_GROUP" ]]; then
+		for grp in $PKG_GROUP; do
+			echo -e "# Group:\t${grp}" >> "$nhoid_file"
+		done
+	fi
+	local pkg_repo="${PKG_REPOSITORY:-extra}"
+	echo -e "# Repository:\t${pkg_repo}" >> "$nhoid_file"
 	[[ -n "$PKG_ARCH" ]] && echo -e "# Arch:\t${PKG_ARCH}" >> "$nhoid_file"
 	[[ -n "$PKG_URL" ]] && echo -e "# Url:\t${PKG_URL}" >> "$nhoid_file"
 	[[ -n "$PKG_DESCRIPTION" ]] && echo -e "# Description:\t${PKG_DESCRIPTION}" >> "$nhoid_file"
 	echo -e "# Packageurl:\t${PKG_PACKAGEURL}" >> "$nhoid_file"
-	if [[ "$PKG_IS_GIT" = "yes" ]]; then
+	if [[ -n "$PKG_VCS_TYPE" ]]; then
 		echo -e "# Packageref:\t${PKG_PACKAGEREF}" >> "$nhoid_file"
 	else
-		if [[ -n "$PKG_SHA256" ]]; then
-			echo -e "# SHA256:\t${PKG_SHA256}" >> "$nhoid_file"
+		local hash_type="${PKG_HASH_TYPE:-SHA256}"
+		if [[ -n "$PKG_HASH" ]]; then
+			echo -e "# ${hash_type}:\t${PKG_HASH}" >> "$nhoid_file"
 		else
-			echo -e "## SHA256:\t<pendiente>" >> "$nhoid_file"
+			echo -e "## ${hash_type}:\t<pendiente>" >> "$nhoid_file"
 		fi
 	fi
 	[[ -n "$PKG_SPLIT" ]] && echo -e "# Splitpackage:\t${PKG_SPLIT}" >> "$nhoid_file"
@@ -240,13 +271,15 @@ cmd_init() {
 	PACKAGERMAIL="${PKG_MAINTAINER#*<}"
 	PACKAGERMAIL="${PACKAGERMAIL%>}"
 
+	prompt_multi PKG_GROUP "Package Group (base, apps, libs, ...)"
+	prompt_with_default PKG_REPOSITORY "Repository" "extra"
 	prompt_with_default PKG_LICENSE "License" "GPL-3.0-only"
 	prompt_with_default PKG_ARCH "Architecture" "x86_64"
 	prompt_with_default PKG_URL "Upstream URL" ""
 	prompt_with_default PKG_DESCRIPTION "Description" ""
 
 	# Packageurl
-	prompt_required PKG_PACKAGEURL "Package URL (tarball or git+<url>)"
+	prompt_required PKG_PACKAGEURL "Package URL (tarball, git+<url>, svn+<url> or hg+<url>)"
 
 	# Create project directory first (needed for downloads)
 	local proj_dir="${PWD}/${PKG_NAME}"
@@ -256,13 +289,20 @@ cmd_init() {
 	fi
 	mkdir -p "$proj_dir/patches" "$proj_dir/others"
 
-	PKG_IS_GIT="no"
-	if [[ "$PKG_PACKAGEURL" == git+* ]]; then
-		PKG_IS_GIT="yes"
-		prompt_required PKG_PACKAGEREF "Git reference (tag, commit, branch)"
-	else
-		# SHA256
-		prompt_yes_no PKG_DOWNLOAD "Download to calculate SHA256?" "Y"
+	PKG_VCS_TYPE=""
+	case "$PKG_PACKAGEURL" in
+		git+*|svn+*|hg+*)
+			case "$PKG_PACKAGEURL" in
+				git+*) PKG_VCS_TYPE="git"; prompt_required PKG_PACKAGEREF "Git reference (tag, commit, branch)" ;;
+				svn+*) PKG_VCS_TYPE="svn"; prompt_required PKG_PACKAGEREF "SVN revision" ;;
+				hg+*)  PKG_VCS_TYPE="hg";  prompt_required PKG_PACKAGEREF "Mercurial reference (tag, branch, revision)" ;;
+			esac
+			;;
+		*)
+		# Checksum
+		prompt_with_default PKG_HASH_TYPE "Checksum type (md5, sha256, sha512, bsum)" "sha256"
+		PKG_HASH_TYPE=$(normalize_hash_type "$PKG_HASH_TYPE")
+		prompt_yes_no PKG_DOWNLOAD "Download to calculate ${PKG_HASH_TYPE}?" "Y"
 		if [[ "$PKG_DOWNLOAD" = "yes" ]]; then
 			make_tmp_dir
 			local tarball_name="${PKG_PACKAGEURL##*/}"
@@ -272,19 +312,20 @@ cmd_init() {
 			if [[ $? -eq 0 ]]; then
 				cp "${NHOPKG_TMPDIR}/${tarball_name}" "${proj_dir}/"
 				pushd "${NHOPKG_TMPDIR}"
-				PKG_SHA256=$(sha256sum "${tarball_name}")
+				PKG_HASH=$(get_checksum "${PKG_HASH_TYPE}" "${tarball_name}")
 				popd
-				echog "   SHA256 calculated."
+				echog "   ${PKG_HASH_TYPE} calculated."
 			else
-				echog "   Download failed. SHA256 will be left pending." >&2
-				PKG_SHA256=""
+				echog "   Download failed. ${PKG_HASH_TYPE} will be left pending." >&2
+				PKG_HASH=""
 			fi
 			cleanup_tmp_dir
 		else
-			echog "   Will leave SHA256 as pending."
-			PKG_SHA256=""
+			echog "   Will leave ${PKG_HASH_TYPE} as pending."
+			PKG_HASH=""
 		fi
-	fi
+		;;
+	esac
 
 	prompt_multi PKG_SPLIT "Split packages"
 	prompt_multi PKG_PROVIDES "Provides"
@@ -429,45 +470,41 @@ cmd_validate() {
 		((errors++))
 	fi
 
-	# Git vs tarball checks
-	local is_git="no"
-	[[ "$packageurl" == git+* ]] && is_git="yes"
+	# VCS vs tarball checks
+	local is_vcs="no"
+	local vcs_name=""
+	case "$packageurl" in
+		git+*) is_vcs="yes"; vcs_name="git" ;;
+		svn+*) is_vcs="yes"; vcs_name="svn" ;;
+		hg+*)  is_vcs="yes"; vcs_name="hg" ;;
+		*.git*) is_vcs="yes"; vcs_name="git" ;;
+	esac
 
-	if [[ "$is_git" = "yes" ]]; then
+	if [[ "$is_vcs" = "yes" ]]; then
 		local packageref=$(grep "^# Packageref:" "$nhoid_file" 2>/dev/null | awk -F'\t' '{print $2}')
 		if [[ -z "$packageref" ]]; then
-			echog " *** Missing: # Packageref: (required for git sources)" >&2
+			echog " *** Missing: # Packageref: (required for ${vcs_name} sources)" >&2
 			((errors++))
 		fi
 	else
-		local sha256=$(grep "^# SHA256:" "$nhoid_file" 2>/dev/null | awk -F'\t' '{print $2}')
-		if [[ -z "$sha256" ]]; then
-			echog " ** Warning: # SHA256: missing (recommended for tarball sources)" >&2
+		local has_hash="no"
+		local hv
+		for h in MD5 SHA256 SHA512 BSUM; do
+			hv=$(grep "^# ${h}:" "$nhoid_file" 2>/dev/null | awk -F'\t' '{print $2}')
+			if [[ -n "$hv" ]]; then
+				has_hash="yes"
+				break
+			fi
+		done
+		if [[ "$has_hash" = "no" ]]; then
+			echog " ** Warning: # MD5/# SHA256/# SHA512/# BSUM: missing (recommended for tarball sources)" >&2
 		fi
 	fi
 
-	# Provides / Conflicts consistency
-	local provides=$(grep "^# Provides:" "$nhoid_file" 2>/dev/null | awk -F'\t' '{print $2}')
-	local conflicts=$(grep "^# Conflicts:" "$nhoid_file" 2>/dev/null | awk -F'\t' '{print $2}')
-	if [[ -n "$provides" && -n "$conflicts" ]]; then
-		for p in $provides; do
-			for c in $conflicts; do
-				if [[ "$p" = "$c" ]]; then
-					echog " *** Conflict: '${p}' appears in both Provides: and Conflicts:" >&2
-					((errors++))
-				fi
-			done
-		done
-	fi
-	for prov_line in $(grep "^# Provides_" "$nhoid_file" 2>/dev/null | awk -F'\t' '{print $2}'); do
-		local prov_suffix="${prov_line%%:*}"
-		for conf_line in $(grep "^# Conflicts_" "$nhoid_file" 2>/dev/null | awk -F'\t' '{print $2}'); do
-			if [[ "$prov_line" = "$conf_line" ]]; then
-				echog " *** Conflict: '${prov_line}' appears in both Provides and Conflicts" >&2
-				((errors++))
-			fi
-		done
-	done
+	# Note: the same name in both Provides: and Conflicts: is NOT an error.
+	# nhopkg treats it as a REPLACE pattern: the new package provides a virtual
+	# name and will replace any installed package with that name (see
+	# dep_check_conflicts() in libnhopkg_udepsys).
 
 	# Splitpackage checks
 	local split=$(grep "^# Splitpackage:" "$nhoid_file" 2>/dev/null | awk -F'\t' '{print $2}')

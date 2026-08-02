@@ -42,11 +42,9 @@ Version (1.0)
 .IP \(bu 4
 Release (1)
 .IP \(bu 4
-Category (apps)
+Group (base, libs, ...; space-separated for multiple groups, Enter to skip)
 .IP \(bu 4
-Group (base)
-.IP \(bu 4
-Repository (extra)
+Repository (extra; empty or Enter defaults to extra)
 .IP \(bu 4
 Description
 .IP \(bu 4
@@ -56,11 +54,11 @@ Packager
 .IP \(bu 4
 URL (project home page)
 .IP \(bu 4
-Download URL (Packageurl)
+Download URL (Packageurl; tarball, git+<url>, svn+<url> or hg+<url>)
 .IP \(bu 4
-Git reference (Packageref, required for git sources)
+VCS reference (Packageref, required for git+, svn+ and hg+ sources)
 .IP \(bu 4
-SHA256 checksum (optional; can be downloaded automatically)
+Checksum (MD5, SHA256, SHA512 or BSUM; SHA256 by default; optional; can be downloaded automatically)
 .IP \(bu 4
 License
 .IP \(bu 4
@@ -139,9 +137,9 @@ All split parts defined in Parts: have corresponding ninstall_<part>()
 .IP \(bu 4
 No duplicate function definitions
 .IP \(bu 4
-Warns if sha256 is missing
+Warns if a checksum (MD5, SHA256, SHA512, BSUM) is missing for tarball sources
 .IP \(bu 4
-Warns if Packageref is missing for git sources
+Warns if Packageref is missing for VCS sources (git+, svn+, hg+)
 .IP \(bu 4
 Warns if Description is empty
 .RE
