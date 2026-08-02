@@ -86,6 +86,9 @@ Strip debug symbols from ELF binaries during \fB\-\-build\fR (experimental).
 .B \-v, \-\-verbose
 Enable verbose output.
 .TP
+.B \-p, \-\-preserve-files
+Force retention of package files when removing a package.
+.TP
 .B \-R, \-\-recursive
 Answer "yes" to all prompts (non-interactive mode). With \fB\-e\fR also cleans
 the build directory.
@@ -149,17 +152,20 @@ Main configuration file.
 .I /usr/share/nhopkg/nhopkg.conf
 Fallback default configuration (shipped with the package).
 .TP
-.I /var/lib/nhopkg/packages/
+.I /var/nhopkg/packages/
 Database of installed packages (one file per package).
 .TP
-.I /var/lib/nhopkg/files/
+.I /var/nhopkg/files/
 List of files installed by each package (compressed).
 .TP
-.I /var/lib/nhopkg/nhopkg.db
+.I /var/nhopkg/nhopkg.db
 Locate-style database for dependency resolution.
 .TP
-.I /var/cache/nhopkg/
+.I /var/nhopkg/cache/
 Downloaded packages and temporary files.
+.TP
+.I /var/nhopkg/logs/
+Build and installation logs.
 .SH EXIT STATUS
 .TP
 0

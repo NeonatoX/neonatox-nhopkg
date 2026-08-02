@@ -103,7 +103,7 @@ install_data(
 if static_busybox == 'yes'
   busybox_build = custom_target(
     'busybox-static',
-    input: ['nhopkg-build-busybox.sh', 'busybox.config'],
+    input: ['../scripts/nhopkg-build-busybox.sh', 'busybox.config'],
     output: 'busybox',
     command: [
       'sh', '@INPUT0@',
@@ -123,7 +123,7 @@ endif
 if static_zstd == 'yes'
   zstd_build = custom_target(
     'zstd-static',
-    input: 'nhopkg-build-zstd.sh',
+    input: '../scripts/nhopkg-build-zstd.sh',
     output: 'zstd',
     command: [
       'sh', '@INPUT@',

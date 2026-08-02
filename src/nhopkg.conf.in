@@ -94,7 +94,7 @@ NHOHOLD="@NHOHOLD@"
 # (musl/glibc) updates because BusyBox and zstd are statically linked.
 #==============================================================================
 
-NHOPKG_USE_BUSYBOX=no
+NHOPKG_USE_BUSYBOX=@NHOPKG_USE_BUSYBOX@
 
 
 #==============================================================================
