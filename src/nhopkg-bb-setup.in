@@ -12,7 +12,7 @@ NHOPKG_BB_APPLETS=(
     md5sum sha1sum sha256sum sha512sum
     wget id date sleep cat nproc unshare od realpath chroot
     adduser addgroup passwd
-    tee sleep expr touch uname
+    tee sleep expr touch uname seq split comm echo uniq true
 )
 
 if [[ ! -x "$BUSYBOX_BIN" ]]; then
