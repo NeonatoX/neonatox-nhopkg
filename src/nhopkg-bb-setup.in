@@ -6,9 +6,10 @@ NHOPKG_BB_DIR="@prefix@/lib/nhopkg/bin"
 BUSYBOX_BIN="${NHOPKG_BB_DIR}/busybox"
 
 NHOPKG_BB_APPLETS=(
+    [ expand
     awk sed grep sort cut tr head tail wc xargs
-    mkdir cp mv rm rmdir ln ls du stat basename dirname mktemp chmod chown
-    tar gzip gunzip
+    mkdir cp mv rm rmdir ln ls du stat basename dirname mktemp chmod chown chgrp
+    tar gzip gunzip dd
     md5sum sha1sum sha256sum sha512sum
     wget id date sleep cat nproc unshare od realpath chroot
     adduser addgroup passwd
