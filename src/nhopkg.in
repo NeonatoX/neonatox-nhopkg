@@ -442,6 +442,10 @@ nhopkg_help()
 	echog " --no-check-sums\tDon't check Sums."
 	echog " --sign-package\tSign the binary package when building it."
 	echog " --no-sign-package\tSkip the package signature."
+	echog " --base\tBuild only the base package (with -b/-C), skipping split packages."
+	echog " --split <name>\tBuild only the selected split package(s) (with -b/-C)."
+	echog " --no-split <name>\tBuild all split packages except the selected one(s) (with -b/-C)."
+	echog " --lib32\tBuild only the lib32 split package, skipping the base build (with -b/-C)."
 	echog " --verify-package-signature\tVerify the GPG signature of the package before installing it."
 	echog " --no-verify-package-signature\tSkip signature verification."
 	echog " --purge\tRemove inverse dependencies of package."
@@ -1535,6 +1539,61 @@ build_prepare() {
 
 	return 0
 }
+## build_split_parts(). Returns the split parts to build after applying the
+# --base / --split / --no-split / --lib32 filters.
+# Usage: build_split_parts "<splitpackage>"
+# Gives: space-separated list of parts to build (echoed).
+build_split_parts()
+{
+	local parts="$1"
+	local out=""
+	local part want bad found skip
+	# --lib32: only the lib32 split (like --split lib32).
+	if [[ "${SPLIT_LIB32_ONLY}" = "yes" ]]; then
+		found="no"
+		for part in ${parts}; do
+			[[ "${part}" = "lib32" ]] && { found="yes"; break; }
+		done
+		if [[ "${found}" = "no" ]]; then
+			echog " * Warning: split package 'lib32' is not defined in this package." >&2
+			echo
+			return 0
+		fi
+		echo "lib32"
+		return 0
+	fi
+	for part in ${parts}; do
+		[[ "${SPLIT_BASE_ONLY}" = "yes" ]] && continue
+		if [[ -n "${SPLIT_ONLY_PARTS}" ]]; then
+			found="no"
+			for want in ${SPLIT_ONLY_PARTS}; do
+				[[ "${part}" = "${want}" ]] && { found="yes"; break; }
+			done
+			[[ "${found}" = "yes" ]] || continue
+		fi
+		if [[ -n "${SPLIT_SKIP_PARTS}" ]]; then
+			skip="no"
+			for bad in ${SPLIT_SKIP_PARTS}; do
+				[[ "${part}" = "${bad}" ]] && { skip="yes"; break; }
+			done
+			[[ "${skip}" = "no" ]] || continue
+		fi
+		out="${out} ${part}"
+	done
+	# Warn about --split parts that don't exist in this package.
+	if [[ -n "${SPLIT_ONLY_PARTS}" ]]; then
+		for want in ${SPLIT_ONLY_PARTS}; do
+			found="no"
+			for part in ${parts}; do
+				[[ "${want}" = "${part}" ]] && { found="yes"; break; }
+			done
+			if [[ "${found}" = "no" ]]; then
+				echog " * Warning: split package '${want}' is not defined in this package." >&2
+			fi
+		done
+	fi
+	echo "${out# }"
+}
 ## build_package(). Build package form nhoid functions.
 # Usage: build_package (without arguments)
 build_package()
@@ -1750,6 +1809,11 @@ build_search_for_files()
 # gives: BUILD_TIME variable.
 get_build_time()
 {
+	# --lib32 skips the base build, so INITIAL_DATE/FINAL_DATE may be unset.
+	if [[ -z "${INITIAL_DATE}" || -z "${FINAL_DATE}" ]]; then
+		BUILD_TIME=0
+		return 0
+	fi
 	BUILD_TIME=$((${FINAL_DATE} - ${INITIAL_DATE}))
 	BUILD_TIME=$((${BUILD_TIME}/60))
 }
@@ -2401,8 +2465,13 @@ trap cleanup_all EXIT TERM
 # Section: Nhopkg parse options.
 #==============================================================================
 NHNAME=$(basename "$0")
+# Split package options (--base / --split / --no-split / --lib32), only used by build/super-build.
+SPLIT_BASE_ONLY="no"
+SPLIT_ONLY_PARTS=""
+SPLIT_SKIP_PARTS=""
+SPLIT_LIB32_ONLY="no"
 SHORTOPTIONS="RiSdXrBbklno:wxst:UehuvCyGp"
-LONGOPTIONS="recursive,root:,no-check-deps,no-check-arch,no-check-sha256,force-check-deps,force-check-arch,force-check-sha256,install,super-install,dios,remove,backup,purge,build,check,list,info,output:,show,update-shooters,search,list-repo,update,clean,help,license,license-all,version,update-db,verbose,super-build,sign-package,no-sign-package,verify-package-signature,no-verify-package-signature,upgrade,install-group,strip-binaries,preserve-files"
+LONGOPTIONS="recursive,root:,no-check-deps,no-check-arch,no-check-sha256,force-check-deps,force-check-arch,force-check-sha256,install,super-install,dios,remove,backup,purge,build,check,list,info,output:,show,update-shooters,search,list-repo,update,clean,help,license,license-all,version,update-db,verbose,super-build,sign-package,no-sign-package,verify-package-signature,no-verify-package-signature,upgrade,install-group,strip-binaries,preserve-files,base,split:,no-split:,lib32"
 NHPARAMS=$(getopt -o ${SHORTOPTIONS} -l ${LONGOPTIONS} -n ${NHNAME} -- "$@")
 if [[ "${?}" != "0" ]]; then
 	nhopkg_usage
@@ -2622,6 +2691,29 @@ while [[ "${1}" != "--" ]]; do
 		shift
 		PRESERVE_FILES=1
 		;;
+		--base)
+			shift
+			# Build only the base package, ignoring SPLITPACKAGE (only with -b/-C).
+			SPLIT_BASE_ONLY="yes"
+		;;
+		--split)
+			shift
+			# Build only the selected split package(s) (only with -b/-C).
+			SPLIT_ONLY_PARTS="${SPLIT_ONLY_PARTS} ${1}"
+			shift
+		;;
+		--no-split)
+			shift
+			# Build all split packages except the selected one(s) (only with -b/-C).
+			SPLIT_SKIP_PARTS="${SPLIT_SKIP_PARTS} ${1}"
+			shift
+		;;
+		--lib32)
+			shift
+			# Build only the lib32 split package, skipping the base build (only with -b/-C).
+			# ninstall_lib32 replaces nbuild and ninstall.
+			SPLIT_LIB32_ONLY="yes"
+		;;
 		-s|--search)
 			shift
 			if [[ -z "${NHOPKG_OPTION}" ]]; then
@@ -2747,6 +2839,26 @@ while [[ "${1}" != "--" ]]; do
 		;;
 	esac
 done
+# Split options are only valid for --build (-b) or --super-build (-C).
+if [[ "${SPLIT_BASE_ONLY}" = "yes" || -n "${SPLIT_ONLY_PARTS}" || -n "${SPLIT_SKIP_PARTS}" || "${SPLIT_LIB32_ONLY}" = "yes" ]]; then
+	if [[ "${NHOPKG_OPTION}" != "build" && "${NHOPKG_OPTION}" != "super-build" ]]; then
+		echog " * The --base, --split, --no-split and --lib32 options are only valid with --build (-b) or --super-build (-C)." >&2
+		exit 1
+	fi
+	# --lib32 and --base are contradictory.
+	if [[ "${SPLIT_LIB32_ONLY}" = "yes" && "${SPLIT_BASE_ONLY}" = "yes" ]]; then
+		echog " * The --lib32 and --base options are contradictory, select only one." >&2
+		exit 1
+	fi
+	# --lib32 overrides --split/--no-split (only lib32 is built, other parts are ignored).
+	if [[ "${SPLIT_LIB32_ONLY}" = "yes" && ( -n "${SPLIT_ONLY_PARTS}" || -n "${SPLIT_SKIP_PARTS}" ) ]]; then
+		echog " * Warning: --lib32 overrides --split/--no-split; only the lib32 split package will be built." >&2
+	fi
+	# --base overrides --split/--no-split (only the base is built, split filters are ignored).
+	if [[ "${SPLIT_BASE_ONLY}" = "yes" && ( -n "${SPLIT_ONLY_PARTS}" || -n "${SPLIT_SKIP_PARTS}" ) ]]; then
+		echog " * Warning: --base overrides --split/--no-split; only the base package will be built." >&2
+	fi
+fi
 # Get selected packages.
 shift
 CASEPACKAGES="${@}"
@@ -3143,6 +3255,12 @@ case "${NHOPKG_OPTION}" in
 				exit 1
 			fi
 
+			# --lib32: skip the base build entirely (ninstall_lib32 has the full recipe).
+			# Keep the setup above (it loads SPLITPACKAGE for the split section).
+			if [[ "${SPLIT_LIB32_ONLY}" = "yes" ]]; then
+				continue
+			fi
+
 			# Check if package is already installed.
 			check_if_installed_package
 
@@ -3204,8 +3322,10 @@ case "${NHOPKG_OPTION}" in
 		done
 
 		# If SPLITPACKAGE is not empty, create subpackages
-		if [[ -n "${SPLITPACKAGE}" ]]; then
-			IFS=' ' read -r -a SPLITPARTS <<< "${SPLITPACKAGE}"
+		# (filtered by --base / --split / --no-split)
+		BUILD_SPLIT_PARTS=$(build_split_parts "${SPLITPACKAGE}")
+		if [[ -n "${BUILD_SPLIT_PARTS}" ]]; then
+			IFS=' ' read -r -a SPLITPARTS <<< "${BUILD_SPLIT_PARTS}"
 			# ensure CASEPACKAGES parsed as array
 			IFS=' ' read -r -a CASEPACKAGES_ARRAY <<< "${CASEPACKAGES:-}"
 			for part in "${SPLITPARTS[@]}"; do
@@ -3362,6 +3482,13 @@ case "${NHOPKG_OPTION}" in
 			# We also updated CASEPACKAGES so that subpackages can use it
 			CASEPACKAGES="${CASEPACKAGE}"
 			
+			# --lib32: skip the base build entirely (ninstall_lib32 has the full recipe).
+			# Keep the clone + nhoid read above (it loads SPLITPACKAGE and ORIGINAL_PKGNAME
+			# for the split section).
+			if [[ "${SPLIT_LIB32_ONLY}" = "yes" ]]; then
+				continue
+			fi
+
 			# Check if package is already installed.
 			check_if_installed_package
 			
@@ -3420,8 +3547,10 @@ case "${NHOPKG_OPTION}" in
 		done
 
 		# Support for subpackages (same as --build)
-		if [[ -n "${SPLITPACKAGE}" ]]; then
-			IFS=' ' read -r -a SPLITPARTS <<< "${SPLITPACKAGE}"
+		# (filtered by --base / --split / --no-split)
+		BUILD_SPLIT_PARTS=$(build_split_parts "${SPLITPACKAGE}")
+		if [[ -n "${BUILD_SPLIT_PARTS}" ]]; then
+			IFS=' ' read -r -a SPLITPARTS <<< "${BUILD_SPLIT_PARTS}"
 			# ensure CASEPACKAGES parsed as array
 			IFS=' ' read -r -a CASEPACKAGES_ARRAY <<< "${CASEPACKAGES:-}"
 			for part in "${SPLITPARTS[@]}"; do
