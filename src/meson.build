@@ -72,9 +72,16 @@ nhoget = configure_file(
   configuration: conf
 )
 
+# Configurar nhopicker CLI
+nhopicker = configure_file(
+  input: 'nhopicker.in',
+  output: 'nhopicker',
+  configuration: conf
+)
+
 # Instalar los scripts ejecutables
 install_data(
-  [nhopkg_script, nhopkg_repos, nhouser, nhopkg_overlay, nhopkg_src, nhoget],
+  [nhopkg_script, nhopkg_repos, nhouser, nhopkg_overlay, nhopkg_src, nhoget, nhopicker],
   install_dir: get_option('bindir'),
   install_mode: 'rwxr-xr-x'
 )

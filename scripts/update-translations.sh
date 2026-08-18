@@ -40,6 +40,7 @@ SOURCES=(
     "${PROJECT_DIR}/src/nhopkg-repos.in"
     "${PROJECT_DIR}/src/nhopkg-src.in"
     "${PROJECT_DIR}/src/nhouser.in"
+    "${PROJECT_DIR}/src/nhopicker.in"
 )
 
 # Check required tools

@@ -4,6 +4,7 @@ src/nhopkg.in.*
 src/nhopkg-overlay.in.*
 src/nhopkg-repos.in.*
 src/nhouser.in.*
+src/nhopicker.in.*
 src/*.patch
 src/*.diff
 AGENTS.md

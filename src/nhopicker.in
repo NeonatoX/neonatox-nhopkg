@@ -1,0 +1,91 @@
+#!/bin/bash
+###############################################################################
+#	nhopicker (tool) v. @PACKAGE_VERSION@ @RELEASEDATE@
+#	<https://github.com/NeonatoX/neonatox-nhopkg/>
+#
+#	Copyright (C) 2009-@RELEASEDATE@  Carlos Sánchez <cargabsj175@gmail.com>
+#
+#	This program is free software: you can redistribute it and/or modify
+#	it under the terms of the GNU General Public License as published by
+#	the Free Software Foundation, either version 3 of the License, or
+#	(at your option) any later version.
+#
+#	This program is distributed in the hope that it will be useful,
+#	but WITHOUT ANY WARRANTY; without even the implied warranty of
+#	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#	GNU General Public License for more details.
+#
+#	You should have received a copy of the GNU General Public License
+#	along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+# Description: Move files from a source tree to a destination tree using
+#              find-path patterns. Calls nhopicker() from libnhopkg.
+# Parameters: <source_dir> <dest_dir> <pattern> [<pattern> ...]
+###############################################################################
+#==============================================================================
+# Section: Basic configurations.
+#==============================================================================
+prefix="@prefix@"
+NHOPKG_CONF="@sysconfdir@/nhopkg/nhopkg.conf"
+NHOPKG_CONF_DEFAULT="@pkgdatadir@/nhopkg.conf"
+
+if [[ -e "${NHOPKG_CONF}" ]]; then
+	source "${NHOPKG_CONF}" 2> /dev/null
+elif [[ -e "${NHOPKG_CONF_DEFAULT}" ]]; then
+	echog " * Unable to locate Nhopkg configuration file!"
+	echog " - Loading default Nhopkg configuration file..."
+	source "${NHOPKG_CONF_DEFAULT}" 2> /dev/null
+else
+	echog " * Unable to locate Nhopkg configuration file!"
+	exit 1
+fi
+
+if [[ -e "${NHOPKG_LIB}" ]]; then
+	source "${NHOPKG_LIB}" 2> /dev/null
+else
+	echog " * Unable to locate Nhopkg core common functions file!"
+fi
+
+usage() {
+	echog "Usage:"
+	echo "	nhopicker <source_dir> <dest_dir> <pattern> [<pattern> ...]"
+	echo
+	echog "Move files from a source tree to a destination tree."
+	echo
+	echog "Arguments:"
+	echo "  source_dir      Source directory (staging / DESTDIR)"
+	echo "  dest_dir        Destination directory (subpackage dir or system root)"
+	echo "  pattern         One or more find -path patterns (e.g. \"*.a\", \"*.h\", \"*/bin/*\")"
+	echo
+	echog "  -h, --help      Show this help page."
+	echog "      --version   Show version."
+}
+
+if [[ $# -eq 0 ]]; then
+	usage
+	exit 1
+fi
+
+case "$1" in
+	-h|--help)
+		usage
+		exit 0
+		;;
+	--version)
+		echo "nhopicker @PACKAGE_VERSION@"
+		echo "Copyright (C) 2009-@RELEASEDATE@  Carlos Sánchez <cargabsj175@gmail.com>"
+		exit 0
+		;;
+esac
+
+if [[ $# -lt 3 ]]; then
+	echog " * At least source_dir, dest_dir and one pattern are required." >&2
+	usage
+	exit 1
+fi
+
+SRC_DIR="$1"
+DST_DIR="$2"
+shift 2
+
+nhopicker "$SRC_DIR" "$DST_DIR" "$@"
