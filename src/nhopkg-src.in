@@ -549,6 +549,32 @@ cmd_validate() {
 		fi
 	done
 
+	# Check for unbalanced quotes in all functions
+	local check_funcs=("nbuild" "ninstall" "npostinstall" "npostremove")
+	if [[ -n "$split" ]]; then
+		for part in $split; do
+			check_funcs+=("ninstall_${part}" "npostinstall_${part}" "npostremove_${part}")
+		done
+	fi
+
+	for fn in "${check_funcs[@]}"; do
+		if grep -q "^${fn}() {" "$nhoid_file" 2>/dev/null; then
+			local fn_body
+			fn_body=$(sed -n "/^${fn}() {/,/^}/p" "$nhoid_file" | sed '1d;$d')
+			local single_quotes double_quotes
+			single_quotes=$(echo "$fn_body" | sed "s/\\\\'/ /g" | tr -cd "'" | wc -c)
+			double_quotes=$(echo "$fn_body" | sed 's/\\"/ /g' | tr -cd '"' | wc -c)
+			if (( single_quotes % 2 != 0 )); then
+				echog " *** ${fn}(): unbalanced single quotes" >&2
+				((errors++))
+			fi
+			if (( double_quotes % 2 != 0 )); then
+				echog " *** ${fn}(): unbalanced double quotes" >&2
+				((errors++))
+			fi
+		fi
+	done
+
 	if [[ $errors -eq 0 ]]; then
 		echog " --- nhoid is valid."
 		return 0
