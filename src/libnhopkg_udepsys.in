@@ -835,10 +835,15 @@ _dep_install_single() {
     
     # Remove old version if upgrading
     if [[ -f "${ROOT_PKG_STATE_DIR}/packages/${pkgname}" ]]; then
+        local save_pkgname="${pkgname}" save_pkgversion="${pkgversion}" save_pkgrevision="${pkgrevision}"
         get_basic_data "${ROOT_PKG_STATE_DIR}/packages/${pkgname}"
         echog " --- Removing old: ${pkgname}-${pkgversion}-${pkgrevision}"
         remove_package
         remove_package_config_files
+        # Restore the package being installed (get_basic_data overwrote globals)
+        pkgname="${save_pkgname}"
+        pkgversion="${save_pkgversion}"
+        pkgrevision="${save_pkgrevision}"
     fi
     
     # Install & configure
