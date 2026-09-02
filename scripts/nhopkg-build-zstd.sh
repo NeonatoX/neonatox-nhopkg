@@ -52,7 +52,7 @@ cd "zstd-${ZSTD_VERSION}"
 JOBS=$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 1)
 
 echo "Compiling zstd ${ZSTD_VERSION} with musl-gcc..."
-CFLAGS="-DZSTD_NO_TERMINAL_GUARD -Os -s" \
+CFLAGS="-DZSTD_NO_TERMINAL_GUARD -Os -s -fno-link-libatomic" \
 CC="$MUSLGCC" ZSTD_LIBS="-static" LDFLAGS="-static" \
 make -j"$JOBS" -C programs zstd
 
