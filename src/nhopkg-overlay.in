@@ -26,7 +26,7 @@
 ## Nhopkg basic variables and configurations. Please don't edit these.
 # Get the config file.
 prefix="@prefix@"
-NHOPKG_CONF="@sysconfdir@/nhopkg/nhopkg.conf"
+NHOPKG_CONF="${NHOPKG_CONF:-@sysconfdir@/nhopkg/nhopkg.conf}"
 NHOPKG_CONF_DEFAULT="@pkgdatadir@/nhopkg.conf"
 if [ -e "${NHOPKG_CONF}" ]; then
 	source "${NHOPKG_CONF}" 2> /dev/null

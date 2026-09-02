@@ -30,7 +30,7 @@ PACKAGE_VERSION="@PACKAGE_VERSION@"
 
 # ---- Source library ----
 prefix="@prefix@"
-NHOPKG_CONF="@sysconfdir@/nhopkg/nhopkg.conf"
+NHOPKG_CONF="${NHOPKG_CONF:-@sysconfdir@/nhopkg/nhopkg.conf}"
 NHOPKG_CONF_DEFAULT="@pkgdatadir@/nhopkg.conf"
 
 if [[ -e "${NHOPKG_CONF}" ]]; then
