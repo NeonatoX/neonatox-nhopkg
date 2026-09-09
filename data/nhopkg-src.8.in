@@ -3,7 +3,7 @@
 nhopkg-src \- create, validate, and build source package projects for nhopkg
 .SH SYNOPSIS
 .B nhopkg-src
-\fB\-\-init\fR [\fIname\fR]
+\fB\-\-init\fR [\fIname\fR] [\fB\-\-meta\fR]
 .br
 .B nhopkg-src
 \fB\-\-createpackage\fR [\fB\-\-force\fR]
@@ -29,7 +29,7 @@ file plus patches and extra files, which \fBnhopkg \-bv\fR uses to download, com
 and install binary packages.
 .SH COMMANDS
 .TP
-.B \-\-init [\fIname\fR]
+.B \-\-init [\fIname\fR] [\fB\-\-meta\fR]
 Create a new source package project interactively.
 .br
 If \fIname\fR is provided on the command line, it is used as the package name
@@ -48,7 +48,9 @@ Repository (extra; empty or Enter defaults to extra)
 .IP \(bu 4
 Description
 .IP \(bu 4
-Maintainer
+Maintainer name (defaults to $USER)
+.IP \(bu 4
+Maintainer email (defaults to $USER@$HOSTNAME)
 .IP \(bu 4
 Packager
 .IP \(bu 4
@@ -66,6 +68,28 @@ Architecture (set to machine architecture)
 .IP \(bu 4
 Provides / Conflicts (optional)
 .RE
+.P
+When \fB\-\-meta\fR is used, only \fIPackage Name\fR, \fIPackage Version\fR,
+\fIPackage Release\fR, \fIPackage Maintainer Name\fR, \fIPackage Maintainer
+Email\fR, \fIPackage Group\fR, \fIRepository\fR, and \fITarget group name\fR
+are prompted. All other fields are set automatically:
+.RS
+.IP \(bu 4
+License: CUSTOM
+.IP \(bu 4
+Architecture: any
+.IP \(bu 4
+URL: https://gitlab.com/neonatox-sources/<name>
+.IP \(bu 4
+Description: Metapackage for <name> group.
+.IP \(bu 4
+Packageurl: omitted (no source tarball)
+.RE
+.P
+The target group's packages are resolved from repository metadata and written
+as BuildDep and Dep(post) entries automatically. The resulting project can be
+packaged and installed like any source package, but \fInbuild()\fR does nothing
+and a \fIREADME.meta\fR is generated in the documentation directory.
 .P
 The project directory contains:
 .RS
@@ -145,11 +169,26 @@ Warns if Description is empty
 .RE
 .SH OPTIONS
 .TP
+.B \-\-meta
+With \fB\-\-init\fR, create a metapackage project. No source tarball or
+download URL is required; package metadata is filled automatically and the
+target group's packages are resolved as dependencies.
+.TP
 .B \-\-force
 With \fB\-\-createpackage\fR, overwrite existing .srcnho file without prompting.
 .TP
 .B \-\-ref \fIref\fR
 Git reference (tag, branch, or commit) for \fB\-\-get-source\fR.
+.SH ENVIRONMENT
+Each \fB\-\-init\fR prompt can be pre-answered by exporting the matching
+environment variable; when the variable is already set the prompt is skipped.
+The recognized variables are \fIPKG_NAME\fR, \fIPKG_VERSION\fR,
+\fIPKG_RELEASE\fR, \fIPKG_MAINTAINER_NAME\fR, \fIPKG_MAINTAINER_EMAIL\fR,
+\fIPKG_GROUP\fR, \fIPKG_REPOSITORY\fR, \fIPKG_LICENSE\fR, \fIPKG_ARCH\fR,
+\fIPKG_URL\fR, \fIPKG_DESCRIPTION\fR, \fIPKG_PACKAGEURL\fR,
+\fIPKG_PACKAGEREF\fR, \fIPKG_HASH_TYPE\fR, \fIPKG_DOWNLOAD\fR,
+\fIPKG_META_GROUP\fR (with \fB\-\-meta\fR), \fIPKG_SPLIT\fR,
+\fIPKG_PROVIDES\fR, and \fIPKG_CONFLICTS\fR.
 .SH EXAMPLES
 .TP
 Create a new project

@@ -79,6 +79,7 @@ echo "=== Extracting translatable strings ==="
 xgettext \
     --keyword=echog \
     --keyword=echogn \
+    --keyword=meta_gettext \
     --from-code=UTF-8 \
     --language=Shell \
     --output="${POT_FILE}" \

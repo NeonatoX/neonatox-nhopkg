@@ -56,7 +56,7 @@ fi
 #==============================================================================
 nhopkg_src_usage() {
 	echog "Usage:"
-	echo "  nhopkg-src --init [<name>]"
+	echo "  nhopkg-src --init [<name>] [--meta]"
 	echo "  nhopkg-src --createpackage [--force]"
 	echo "  nhopkg-src --buildpackage"
 	echo "  nhopkg-src --validate [<nhoid_file>]"
@@ -64,6 +64,7 @@ nhopkg_src_usage() {
 	echo
 	echog "Options:"
 	echo "  --init [<name>]       Create a new source package project"
+	echo "  --meta                Create a metapackage (no source, groups packages)"
 	echo "  --createpackage       Package project into .srcnho"
 	echo "  --force               Overwrite existing .srcnho"
 	echo "  --buildpackage        Build source package with nhopkg -bv"
@@ -102,6 +103,13 @@ prompt_with_default() {
 prompt_required() {
 	local var_name="$1"
 	local prompt_text="$2"
+	local current_val
+
+	eval current_val=\"\$$var_name\"
+	if [[ -n "$current_val" ]]; then
+		echog "${prompt_text}: ${current_val}"
+		return
+	fi
 
 	while true; do
 		echog "${prompt_text}:"
@@ -118,6 +126,18 @@ prompt_yes_no() {
 	local var_name="$1"
 	local prompt_text="$2"
 	local default_val="${3:-Y}"
+	local current_val
+
+	eval current_val=\"\$$var_name\"
+	if [[ -n "$current_val" ]]; then
+		current_val=$(echo "$current_val" | tr '[:upper:]' '[:lower:]')
+		case "$current_val" in
+			y|yes) eval $var_name=\"yes\" ;;
+			*) eval $var_name=\"no\" ;;
+		esac
+		echog "${prompt_text}: ${current_val}"
+		return
+	fi
 
 	echogn "${prompt_text}"
 	echo -n " [${default_val}/n]: "
@@ -132,6 +152,13 @@ prompt_yes_no() {
 prompt_multi() {
 	local var_name="$1"
 	local prompt_text="$2"
+	local current_val
+
+	eval current_val=\"\$$var_name\"
+	if [[ -n "$current_val" ]]; then
+		echog "${prompt_text}: ${current_val}"
+		return
+	fi
 
 	echog "${prompt_text} (space separated, Enter to skip):"
 	read -er input_val
@@ -176,6 +203,7 @@ write_nhoid_header() {
 # Release:	${PKG_RELEASE}
 EOF
 	[[ -n "$PKG_LICENSE" ]] && echo -e "# License:\t${PKG_LICENSE}" >> "$nhoid_file"
+	[[ "${NHOPKG_SRC_META}" = "yes" ]] && echo -e "# Metapackage:\tyes" >> "$nhoid_file"
 	if [[ -n "$PKG_GROUP" ]]; then
 		for grp in $PKG_GROUP; do
 			echo -e "# Group:\t${grp}" >> "$nhoid_file"
@@ -186,30 +214,39 @@ EOF
 	[[ -n "$PKG_ARCH" ]] && echo -e "# Arch:\t${PKG_ARCH}" >> "$nhoid_file"
 	[[ -n "$PKG_URL" ]] && echo -e "# Url:\t${PKG_URL}" >> "$nhoid_file"
 	[[ -n "$PKG_DESCRIPTION" ]] && echo -e "# Description:\t${PKG_DESCRIPTION}" >> "$nhoid_file"
-	echo -e "# Packageurl:\t${PKG_PACKAGEURL}" >> "$nhoid_file"
-	if [[ -n "$PKG_VCS_TYPE" ]]; then
-		echo -e "# Packageref:\t${PKG_PACKAGEREF}" >> "$nhoid_file"
-	else
-		local hash_type="${PKG_HASH_TYPE:-SHA256}"
-		if [[ -n "$PKG_HASH" ]]; then
-			echo -e "# ${hash_type}:\t${PKG_HASH}" >> "$nhoid_file"
+	if [[ "${NHOPKG_SRC_META}" != "yes" ]]; then
+		echo -e "# Packageurl:\t${PKG_PACKAGEURL}" >> "$nhoid_file"
+		if [[ -n "$PKG_VCS_TYPE" ]]; then
+			echo -e "# Packageref:\t${PKG_PACKAGEREF}" >> "$nhoid_file"
 		else
-			echo -e "## ${hash_type}:\t<pendiente>" >> "$nhoid_file"
+			local hash_type="${PKG_HASH_TYPE:-SHA256}"
+			if [[ -n "$PKG_HASH" ]]; then
+				echo -e "# ${hash_type}:\t${PKG_HASH}" >> "$nhoid_file"
+			else
+				echo -e "## ${hash_type}:\t<pendiente>" >> "$nhoid_file"
+			fi
 		fi
 	fi
 	[[ -n "$PKG_SPLIT" ]] && echo -e "# Splitpackage:\t${PKG_SPLIT}" >> "$nhoid_file"
 	[[ -n "$PKG_PROVIDES" ]] && echo -e "# Provides:\t${PKG_PROVIDES}" >> "$nhoid_file"
 	[[ -n "$PKG_CONFLICTS" ]] && echo -e "# Conflicts:\t${PKG_CONFLICTS}" >> "$nhoid_file"
 	echo >> "$nhoid_file"
-	echo -e "## BuildDep:\t(add your build dependencies here)" >> "$nhoid_file"
-	echo -e "## OptionalBuildDep:\t(add your optional build dependencies)" >> "$nhoid_file"
-	echo -e "## Dep(post):\t(add your runtime dependencies)" >> "$nhoid_file"
-	echo -e "## OptionalDep(post):\t(add your optional runtime dependencies)" >> "$nhoid_file"
+	if [[ "${NHOPKG_SRC_META}" = "yes" ]]; then
+		# Metapackages have no build/runtime source, so optional deps are omitted.
+		echo -e "## BuildDep:\t(add your build dependencies here)" >> "$nhoid_file"
+		echo -e "## Dep(post):\t(add your runtime dependencies)" >> "$nhoid_file"
+	else
+		echo -e "## BuildDep:\t(add your build dependencies here)" >> "$nhoid_file"
+		echo -e "## OptionalBuildDep:\t(add your optional build dependencies)" >> "$nhoid_file"
+		echo -e "## Dep(post):\t(add your runtime dependencies)" >> "$nhoid_file"
+		echo -e "## OptionalDep(post):\t(add your optional runtime dependencies)" >> "$nhoid_file"
+	fi
 	echo >> "$nhoid_file"
 }
 
 write_nhoid_placeholders() {
 	local nhoid_file="$1"
+	local meta="${2:-no}"
 	local IFS_bak="$IFS"
 	local -a splits=()
 
@@ -218,7 +255,11 @@ write_nhoid_placeholders() {
 	echo '}' >> "$nhoid_file"
 	echo >> "$nhoid_file"
 	echo 'ninstall() {' >> "$nhoid_file"
-	echo '    noemptyfuncs' >> "$nhoid_file"
+	if [[ "$meta" = "yes" ]]; then
+		echo '    create_meta_readme' >> "$nhoid_file"
+	else
+		echo '    noemptyfuncs' >> "$nhoid_file"
+	fi
 	echo '}' >> "$nhoid_file"
 	echo >> "$nhoid_file"
 	echo 'npostinstall() {' >> "$nhoid_file"
@@ -265,21 +306,34 @@ cmd_init() {
 	prompt_with_default PKG_VERSION "Package Version" "1.0"
 	prompt_with_default PKG_RELEASE "Package Release" "n2026"
 
-	local default_maintainer="${USER:-user} <${USER:-user}@$(hostname)>"
-	prompt_with_default PKG_MAINTAINER "Package Maintainer" "$default_maintainer"
-	PACKAGERNAME="${PKG_MAINTAINER%% <*}"
-	PACKAGERMAIL="${PKG_MAINTAINER#*<}"
-	PACKAGERMAIL="${PACKAGERMAIL%>}"
+	local default_maintainer_name="${USER:-user}"
+	local default_maintainer_email="${USER:-user}@$(hostname)"
+	prompt_with_default PKG_MAINTAINER_NAME "Package Maintainer Name" "$default_maintainer_name"
+	prompt_with_default PKG_MAINTAINER_EMAIL "Package Maintainer Email" "$default_maintainer_email"
+	PACKAGERNAME="${PKG_MAINTAINER_NAME}"
+	PACKAGERMAIL="${PKG_MAINTAINER_EMAIL}"
 
 	prompt_multi PKG_GROUP "Package Group (base, apps, libs, ...)"
 	prompt_with_default PKG_REPOSITORY "Repository" "extra"
-	prompt_with_default PKG_LICENSE "License" "GPL-3.0-only"
-	prompt_with_default PKG_ARCH "Architecture" "x86_64"
-	prompt_with_default PKG_URL "Upstream URL" ""
-	prompt_with_default PKG_DESCRIPTION "Description" ""
 
-	# Packageurl
-	prompt_required PKG_PACKAGEURL "Package URL (tarball, git+<url>, svn+<url> or hg+<url>)"
+	if [[ "${NHOPKG_SRC_META}" = "yes" ]]; then
+		# Metapackage: fixed metadata (no prompts for these fields).
+		PKG_LICENSE="CUSTOM"
+		PKG_ARCH="any"
+		PKG_URL="https://gitlab.com/neonatox-sources/${PKG_NAME}"
+		PKG_DESCRIPTION="Metapackage for ${PKG_NAME} group."
+		PKG_PACKAGEURL=""
+		# Ask the target group (whose packages this metapackage will install).
+		prompt_required PKG_META_GROUP "Target group name (packages to include)"
+	else
+		prompt_with_default PKG_LICENSE "License" "GPL-3.0-only"
+		prompt_with_default PKG_ARCH "Architecture" "x86_64"
+		prompt_with_default PKG_URL "Upstream URL" ""
+		prompt_with_default PKG_DESCRIPTION "Description" ""
+
+		# Packageurl
+		prompt_required PKG_PACKAGEURL "Package URL (tarball, git+<url>, svn+<url> or hg+<url>)"
+	fi
 
 	# Create project directory first (needed for downloads)
 	local proj_dir="${PWD}/${PKG_NAME}"
@@ -290,6 +344,7 @@ cmd_init() {
 	mkdir -p "$proj_dir/patches" "$proj_dir/others"
 
 	PKG_VCS_TYPE=""
+	if [[ "${NHOPKG_SRC_META}" != "yes" ]]; then
 	case "$PKG_PACKAGEURL" in
 		git+*|svn+*|hg+*)
 			case "$PKG_PACKAGEURL" in
@@ -326,13 +381,32 @@ cmd_init() {
 		fi
 		;;
 	esac
+	fi
 
 	prompt_multi PKG_SPLIT "Split packages"
 	prompt_multi PKG_PROVIDES "Provides"
 	prompt_multi PKG_CONFLICTS "Conflicts"
 
 	write_nhoid_header "$proj_dir/nhoid"
-	write_nhoid_placeholders "$proj_dir/nhoid"
+	write_nhoid_placeholders "$proj_dir/nhoid" "${NHOPKG_SRC_META}"
+
+	if [[ "${NHOPKG_SRC_META}" = "yes" ]]; then
+		# Resolve the target group to real package names (field "# Name:").
+		ROOT_PKG_STATE_DIR="${NHOPKG_LOCALSTATEDIR}"
+		local dep_names
+		dep_names=$(get_packages_by_group_names "${PKG_META_GROUP}" | tr '\n' ' ' | sed 's/  */ /g;s/^ //;s/ $//')
+		if [[ -n "${dep_names}" ]]; then
+			# Fill the placeholder dep lines in place (header, right after Description).
+			sed -i "s|^## BuildDep:.*|# BuildDep:\t${dep_names}|" "$proj_dir/nhoid"
+			sed -i "s|^## Dep(post):.*|# Dep(post):\t${dep_names}|" "$proj_dir/nhoid"
+			echogn " --- Group packages:"
+			echo " ${dep_names}"
+		else
+			echog " * WARNING: no packages found in repo metadata for group '${PKG_META_GROUP}'." >&2
+			echog "   Dependencies left as placeholders (## BuildDep: / ## Dep(post):)." >&2
+			echog "   You must fill them manually before building the metapackage." >&2
+		fi
+	fi
 
 	echogn " --- Project created:"
 	echo " ${proj_dir}"
@@ -394,6 +468,8 @@ cmd_createpackage() {
 	tar cf "$srcnho_file" -C "${NHOPKG_TMPDIR}/pkg" . 2>/dev/null
 	check_if_ok " * Unable to create source package."
 	cleanup_tmp_dir
+	echo
+	echog " - Run 'nhopkg-src --buildpackage' or 'sudo nhopkg -bv $srcnho_file' to build package"
 }
 
 #==============================================================================
@@ -463,6 +539,11 @@ cmd_validate() {
 		((errors++))
 	fi
 
+	# Metapackage marker
+	local metapackage=$(grep "^# Metapackage:" "$nhoid_file" 2>/dev/null | awk -F'\t' '{print $2}')
+
+	# Packageurl/VCS/tarball checks (not required for metapackages)
+	if [[ "${metapackage}" != "yes" ]]; then
 	# Packageurl
 	local packageurl=$(grep "^# Packageurl:" "$nhoid_file" 2>/dev/null | awk -F'\t' '{print $2}')
 	if [[ -z "$packageurl" ]]; then
@@ -500,6 +581,7 @@ cmd_validate() {
 			echog " ** Warning: # MD5/# SHA256/# SHA512/# BSUM: missing (recommended for tarball sources)" >&2
 		fi
 	fi
+	fi
 
 	# Note: the same name in both Provides: and Conflicts: is NOT an error.
 	# nhopkg treats it as a REPLACE pattern: the new package provides a virtual
@@ -517,12 +599,14 @@ cmd_validate() {
 		done
 	fi
 
-	# nbuild() must exist and have real content (not just noemptyfuncs)
+	# nbuild() must exist; real content not required for metapackages (always noemptyfuncs)
 	if grep -q "^nbuild() {" "$nhoid_file" 2>/dev/null; then
-		local build_body=$(sed -n '/^nbuild() {/,/^}/p' "$nhoid_file" | sed '1d;$d' | tr -d '[:space:]')
-		if [[ -z "$build_body" || "$build_body" = "noemptyfuncs" ]]; then
-			echog " *** nbuild() has no real content (must have build commands)" >&2
-			((errors++))
+		if [[ "${metapackage}" != "yes" ]]; then
+			local build_body=$(sed -n '/^nbuild() {/,/^}/p' "$nhoid_file" | sed '1d;$d' | tr -d '[:space:]')
+			if [[ -z "$build_body" || "$build_body" = "noemptyfuncs" ]]; then
+				echog " *** nbuild() has no real content (must have build commands)" >&2
+				((errors++))
+			fi
 		fi
 	else
 		echog " *** Missing function: nbuild()" >&2
@@ -642,6 +726,7 @@ NHOPKG_SRC_CMD=""
 NHOPKG_SRC_FORCE="no"
 NHOPKG_SRC_ARG=""
 NHOPKG_SRC_REF=""
+NHOPKG_SRC_META="no"
 
 while [[ $# -gt 0 ]]; do
 	case "$1" in
@@ -659,6 +744,10 @@ while [[ $# -gt 0 ]]; do
 			;;
 		--force)
 			NHOPKG_SRC_FORCE="yes"
+			shift
+			;;
+		--meta)
+			NHOPKG_SRC_META="yes"
 			shift
 			;;
 		--buildpackage)

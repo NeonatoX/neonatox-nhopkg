@@ -19,7 +19,7 @@
 | Автоматизация создания репозиториев | `nhopkg-repos` (`--create-repo`, `--add-to-repo`) |
 | Устойчивый приватный PATH | Статический BusyBox в `lib/nhopkg/bin` с символическими ссылками через `nhopkg-bb-setup` |
 | Страницы man | `nhopkg.8`, `nhoget.8`, `nhopkg-repos.8`, `nhopkg-src.8`, `nhopkg-overlay.8`, `nhouser.8`, `nhopkg.conf.5` |
-| Чёткие группы пакетов | `--install-group` / `get_packages_by_group()` |
+| Чёткие группы пакетов | Мета-пакеты через `nhopkg-src --init --meta` / `get_packages_by_group_names()` |
 
 ## В планах
 

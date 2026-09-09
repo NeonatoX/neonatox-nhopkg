@@ -19,7 +19,7 @@ The following roadmap items are now implemented:
 | Automate repository creation | `nhopkg-repos` (`--create-repo`, `--add-to-repo`) |
 | Resilient private PATH | Static BusyBox in `lib/nhopkg/bin` with symlinks via `nhopkg-bb-setup` |
 | Man pages | `nhopkg.8`, `nhoget.8`, `nhopkg-repos.8`, `nhopkg-src.8`, `nhopkg-overlay.8`, `nhouser.8`, `nhopkg.conf.5` |
-| Clear package groups | `--install-group` / `get_packages_by_group()` |
+| Clear package groups | Metapackages via `nhopkg-src\ \-\-init\ \-\-meta` / `get_packages_by_group_names()` |
 
 ## Still on the roadmap
 

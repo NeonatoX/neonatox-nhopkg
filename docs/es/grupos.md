@@ -1,103 +1,71 @@
 [← Índice](README.md)
 
-# 7\. Grupos de paquetes
+# 7\. Grupos de paquetes y meta-paquetes
 
-**nhopkg** permite organizar paquetes en **grupos lógicos** mediante el campo `# Group:` en el archivo `nhoid`. Esto facilita la instalación masiva de conjuntos de software relacionados (por ejemplo, un entorno de escritorio, un servidor o un conjunto de herramientas de desarrollo).
+**nhopkg** permite organizar paquetes en **grupos lógicos** mediante el campo `# Group:` en el archivo `nhoid`. Los grupos son metadatos que se usan para buscar e informar; para instalar todo un conjunto de paquetes a la vez se crea un **meta-paquete** que depende del grupo.
 
 ## Definición de grupos
 
-Para asignar un paquete a un grupo, se debe incluir una línea en su `nhoid` con el siguiente formato:
-    
-    
-    # Group:	<nombre-del-grupo>
+El campo `# Group:` puede aparecer más de una vez en un `nhoid`; un paquete pertenece a todos los grupos listados.
 
-Donde `<nombre-del-grupo>` es un identificador alfanumérico (puede contener guiones bajos o guiones).
-
-### Ejemplos
-    
-    
     # Group:	graphics
-    
-    
-    # Group:	base
-    
-    
     # Group:	development
 
-## Instalación por grupo
+## Qué es un meta-paquete
 
-Una vez que los paquetes están clasificados en grupos, se pueden instalar todos los miembros de un grupo con un solo comando:
-    
-    
-    sudo nhopkg --install-group <nombre-del-grupo>
+Un meta-paquete es un paquete `.nho` que **no contiene archivos de aplicación**: solo depende de un conjunto de paquetes que se instalan juntos. Una vez instalado el meta-paquete, instalar y eliminar todo el conjunto se gestiona normalmente con nhopkg; sus dependencias se resuelven al instalarlo.
 
-Por ejemplo:
-    
-    
-    # Instalar todos los paquetes del grupo "graphics"
-    sudo nhopkg --install-group graphics
-    
-    # Instalar el sistema base mínimo
-    sudo nhopkg --install-group base
+## Crear un meta-paquete
 
-## Funcionamiento interno
+Se usa `nhopkg-src --init <nombre> --meta`. La herramienta pregunta por un **grupo objetivo** y escribe los nombres de los paquetes del grupo como entradas `# BuildDep:` y `# Dep(post):`:
 
-El comando `--install-group` realiza los siguientes pasos:
+```bash
+# Crear un proyecto que depende de todo lo del grupo "base"
+nhopkg-src --init base-meta --meta
 
-  1. **Escanea los repositorios locales sincronizados** (`/var/nhopkg/repo/*/packages/`).
-  2. **Busca todos los archivos`nhoid`** que contengan la línea `# Group: <grupo>`.
-  3. **Compila una lista única de paquetes** pertenecientes al grupo.
-  4. **Resuelve las dependencias** de todos los paquetes del grupo.
-  5. **Muestra un plan de instalación** y pide confirmación al usuario.
-  6. **Descarga e instala** primero las dependencias y luego los paquetes del grupo.
+# Empaquetarlo
+nhopkg-src --createpackage
 
+# Compilarlo e instalarlo (resuelve e instala todas sus dependencias)
+sudo nhopkg-src --buildpackage
+```
 
+Los meta-paquetes usan metadatos fijos: `# License: CUSTOM`, `# Arch: any`, una URL de proyecto y la descripción `Metapackage for <nombre> group.`. No se requiere tarball fuente ni URL de descarga.
 
-**Nota:** La función que implementa esta lógica es `get_packages_by_group()`, definida en el script principal. Esta función es eficiente y está diseñada para trabajar con múltiples repositorios activos. 
+## Instalación y eliminación
 
-## Uso práctico en distribuciones personalizadas
+Un meta-paquete se instala y elimina igual que cualquier otro paquete:
 
-Los grupos son especialmente útiles para definir perfiles de instalación en una distribución personalizada. Algunos ejemplos comunes:
+```bash
+# Instalar un meta-paquete construido localmente
+sudo nhopkg -i base-meta-1.0-n2026.linux-any.nho
 
-Grupo | Propósito | Paquetes de ejemplo  
----|---|---  
-`base` | Sistema mínimo funcional | `glibc`, `bash`, `coreutils`, `systemd`  
-`xorg` | Servidor gráfico X11 | `xorg-server`, `mesa`, `xf86-video-intel`  
-`desktop` | Entorno de escritorio completo | `gnome`, `firefox`, `gimp`  
-`server` | Paquetes para servidores | `openssh`, `nginx`, `postgresql`  
-`development` | Herramientas de compilación | `gcc`, `make`, `git`, `valgrind`  
-  
-## Consideraciones importantes
+# Desinstalarlo sin afectar a sus paquetes
+sudo nhopkg -r base-meta
 
-  * Un paquete puede pertenecer a **varios grupos**: el campo `# Group:` puede aparecer más de una vez en el `nhoid`, y el paquete se incluye si cualquiera de sus líneas de grupo coincide.
-  * La instalación por grupo **respeta todas las políticas de seguridad** (verificación de firmas, arquitectura, etc.).
-  * Si un paquete del grupo ya está instalado, **se omitirá** a menos que haya una actualización disponible.
-  * El comando fallará si **no se encuentra ningún paquete** para el grupo especificado.
-    
-    
-    # Group:	base
-    # Group:	development
+# Eliminarlo por completo (no existe configuración, así que basta -r; --purge es opcional para una eliminación definitiva)
+sudo nhopkg --purge base-meta
+```
 
+Al eliminar el meta-paquete, sus paquetes **no** se eliminan automáticamente.
 
+## Documentación
 
-## Ejemplo completo de flujo de trabajo
-    
-    
-    # 1. Sincronizar repositorios
-    sudo nhopkg --update
-    
-    # 2. Ver qué paquetes hay en el grupo "base"
-    nhopkg --list-repo | grep "Group: base"
-    
-    # 3. Instalar el grupo "base"
-    sudo nhopkg --install-group base
-    
-    # Salida esperada:
-    #  - Packages to be installed:
-    #    glibc-2.40-n2025
-    #    bash-5.2.32-n2025
-    #    coreutils-9.5-n2025
-    #    ...
-    # Do you want to continue?[yes/NO]: yes
-    # ...
-    #  - Group installation finished successfully!
+Al construir o instalar un meta-paquete, se genera un `README.meta` en `/usr/share/doc/<paquete>/` (en el idioma preferido del sistema cuando hay traducción disponible). Explica el propósito del meta-paquete, la lista de paquetes y cómo eliminarlo de forma segura.
+
+## Casos de uso
+
+Los grupos y los meta-paquetes son ideales para definir perfiles de sistema como `base`, `desktop` o `server`:
+
+```bash
+# Sincronizar repositorios
+sudo nhopkg --update
+
+# Listar paquetes de un grupo (buscar en los metadatos)
+nhopkg --search base | grep base
+
+# Compilar e instalar el meta-paquete "base"
+nhopkg-src --init base-meta --meta
+nhopkg-src --createpackage
+sudo nhopkg -b base-meta-1.0-n2026.srcnho
+```

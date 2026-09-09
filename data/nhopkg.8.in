@@ -75,10 +75,6 @@ database, man pages, font cache, shared library cache, GDK pixbuf loaders.
 Remove cached \fI.nho\fR packages from the download cache. With \fB\-R\fR also
 cleans the build directory.
 .TP
-.B \-G, \-\-install-group \fI<group>\fR
-Install every package belonging to a named group (e.g. base, libs, xorg)
-across all active repositories.
-.TP
 .B \-X, \-\-strip-binaries
 Strip debug symbols from ELF binaries during \fB\-\-build\fR (experimental).
 .SH OPTIONS

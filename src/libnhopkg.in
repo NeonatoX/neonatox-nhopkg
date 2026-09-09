@@ -330,6 +330,9 @@ get_nhoid_data()
 	pkgarch=$(grep "^# Arch:" "${1}" 2> /dev/null | awk -F'\t' '{print $2}')
 	pkgos=$(grep "^# OS:" "${1}" 2> /dev/null | awk -F'\t' '{print $2}')
 	pkginstalledsize=$(grep "^# Installed-Size:" "${1}" 2> /dev/null | awk -F'\t' '{print $2}' | awk '{print $1}')
+	# Metapackage marker (default: no)
+	pkgmetapackage=$(grep "^# Metapackage:" "${1}" 2> /dev/null | awk -F'\t' '{print $2}')
+	pkgmetapackage="${pkgmetapackage:-no}"
 	# Source from URL (git or tarball)
 	pkgsrcurl=$(grep "^# Packageurl:" "${1}" 2> /dev/null | awk -F'\t' '{print $2}')
 	pkggitref=$(grep "^# Packageref:" "${1}" 2> /dev/null | awk -F'\t' '{print $2}')
@@ -378,6 +381,196 @@ get_nhoid_data()
 	fi
 	source "${1}" 2> /dev/null
 	check_if_ok " * Unable to get data from package."
+}
+
+#==============================================================================
+# Section: Package groups (metapackages)
+#==============================================================================
+# ---------------------------------------------------------
+# get_packages_by_group()
+# Description:
+#   Lists all package filenames that belong to a given group
+#   across all active repositories.
+#
+#   It scans the local repository metadata and matches the
+#   "# Group:" field inside each package description file.
+#
+# Parameters:
+#   $1  Group name to search (e.g. "base", "core", "libs")
+#
+# Behavior:
+#   - Uses NHOPKG_ACTIVE_REPOS (defaults to "extra" if unset)
+#   - Requires ROOT_PKG_STATE_DIR (init from nhopkg.conf)
+#   - Skips symlinks
+#   - Prints only package file names (basename)
+#
+# Returns:
+#   0 always. Output is written to stdout.
+# ---------------------------------------------------------
+get_packages_by_group() {
+	group="$1"
+	repo_dir="${ROOT_PKG_STATE_DIR}/repo"
+
+	[ -z "$NHOPKG_ACTIVE_REPOS" ] && NHOPKG_ACTIVE_REPOS="extra"
+
+	for repo in $NHOPKG_ACTIVE_REPOS; do
+		pkgdir="$repo_dir/$repo/packages"
+		[ -d "$pkgdir" ] || continue
+
+		find "$pkgdir" -maxdepth 1 -type f -print | while IFS= read -r pkg_file; do
+			[ -L "$pkg_file" ] && continue
+			# Read ALL '# Group:' lines and match any of them
+			sed -n 's/^# Group:[[:space:]]*//p' "$pkg_file" | while IFS= read -r pkg_group; do
+				if [ "$pkg_group" = "$group" ]; then
+					basename "$pkg_file"
+					break
+				fi
+			done
+		done
+	done
+}
+# ---------------------------------------------------------
+# get_packages_by_group_names()
+# Description:
+#   Lists the real package NAMES (field "# Name:", no version)
+#   of all packages belonging to a group across all active
+#   repositories.
+#
+#   Unlike get_packages_by_group(), it does NOT parse the
+#   version from the filename; it reads the "# Name:" field
+#   of each repository metadata file (robust against names
+#   like "foo-1helper").
+#
+# Parameters:
+#   $1  Group name to search
+#
+# Behavior:
+#   - Uses NHOPKG_ACTIVE_REPOS (defaults to "extra" if unset)
+#   - Requires ROOT_PKG_STATE_DIR (init from nhopkg.conf)
+#   - Skips symlinks
+#   - Output is deduplicated with sort -u
+#
+# Returns:
+#   Unique package names, one per line (stdout).
+# ---------------------------------------------------------
+get_packages_by_group_names() {
+	local group="$1"
+	local repo_dir="${ROOT_PKG_STATE_DIR}/repo"
+
+	[ -z "$NHOPKG_ACTIVE_REPOS" ] && NHOPKG_ACTIVE_REPOS="extra"
+
+	for repo in $NHOPKG_ACTIVE_REPOS; do
+		local pkgdir="$repo_dir/$repo/packages"
+		[ -d "$pkgdir" ] || continue
+
+		find "$pkgdir" -maxdepth 1 -type f -print | while IFS= read -r pkg_file; do
+			[ -L "$pkg_file" ] && continue
+			# Read ALL '# Group:' lines and match any of them
+			sed -n 's/^# Group:[[:space:]]*//p' "$pkg_file" | while IFS= read -r pkg_group; do
+				if [ "$pkg_group" = "$group" ]; then
+					grep "^# Name:" "$pkg_file" 2>/dev/null | awk -F'\t' '{print $2}'
+					break
+				fi
+			done
+		done
+	done | sort -u
+}
+# ---------------------------------------------------------
+# meta_gettext()
+# Description:
+#   Translate a string for the metapackage README in the
+#   system language (gettext). Falls back to the msgid
+#   (english) when translations are disabled.
+# Parameters:
+#   $1  msgid to translate
+# Returns:
+#   Translated string on stdout (no trailing newline).
+# ---------------------------------------------------------
+meta_gettext()
+{
+	if [[ "${NHOPKG_GETTEXT}" = "yes" ]]; then
+		gettext "$1"
+	else
+		printf '%s' "$1"
+	fi
+}
+# ---------------------------------------------------------
+# create_meta_readme()
+# Description:
+#   Generates /usr/share/doc/<pkgname>/README.meta for a
+#   metapackage. It is a markdown document written in the
+#   system language (meta_gettext) that explains the purpose
+#   of the package, lists the packages it contains and how
+#   to remove it safely.
+#
+#   Reads the nhoid to fill in the data:
+#     ${NHOPKG_TMPDIR}/.nhoid  → first (build prepare moved it)
+#     ${NHOPKG_TMPDIR}/nhoid   → fallback (binary install)
+#     ${PWD}/nhoid             → fallback (source directory)
+#
+# Usage:
+#   create_meta_readme   (called from ninstall())
+# ---------------------------------------------------------
+create_meta_readme()
+{
+	local nhoid_file=""
+	if [[ -f "${NHOPKG_TMPDIR}/.nhoid" ]]; then
+		nhoid_file="${NHOPKG_TMPDIR}/.nhoid"
+	elif [[ -f "${NHOPKG_TMPDIR}/nhoid" ]]; then
+		nhoid_file="${NHOPKG_TMPDIR}/nhoid"
+	elif [[ -f "${PWD}/nhoid" ]]; then
+		nhoid_file="${PWD}/nhoid"
+	else
+		echog " * No nhoid found to generate metapackage README." >&2
+		return 1
+	fi
+
+	local name description build_date deps=""
+	name=$(grep "^# Name:" "${nhoid_file}" 2>/dev/null | awk -F'\t' '{print $2}')
+	description=$(grep "^# Description:" "${nhoid_file}" 2>/dev/null | awk -F'\t' '{print $2}')
+	build_date=$(grep "^# Build-Date:" "${nhoid_file}" 2>/dev/null | awk -F'\t' '{print $2}')
+	deps=$(grep "^# Dep(post):" "${nhoid_file}" 2>/dev/null | awk -F'\t' '{print $2}')
+
+	[[ -z "${name}" ]] && name="unknown"
+
+	local readme="/usr/share/doc/${name}/README.meta"
+	mkdir -p "$(dirname "${readme}")" || return 1
+
+	{
+		printf '# %s\n\n' "${name}"
+		printf '## %s\n\n' "$(meta_gettext "What is this?")"
+		printf '%s\n\n' "$(meta_gettext "This package is a **metapackage**: it does not contain application files, it only groups a set of packages that are installed together.")"
+		if [[ -n "${description}" ]]; then
+			printf '> %s\n\n' "${description}"
+		fi
+		if [[ -n "${build_date}" ]]; then
+			printf '> %s\n\n' "$(printf "$(meta_gettext "The package list below was frozen on %s (names only; versions are resolved to the latest repo version at install time).")" "${build_date}")"
+		else
+			printf '> %s\n\n' "$(meta_gettext "Only package names are listed here; versions are resolved to the latest repo version at install time.")"
+		fi
+		printf '## %s\n\n' "$(meta_gettext "Packages it installs")"
+		if [[ -n "${deps}" ]]; then
+			for dep in ${deps}; do
+				printf -- '- %s\n' "${dep}"
+			done
+			printf '\n'
+		else
+			printf '%s\n\n' "$(meta_gettext "This metapackage does not list any packages from its target group yet.")"
+		fi
+		printf '## %s\n\n' "$(meta_gettext "Files of this package")"
+		printf -- '- `%s`\n\n' "${readme}"
+		printf '## %s\n\n' "$(meta_gettext "How to remove this metapackage")"
+		printf '%s\n\n' "$(meta_gettext "You can uninstall this metapackage at any time **without affecting** the packages of its group:")"
+		printf '```bash\nnhopkg -r %s\n```\n\n' "${name}"
+		printf '%s\n\n' "$(meta_gettext "You do **not** need --purge (the package has no configuration of its own). Use it only for a complete and definitive removal:")"
+		printf '```bash\nnhopkg -r %s --purge\n```\n\n' "${name}"
+		printf -- '---\n\n*%s*\n' "$(meta_gettext "Generated by nhopkg.")"
+	} > "${readme}"
+
+	chmod 644 "${readme}"
+	echogn " --- Metapackage README:"
+	echo " ${readme}"
+	return 0
 }
 
 #==============================================================================

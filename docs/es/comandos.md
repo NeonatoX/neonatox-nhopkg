@@ -25,7 +25,6 @@ nhopkg es un gestor universal de paquetes binarios y fuente. Esta página docume
 | `-u` | `--update-db` | Reconstruye la base de datos local de ubicación de archivos (`updatedb` / `plocate`) |
 | `-x` | `--update-shooters` | Actualiza las cachés del sistema: esquemas GLib, caché de iconos, base de datos de escritorio, base de datos MIME, páginas man, caché de fuentes, caché de bibliotecas compartidas y cargadores GDK pixbuf |
 | `-e` | `--clean` | Elimina los paquetes `.nho` en caché del directorio de descarga; con `-R` también limpia el directorio de compilación |
-| `-G` | `--install-group` | Instala todos los paquetes pertenecientes a un grupo con nombre (p. ej. `base`, `libs`, `xorg`) en todos los repositorios activos |
 | `-X` | `--strip-binaries` | Elimina los símbolos de depuración de binarios ELF y objetos compartidos durante `--build` (experimental) |
 
 ## Opciones (flags)
@@ -115,9 +114,6 @@ nhopkg -v -n gimp
 
 # Escribir la salida de la lista en un archivo
 nhopkg -l -o /tmp
-
-# Instalar todos los paquetes del grupo "base"
-sudo nhopkg -G base
 
 # Eliminar símbolos de depuración durante la compilación
 sudo nhopkg -X -b foo.srcnho

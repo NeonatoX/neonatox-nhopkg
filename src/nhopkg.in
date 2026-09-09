@@ -190,48 +190,6 @@ ns_exec_in() {
 	return $_ret
 }
 # ---------------------------------------------------------
-# get_packages_by_group()
-# Description:
-#   Lists all package filenames that belong to a given group
-#   across all active repositories.
-#
-#   It scans the local repository metadata and matches the
-#   "# Group:" field inside each package description file.
-#
-# Parameters:
-#   $1  Group name to search (e.g. "base", "core", "libs")
-#
-# Behavior:
-#   - Uses NHOPKG_ACTIVE_REPOS (defaults to "extra" if unset)
-#   - Skips symlinks
-#   - Prints only package file names (basename)
-#
-# Returns:
-#   0 always. Output is written to stdout.
-# ---------------------------------------------------------
-get_packages_by_group() {
-	group="$1"
-	repo_dir="${ROOT_PKG_STATE_DIR}/repo"
-
-	[ -z "$NHOPKG_ACTIVE_REPOS" ] && NHOPKG_ACTIVE_REPOS="extra"
-
-	for repo in $NHOPKG_ACTIVE_REPOS; do
-		pkgdir="$repo_dir/$repo/packages"
-		[ -d "$pkgdir" ] || continue
-
-		find "$pkgdir" -maxdepth 1 -type f -print | while IFS= read -r pkg_file; do
-			[ -L "$pkg_file" ] && continue
-			# Read ALL '# Group:' lines and match any of them
-			sed -n 's/^# Group:[[:space:]]*//p' "$pkg_file" | while IFS= read -r pkg_group; do
-				if [ "$pkg_group" = "$group" ]; then
-					basename "$pkg_file"
-					break
-				fi
-			done
-		done
-	done
-}
-# ---------------------------------------------------------
 # install_init_unit()
 # Description: Install or remove init service units using
 #    external providers (BLFS).
@@ -408,7 +366,6 @@ nhopkg_help()
 	echog "Commands:"
 	echog " -B, --backup\tCreates binary package from installed package."
 	echog " -C, --super-build\tCompiles and installs source package from Git repo."
-	echog " -G, --install-group\tInstalls binaries packages from a specified group from the repository."
 	echog " -S, --super-install\tInstalls binary package form repository."
 	echog " -U, --update\tUpdate repository database."
 	echog " -X, --strip-binaries\tRemove debug symbols from installed binaries and libraries during installation (experimental)."
@@ -1466,7 +1423,23 @@ fetch_tarball_source() {
 build_prepare() {
 	local srcfile_found=false
 	mkdir -p "${NHOPKG_BUILDIR}"
-	
+
+	# === Metapackage: nothing to fetch/extract ===
+	# Only prepare the environment: move nhoid → .nhoid and create the
+	# (empty) build dir so build_package() can enter it (nbuild is a no-op).
+	if [[ "${pkgmetapackage}" = "yes" ]]; then
+		if [[ -f "${NHOPKG_TMPDIR}/nhoid" ]]; then
+			mv "${NHOPKG_TMPDIR}/nhoid" "${NHOPKG_TMPDIR}/.nhoid" 2>/dev/null || true
+			echog " - nhoid file prepared for build process."
+		else
+			echog " * ERROR: nhoid file not found in ${NHOPKG_TMPDIR}" >&2
+			return 1
+		fi
+		mkdir -p "${NHOPKG_BUILDIR}/${pkgname}-${pkgversion}"
+		set_files_and_patches
+		return 0
+	fi
+
 	# === Check if nhoid exists before moving it ===
 	if [[ -f "${NHOPKG_TMPDIR}/nhoid" ]]; then
 		mv "${NHOPKG_TMPDIR}/nhoid" "${NHOPKG_TMPDIR}/.nhoid" 2>/dev/null || true
@@ -1837,6 +1810,7 @@ build_nhoid_to_bin()
 	grep '^# Version:' "${NHOPKG_TMPDIR}/.nhoid" >> "${NHOPKG_TMPDIR}/nhoid"
 	grep '^# Release:' "${NHOPKG_TMPDIR}/.nhoid" >> "${NHOPKG_TMPDIR}/nhoid"
 	grep '^# License:' "${NHOPKG_TMPDIR}/.nhoid" >> "${NHOPKG_TMPDIR}/nhoid"
+	grep '^# Metapackage:' "${NHOPKG_TMPDIR}/.nhoid" >> "${NHOPKG_TMPDIR}/nhoid" 2>/dev/null || true
 	# lib32- prefix for lib32 packages with defined groups, also correct groups according to the split package in the binary nhoid
 	if [ "$part" = "lib32" ] && grep -q '^# Group:' "${NHOPKG_TMPDIR}/.nhoid"; then
 		grpval=$(grep '^# Group:' "${NHOPKG_TMPDIR}/.nhoid" | sed 's/^# Group:\t//')
@@ -2470,8 +2444,8 @@ SPLIT_BASE_ONLY="no"
 SPLIT_ONLY_PARTS=""
 SPLIT_SKIP_PARTS=""
 SPLIT_LIB32_ONLY="no"
-SHORTOPTIONS="RiSdXrBbklno:wxst:UehuvCyGp"
-LONGOPTIONS="recursive,root:,no-check-deps,no-check-arch,no-check-sha256,force-check-deps,force-check-arch,force-check-sha256,install,super-install,dios,remove,backup,purge,build,check,list,info,output:,show,update-shooters,search,list-repo,update,clean,help,license,license-all,version,update-db,verbose,super-build,sign-package,no-sign-package,verify-package-signature,no-verify-package-signature,upgrade,install-group,strip-binaries,preserve-files,base,split:,no-split:,lib32"
+SHORTOPTIONS="RiSdXrBbklno:wxst:UehuvCyp"
+LONGOPTIONS="recursive,root:,no-check-deps,no-check-arch,no-check-sha256,force-check-deps,force-check-arch,force-check-sha256,install,super-install,dios,remove,backup,purge,build,check,list,info,output:,show,update-shooters,search,list-repo,update,clean,help,license,license-all,version,update-db,verbose,super-build,sign-package,no-sign-package,verify-package-signature,no-verify-package-signature,upgrade,strip-binaries,preserve-files,base,split:,no-split:,lib32"
 NHPARAMS=$(getopt -o ${SHORTOPTIONS} -l ${LONGOPTIONS} -n ${NHNAME} -- "$@")
 if [[ "${?}" != "0" ]]; then
 	nhopkg_usage
@@ -2802,15 +2776,6 @@ while [[ "${1}" != "--" ]]; do
 			else
 				echog " * You have selected more than one valid option." >&2
 				exit 1
-			fi
-		;;
-		-G|--install-group)
-			shift
-			if [ -z "$NHOPKG_OPTION" ]; then
-				NHOPKG_OPTION="install-group"
-			else
-				echog " * You have selected more than one valid option." >&2
-			exit 1
 			fi
 		;;
 		-X|--strip-binaries)
@@ -4041,217 +4006,6 @@ case "${NHOPKG_OPTION}" in
 	shooter_updates
 	update_local_db
 	echog " - System updated successfully!"
-	exit 0
-	;;
-	install-group)
-# ********************************************************************
-# Section: Install group (from repos)
-# Flow: Install each package individually with its own deps resolution
-# 0. Basic checks and validate groups
-# 1. Create temp package list file
-# 2. Collect packages from groups
-# 3. Normalize list (deduplicate + sanitize)
-# 4. Show plan and ask user
-# 5. Install each package individually (with deps resolved per-package)
-# 6. Finalize
-# ********************************************************************
-	# 0. Basic checks and validate groups
-	installed_ver=()
-	new_ver=()
-	
-	get_pwd_dir
-	check_if_root_uid
-
-	[ -z "$CASEPACKAGES" ] && {
-		echog " * Missing group name(s) for --install-group" >&2
-		exit 1
-	}
-
-	# 1. Create temp package list file
-	PKG_LIST_FILE="$(mktemp /tmp/nhopkg-install-group-XXXXXX.list)" || exit 1
-	trap 'rm -f "$PKG_LIST_FILE"' EXIT
-
-	# 2. Collect packages from groups
-	for GROUP in $CASEPACKAGES; do
-		case "$GROUP" in
-			''|--*|-*)
-				echog " * Invalid group name: $GROUP" >&2
-				exit 1
-				;;
-		esac
-
-		get_packages_by_group "$GROUP" >> "$PKG_LIST_FILE"
-	done
-
-	# 3. Normalize list (deduplicate + sanitize)
-	# Use sort -u for basic dedup, then filter by pkgname only
-	sed -i '/^$/d; /^-/d' "$PKG_LIST_FILE"
-	sort -u "$PKG_LIST_FILE" -o "$PKG_LIST_FILE"
-
-	# Additional dedup: keep only first occurrence of each pkgname
-	declare -A SEEN_PKG
-	TMP_LIST_FILE="$(mktemp /tmp/nhopkg-install-group-dedup-XXXXXX.list)" || exit 1
-	while IFS= read -r pkg_entry; do
-		# Extract pkgname (remove version-revision and arch/nho suffix)
-		pkg_base=$(echo "$pkg_entry" | sed 's/-[0-9].*//')
-		if [[ -z "${SEEN_PKG[${pkg_base}]}" ]]; then
-			echo "$pkg_entry" >> "$TMP_LIST_FILE"
-			SEEN_PKG[${pkg_base}]=1
-		fi
-	done < "$PKG_LIST_FILE"
-	mv -f "$TMP_LIST_FILE" "$PKG_LIST_FILE"
-
-	[ ! -s "$PKG_LIST_FILE" ] && {
-		echog " * No packages to install." >&2
-		exit 1
-	}
-
-	# 4. Show plan and ask user
-	echog " - Packages to be installed:"
-	sed 's/^/   /' "$PKG_LIST_FILE"
-
-	nhopkg_ask_follow
-	check_if_ok " * Packages will not be installed."
-
-	# 5. Install each package individually (like individual install)
-	declare -A PROCESSED_PKGS
-	while IFS= read -r pkg; do
-		# Skip empty lines
-		[[ -z "$pkg" ]] && continue
-		
-		echogn " --- Processing: " 
-		echo $pkg
-		
-		# Resolve package info (get pkgname, pkgversion, pkgrevision FROM REPO)
-		CASEPACKAGE="$pkg"
-		if ! getpackage; then
-			echog " * Failed to get package info for: $pkg" >&2
-			continue
-		fi
-		
-		# Skip if pkgname is empty
-		[[ -z "$pkgname" ]] && continue
-
-		# Skip if already processed in this session (dedup)
-		if [[ -n "${PROCESSED_PKGS[${pkgname}]}" ]]; then
-			echog " --- Skipping: $pkg (already processed in this session)"
-			continue
-		fi
-
-		# Check if package is already installed (in root or host)
-		if [[ -f "${ROOT_PKG_STATE_DIR}/packages/${pkgname}" ]]; then
-			repo_ver="${pkgversion}"
-			repo_rev="${pkgrevision}"
-			inst_ver=$(grep "^# Version:" "${ROOT_PKG_STATE_DIR}/packages/${pkgname}" 2>/dev/null | awk -F'\t' '{print $2}')
-			inst_rev=$(grep "^# Release:" "${ROOT_PKG_STATE_DIR}/packages/${pkgname}" 2>/dev/null | awk -F'\t' '{print $2}')
-
-			if [[ -z "${inst_ver}" ]] || [[ -z "${inst_rev}" ]]; then
-				echog " * Failed to get installed package info for: ${pkgname}" >&2
-				cleanup_tmp_dir
-				continue
-			fi
-
-			# Smart upgrade check
-			if version_compare "${repo_ver}" "<" "${inst_ver}"; then
-				echog " --- Skipping: $pkg (installed version ${inst_ver}-${inst_rev} is newer)"
-				PROCESSED_PKGS[${pkgname}]=1
-				continue
-			elif [[ "${repo_ver}" == "${inst_ver}" ]] && [[ "${repo_rev}" != "${inst_rev}" ]]; then
-				repo_bd=""
-				inst_bd=""
-				inst_bd=$(grep "^# Build-Date:" "${ROOT_PKG_STATE_DIR}/packages/${pkgname}" 2>/dev/null | awk -F'\t' '{print $2}')
-				repo_file="${ROOT_PKG_STATE_DIR}/repo/${pkgrepo}/packages/${pkgname}"
-				[[ ! -f "${repo_file}" ]] && repo_file="${ROOT_PKG_STATE_DIR}/repo/${pkgrepo}/packages/${pkgname}-${repo_ver}-${repo_rev}"
-				repo_bd=$(grep "^# Build-Date:" "${repo_file}" 2>/dev/null | awk -F'\t' '{print $2}')
-				if [[ -n "${inst_bd}" ]] && [[ -n "${repo_bd}" ]] && (( repo_bd <= inst_bd )); then
-					echog " --- Skipping: $pkg (Build-Date not newer)"
-					PROCESSED_PKGS[${pkgname}]=1
-					continue
-				fi
-			elif version_compare "${repo_ver}-${repo_rev}" "<=" "${inst_ver}-${inst_rev}"; then
-				echog " --- Skipping: $pkg (already installed: ${inst_ver}-${inst_rev})"
-				PROCESSED_PKGS[${pkgname}]=1
-				continue
-			fi
-
-			echog " --- Upgrading: $pkg (installed: ${inst_ver}-${inst_rev})"
-		fi
-
-		PROCESSED_PKGS[${pkgname}]=1
-
-		# Conflict check
-		dep_check_conflicts "${ROOT_PKG_STATE_DIR}/repo/${pkgrepo}/packages/${pkgname}-${pkgversion}-${pkgrevision}"
-
-		# Download package
-		echog " - Downloading: ${pkgname}-${pkgversion}-${pkgrevision}"
-		downloadpackage
-
-		# Install with dependency resolution (like individual install)
-		cleanup_tmp_dir
-		make_tmp_dir
-
-		tar xf \
-			"${ROOT_PKG_STATE_DIR}/cache/${pkgname}-${pkgversion}-${pkgrevision}.${pkgos}-${pkgarch}.nho" -C "${NHOPKG_TMPDIR}" 2>/dev/null
-		check_if_ok " * Unable to uncompress package."
-
-		if [ -f "${NHOPKG_TMPDIR}/nhoid" ]; then
-			get_nhoid_data "${NHOPKG_TMPDIR}/nhoid"
-		else
-			echog " * The selected package is not valid." >&2
-			cleanup_tmp_dir
-			continue
-		fi
-
-		# Security checks
-		check_package_hash
-		check_package_arch
-		verify_package_signature
-
-		# Resolve and install dependencies for THIS package
-		if [ "$NHOPKG_CHECKDEPS" = "yes" ]; then
-			dep_resolve_from_nhoid "${NHOPKG_TMPDIR}/nhoid" "required"
-			dep_install_queue "no" "required"
-		fi
-
-		# Check for package replacement
-		dep_check_conflicts "${NHOPKG_TMPDIR}/nhoid"
-
-		[ -n "$DEP_REPLACE_PACKAGE" ] && remove_replaced_package "$DEP_REPLACE_PACKAGE"
-
-		# Backup config files before removing old version
-		backup_config_files
-
-		# Remove OLD version if upgrading
-		if [[ -f "${ROOT_PKG_STATE_DIR}/packages/${pkgname}" ]]; then
-			save_pkgname="${pkgname}" save_pkgversion="${pkgversion}" save_pkgrevision="${pkgrevision}"
-			get_basic_data "${ROOT_PKG_STATE_DIR}/packages/${pkgname}"
-			echog " --- Removing old: ${pkgname}-${pkgversion}-${pkgrevision}"
-			remove_package
-			remove_package_config_files
-			# Restore the package being installed (get_basic_data overwrote globals)
-			pkgname="${save_pkgname}"
-			pkgversion="${save_pkgversion}"
-			pkgrevision="${save_pkgrevision}"
-		fi
-
-		# Install this package
-		# Safety check: skip if pkgname is empty
-		if [[ -z "${pkgname}" ]]; then
-			cleanup_tmp_dir
-			continue
-		fi
-
-		bin_install
-		bin_install_setting_up
-		bin_install_create_config_files
-
-		cleanup_tmp_dir
-	done < "$PKG_LIST_FILE"
-
-	# 6. Finalize
-	shooter_updates
-	update_local_db
-	echog " - Group installation finished successfully!"
 	exit 0
 	;;
 	clean)

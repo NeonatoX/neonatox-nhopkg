@@ -17,7 +17,8 @@ Cria um novo diretório de projeto de pacote fonte. Perguntas interativas guiam 
 | Nome | Sim | — | Do argumento ou pergunta interativa |
 | Versão | Não | `1.0` | |
 | Release | Não | `n2026` | |
-| Mantenedor | Não | `$USER <$USER@$HOSTNAME>` | |
+| Nome do mantenedor | Não | `$USER` | Predefina com `PKG_MAINTAINER_NAME` |
+| E-mail do mantenedor | Não | `$USER@$HOSTNAME` | Predefina com `PKG_MAINTAINER_EMAIL` |
 | Licença | Não | `GPL-3.0-only` | |
 | Arch | Não | `x86_64` | |
 | URL | Não | (vazio) | Site do projeto upstream |
@@ -58,7 +59,19 @@ nhopkg-src --init
 
 # Criar um projeto com um nome específico (pula a pergunta do nome)
 nhopkg-src --init meuapp
+
+# Criar um projeto de meta-pacote (aponta para um grupo de pacotes, sem fonte)
+nhopkg-src --init meuapp --meta
 ```
+
+Com `--meta`, a ferramenta cria um **meta-pacote**: um pacote sem arquivos
+fonte que apenas depende dos pacotes de um grupo alvo. Os metadados são
+preenchidos automaticamente (`License: CUSTOM`, `Arch: any`, URL e descrição
+derivadas do nome), o prompt `Target group name` é mostrado, os pacotes do
+grupo são resolvidos dos metadados do repositório e escritos como entradas
+`# BuildDep:`/`# Dep(post):`, e nenhum prompt de Packageurl/hash/VCS é feito.
+O projeto resultante empacota e instala normalmente, mas `nbuild()` permanece
+`noemptyfuncs` e um `README.meta` é gerado na instalação.
 
 Tarball nhoid (após download para SHA256):
 
@@ -160,6 +173,33 @@ npostremove_lib() {
 
 ---
 
+### Respostas predefinidas por variáveis de ambiente
+
+Cada pergunta do `--init` pode ser respondida de antemão exportando a variável
+de ambiente correspondente. Quando a variável já está definida, o `nhopkg-src`
+imprime o valor e omite a pergunta. Consulte a documentação em inglês para a
+lista completa de variáveis (`PKG_NAME`, `PKG_VERSION`, `PKG_RELEASE`,
+`PKG_MAINTAINER_NAME`, `PKG_MAINTAINER_EMAIL`, `PKG_GROUP`,
+`PKG_REPOSITORY`, `PKG_LICENSE`, `PKG_ARCH`, `PKG_URL`, `PKG_DESCRIPTION`,
+`PKG_PACKAGEURL`, `PKG_PACKAGEREF`, `PKG_HASH_TYPE`, `PKG_DOWNLOAD`,
+`PKG_META_GROUP`, `PKG_SPLIT`, `PKG_PROVIDES`, `PKG_CONFLICTS`).
+
+O nome e o e-mail do mantenedor são definidos em separado
+(`PKG_MAINTAINER_NAME` e `PKG_MAINTAINER_EMAIL`); o e-mail tem como padrão
+`$USER@$HOSTNAME` (fallback `user@host`). No nhoid eles são escritos juntos em
+um único campo `# Package Maintainer: Name <email>`.
+
+Exemplo — criar um metapacote sem nenhuma pergunta:
+
+```bash
+export PKG_MAINTAINER_NAME="Jane Doe"
+export PKG_MAINTAINER_EMAIL="jane@example.com"
+export PKG_META_GROUP="ttf-fonts"
+nhopkg-src --init fonts-meta --meta
+```
+
+---
+
 ### `--createpackage [--force]`
 
 Empacota o diretório do projeto atual em um tarball `.srcnho` plano.
@@ -223,11 +263,11 @@ Valida um arquivo nhoid (padrão é `./nhoid`). Retorna código de saída 0 se v
 | `# Name:` | Erro | Deve estar presente e não vazio |
 | `# Version:` | Erro | Deve estar presente e não vazio |
 | `# Release:` | Erro | Deve estar presente e não vazio |
-| `# Packageurl:` | Erro | Deve estar presente e não vazio |
-| `# Packageref:` | Erro | Obrigatório se Packageurl começar com `git+` |
+| `# Packageurl:` | Erro | Deve estar presente e não vazio (não obrigatório em meta-pacotes) |
+| `# Packageref:` | Erro | Obrigatório se Packageurl começar com `git+` (não obrigatório em meta-pacotes) |
 | `# SHA256:` | Aviso | Recomendado para fontes tarball, não obrigatório |
-| Conteúdo de `nbuild()` | Erro | Deve ter comandos de construção reais (não apenas `noemptyfuncs`) |
-| Conteúdo de `ninstall()` | Erro | Deve ter comandos de instalação reais (não apenas `noemptyfuncs`) |
+| Conteúdo de `nbuild()` | Erro | Deve ter comandos de construção reais (não apenas `noemptyfuncs`), exceto meta-pacotes |
+| Conteúdo de `ninstall()` | Erro | Deve ter comandos de instalação reais (não apenas `noemptyfuncs`), exceto meta-pacotes |
 | Existência de `npostinstall()` | Erro | A função deve estar definida |
 | Existência de `npostremove()` | Erro | A função deve estar definida |
 | Existência de funções divididas | Erro | `ninstall_<parte>()` deve existir para cada parte dividida |

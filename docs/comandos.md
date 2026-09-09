@@ -25,7 +25,6 @@ nhopkg is a universal binary and source package manager. This page documents eve
 | `-u` | `--update-db` | Rebuild the local file-location database (`updatedb` / `plocate`) |
 | `-x` | `--update-shooters` | Refresh system caches: GLib schemas, icon cache, desktop database, MIME database, man pages, font cache, shared library cache, and GDK pixbuf loaders |
 | `-e` | `--clean` | Remove cached `.nho` packages from the download cache; with `-R` also cleans the build directory |
-| `-G` | `--install-group` | Install every package belonging to a named group (e.g. `base`, `libs`, `xorg`) across all active repositories |
 | `-X` | `--strip-binaries` | Strip debug symbols from ELF binaries and shared objects during `--build` (experimental) |
 
 ## Options (flags)
@@ -115,9 +114,6 @@ nhopkg -v -n gimp
 
 # Write list output to a file
 nhopkg -l -o /tmp
-
-# Install all packages in the "base" group
-sudo nhopkg -G base
 
 # Strip debug symbols during build
 sudo nhopkg -X -b foo.srcnho

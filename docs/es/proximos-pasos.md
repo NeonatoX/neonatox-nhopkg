@@ -19,7 +19,7 @@ Los siguientes elementos de la hoja de ruta ya están implementados:
 | Automatizar la creación de repositorios | `nhopkg-repos` (`--create-repo`, `--add-to-repo`) |
 | PATH privado resiliente con BusyBox | BusyBox estático en `lib/nhopkg/bin` con enlaces simbólicos vía `nhopkg-bb-setup` |
 | Páginas man | `nhopkg.8`, `nhoget.8`, `nhopkg-repos.8`, `nhopkg-src.8`, `nhopkg-overlay.8`, `nhouser.8`, `nhopkg.conf.5` |
-| Grupos de paquetes claros | `--install-group` / `get_packages_by_group()` |
+| Grupos de paquetes claros | Meta-paquetes con `nhopkg-src --init --meta` / `get_packages_by_group_names()` |
 
 ## Aún en la hoja de ruta
 

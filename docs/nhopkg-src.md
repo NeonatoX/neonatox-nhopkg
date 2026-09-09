@@ -17,7 +17,8 @@ Creates a new source package project directory. Interactive prompts guide you th
 | Name | Yes | — | From argument or interactive prompt |
 | Version | No | `1.0` | |
 | Release | No | `n2026` | |
-| Maintainer | No | `$USER <$USER@$HOSTNAME>` | |
+| Maintainer name | No | `$USER` | Predefine with `PKG_MAINTAINER_NAME` |
+| Maintainer email | No | `$USER@$HOSTNAME` | Predefine with `PKG_MAINTAINER_EMAIL` |
 | License | No | `GPL-3.0-only` | |
 | Arch | No | `x86_64` | |
 | URL | No | (empty) | Upstream project website |
@@ -58,7 +59,19 @@ nhopkg-src --init
 
 # Create a project with a given name (skips name prompt)
 nhopkg-src --init myapp
+
+# Create a metapackage project (targets a package group, no source)
+nhopkg-src --init myapp --meta
 ```
+
+With `--meta`, the tool creates a **metapackage**: a package with no source
+files that only depends on the packages of a target group. Metadata is filled
+automatically (`License: CUSTOM`, `Arch: any`, URL and description derived from
+the name), the `Target group name` prompt is shown, the group's packages are
+resolved from repository metadata and written as `# BuildDep:`/`# Dep(post):`
+entries, and no Packageurl/hash/VCS prompts are asked. The resulting project
+packages and installs normally, but `nbuild()` stays `noemptyfuncs` and a
+`README.meta` is generated on install.
 
 Tarball nhoid (after download for SHA256):
 
@@ -160,6 +173,54 @@ npostremove_lib() {
 
 ---
 
+### Predefined answers via environment variables
+
+Every `--init` prompt can be pre-answered by exporting the matching environment
+variable. When the variable is already set, `nhopkg-src` prints its value and
+skips the question. This lets packagers define defaults once (for example in
+their shell profile) and generate projects in one shot.
+
+| Variable | Replaces prompt | Example value |
+|---|---|---|
+| `PKG_NAME` | Package name | `myapp` |
+| `PKG_VERSION` | Version | `1.0` |
+| `PKG_RELEASE` | Release | `n2026` |
+| `PKG_MAINTAINER_NAME` | Maintainer name | `Jane Doe` |
+| `PKG_MAINTAINER_EMAIL` | Maintainer email | `jane@example.com` |
+| `PKG_GROUP` | Package group | `apps libs` |
+| `PKG_REPOSITORY` | Repository | `extra` |
+| `PKG_LICENSE` | License | `GPL-3.0-only` |
+| `PKG_ARCH` | Architecture | `x86_64` |
+| `PKG_URL` | Upstream URL | `https://example.com` |
+| `PKG_DESCRIPTION` | Description | `My application` |
+| `PKG_PACKAGEURL` | Package URL (tarball or `git+<url>`) | `https://example.com/myapp-1.0.tar.gz` |
+| `PKG_PACKAGEREF` | VCS reference (git/svn/hg) | `v1.0` |
+| `PKG_HASH_TYPE` | Checksum type | `sha256` |
+| `PKG_DOWNLOAD` | Download to calculate checksum | `no` |
+| `PKG_META_GROUP` | Target group (only with `--meta`) | `ttf-fonts` |
+| `PKG_SPLIT`, `PKG_PROVIDES`, `PKG_CONFLICTS` | Space-separated lists | `dev lib` |
+
+Notes:
+- An export counts as "set" even when empty is not allowed (required fields); to
+  keep the prompt you must `unset` the variable.
+- `PKG_DOWNLOAD` accepts `y`/`yes`/`n`/`no` (case-insensitive).
+- Space-separated lists (`PKG_GROUP`, `PKG_SPLIT`, `PKG_PROVIDES`,
+  `PKG_CONFLICTS`) are used as-is.
+- The maintainer email defaults to `$USER@$HOSTNAME`; the name defaults to
+  `$USER`. They are written to the nhoid as a single `# Package Maintainer:
+  Name <email>` field.
+
+**Example:** create a metapackage without any prompt:
+
+```bash
+export PKG_MAINTAINER_NAME="Jane Doe"
+export PKG_MAINTAINER_EMAIL="jane@example.com"
+export PKG_META_GROUP="ttf-fonts"
+nhopkg-src --init fonts-meta --meta
+```
+
+---
+
 ### `--createpackage [--force]`
 
 Packages the current project directory into a flat `.srcnho` tarball.
@@ -223,11 +284,11 @@ Validates a nhoid file (defaults to `./nhoid`). Returns exit code 0 if valid, 1 
 | `# Name:` | Error | Must be present and non-empty |
 | `# Version:` | Error | Must be present and non-empty |
 | `# Release:` | Error | Must be present and non-empty |
-| `# Packageurl:` | Error | Must be present and non-empty |
-| `# Packageref:` | Error | Required if Packageurl starts with `git+` |
+| `# Packageurl:` | Error | Must be present and non-empty (not required for metapackages) |
+| `# Packageref:` | Error | Required if Packageurl starts with `git+` (not required for metapackages) |
 | `# SHA256:` | Warning | Recommended for tarball sources, not required |
-| `nbuild()` content | Error | Must have real build commands (not just `noemptyfuncs`) |
-| `ninstall()` content | Error | Must have real install commands (not just `noemptyfuncs`) |
+| `nbuild()` content | Error | Must have real build commands (not just `noemptyfuncs`), except for metapackages |
+| `ninstall()` content | Error | Must have real install commands (not just `noemptyfuncs`), except for metapackages |
 | `npostinstall()` existence | Error | Function must be defined |
 | `npostremove()` existence | Error | Function must be defined |
 | Split function existence | Error | `ninstall_<part>()` must exist for each split part |
