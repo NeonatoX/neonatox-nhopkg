@@ -620,19 +620,19 @@ check_package_conflicts() {
 resolve_virtual_package()
 {
 	local search_name="$1"
-	local repo pkgdir pkgfile provides_line provs p
+	local repo pkgdir pkgfile provides_line provs p bestfile bestrepo
 
 	RESOLVED_PKGFILE=""
 	RESOLVED_REPO=""
+	bestfile=""
+	bestrepo=""
 
 	for repo in ${NHOPKG_ACTIVE_REPOS}; do
 		pkgdir="${ROOT_PKG_STATE_DIR}/repo/${repo}/packages"
 		[[ -d "$pkgdir" ]] || continue
 
-		local _rvp_tmp
-		_rvp_tmp=$(mktemp) || continue
-		find "$pkgdir" -maxdepth 1 -type f 2>/dev/null | sort -V > "$_rvp_tmp"
-		while IFS= read -r pkgfile; do
+		for pkgfile in "${pkgdir}"/*; do
+			[[ -f "$pkgfile" ]] || continue
 			[[ -L "$pkgfile" ]] && continue
 
 			provides_line=$(grep "^# Provides:" "$pkgfile" 2>/dev/null)
@@ -643,16 +643,24 @@ resolve_virtual_package()
 			for p in $provs; do
 				case "$p" in
 					"$search_name"|"$search_name"=*)
-						RESOLVED_PKGFILE="$pkgfile"
-						RESOLVED_REPO="$repo"
-						rm -f "$_rvp_tmp"
-						break 3
+						if [[ -z "$bestfile" ]]; then
+							bestfile="$pkgfile"
+							bestrepo="$repo"
+						else
+							nho_version_cmp "$(basename "$pkgfile")" "$(basename "$bestfile")"
+							[[ $? -eq 2 ]] && { bestfile="$pkgfile"; bestrepo="$repo"; }
+						fi
+						break
 						;;
 				esac
 			done
-		done < "$_rvp_tmp"
-		rm -f "$_rvp_tmp"
+		done
 	done
+
+	if [[ -n "$bestfile" ]]; then
+		RESOLVED_PKGFILE="$bestfile"
+		RESOLVED_REPO="$bestrepo"
+	fi
 }
 
 #==============================================================================
@@ -660,58 +668,141 @@ resolve_virtual_package()
 #==============================================================================
 
 #----------------------------------------------------------
-# version_compare() - Compare two versions using sort -V
+# nho_version_cmp() - Portable natural version comparator
+# Description: Compares two version strings without relying on
+#   GNU sort -V (not available on all BusyBox builds, which is
+#   what exactly produces "sort: unknown sort type" when the
+#   BusyBox private PATH is active). Versions are split into
+#   numeric/alphabetic components on '.', '_', '-', '+' and '~'
+#   separators, then compared component by component: purely
+#   numeric components are compared numerically, everything else
+#   lexicographically. Missing components sort before any present
+#   value (so "1.5" < "1.5.0", like GNU sort -V).
+# Usage: nho_version_cmp VERSION1 VERSION2
+# Returns: 0 if VERSION1==VERSION2, 1 if VERSION1<VERSION2,
+#   2 if VERSION1>VERSION2.
+#----------------------------------------------------------
+nho_version_cmp() {
+	local v1="$1" v2="$2"
+	local -a a1 a2
+	local i max c1 c2 n1 n2 d1 d2 r1 r2
+
+	if [[ "$v1" == "$v2" ]]; then
+		return 0
+	fi
+
+	IFS='.' read -r -a a1 <<< "${v1//[-_+~]/.}"
+	IFS='.' read -r -a a2 <<< "${v2//[-_+~]/.}"
+
+	max=$(( ${#a1[@]} > ${#a2[@]} ? ${#a1[@]} : ${#a2[@]} ))
+
+	for ((i=0; i<max; i++)); do
+		c1="${a1[i]:-}"
+		c2="${a2[i]:-}"
+
+		[[ "$c1" == "$c2" ]] && continue
+
+		# Missing (empty) components sort before any present value
+		# (so "1.5" < "1.5.0", like GNU sort -V).
+		if [[ -z "$c1" || -z "$c2" ]]; then
+			[[ -z "$c1" ]] && return 1
+			return 2
+		fi
+
+		# Both purely numeric: compare numerically.
+		if [[ "$c1" =~ ^[0-9]+$ && "$c2" =~ ^[0-9]+$ ]]; then
+			n1=$((10#${c1}))
+			n2=$((10#${c2}))
+			(( n1 < n2 )) && return 1
+			(( n1 > n2 )) && return 2
+			continue
+		fi
+
+		# Mixed/alphanumeric components: compare the leading numeric
+		# chunks first (e.g. "9da543e" < "10"), then the remainder.
+		r1="$c1"
+		r2="$c2"
+		if [[ "$c1" =~ ^([0-9]+)(.*)$ ]]; then
+			d1="${BASH_REMATCH[1]}"
+			r1="${BASH_REMATCH[2]}"
+		else
+			d1=""
+		fi
+		if [[ "$c2" =~ ^([0-9]+)(.*)$ ]]; then
+			d2="${BASH_REMATCH[1]}"
+			r2="${BASH_REMATCH[2]}"
+		else
+			d2=""
+		fi
+		if [[ -n "$d1" || -n "$d2" ]]; then
+			n1=$((10#${d1:-0}))
+			n2=$((10#${d2:-0}))
+			(( n1 < n2 )) && return 1
+			(( n1 > n2 )) && return 2
+		fi
+		if [[ "$r1" < "$r2" ]]; then return 1; fi
+		if [[ "$r1" > "$r2" ]]; then return 2; fi
+	done
+
+	return 0
+}
+
+#----------------------------------------------------------
+# nho_highest_version_file() - Print the file with the highest
+#   natural version among those matching PAT in DIR.
+#   Replaces the "find ... | sort -V | tail -1" pattern.
+# Usage: nho_highest_version_file DIR PAT
+# Returns: 0 and prints the winning path, or 1 if no match.
+#----------------------------------------------------------
+nho_highest_version_file() {
+	local dir="$1" pat="$2"
+	local f best=""
+
+	for f in "${dir}"/${pat}; do
+		[[ -f "$f" ]] || continue
+		if [[ -z "$best" ]]; then
+			best="$f"
+		else
+			nho_version_cmp "$(basename "$f")" "$(basename "$best")"
+			[[ $? -eq 2 ]] && best="$f"
+		fi
+	done
+
+	if [[ -n "$best" ]]; then
+		echo "$best"
+		return 0
+	fi
+	return 1
+}
+
+#----------------------------------------------------------
+# version_compare() - Compare two versions using nho_version_cmp
 #----------------------------------------------------------
 version_compare() {
 	local ver1="$1" op="$2" ver2="$3"
+	nho_version_cmp "$ver1" "$ver2"
+	local cmp=$?
 	case "$op" in
 		"")
 			return 0
 			;;
 		"="|==)
-			if [[ "$(printf '%s\n%s' "$ver1" "$ver2" | sort -V | head -n1)" == "$ver1" ]] &&
-			   [[ "$(printf '%s\n%s' "$ver1" "$ver2" | sort -V | tail -n1)" == "$ver1" ]]; then
-				return 0
-			else
-				return 1
-			fi
+			[[ $cmp -eq 0 ]] && return 0 || return 1
 			;;
 		"!=")
-			if version_compare "$ver1" "=" "$ver2"; then
-				return 1
-			else
-				return 0
-			fi
+			[[ $cmp -ne 0 ]] && return 0 || return 1
 			;;
 		"<")
-			if [[ "$(printf '%s\n%s' "$ver1" "$ver2" | sort -V | head -n1)" == "$ver1" ]] &&
-			   ! version_compare "$ver1" "=" "$ver2"; then
-				return 0
-			else
-				return 1
-			fi
+			[[ $cmp -eq 1 ]] && return 0 || return 1
 			;;
 		"<=")
-			if [[ "$(printf '%s\n%s' "$ver1" "$ver2" | sort -V | head -n1)" == "$ver1" ]]; then
-				return 0
-			else
-				return 1
-			fi
+			[[ $cmp -ne 2 ]] && return 0 || return 1
 			;;
 		">")
-			if [[ "$(printf '%s\n%s' "$ver1" "$ver2" | sort -V | tail -n1)" == "$ver1" ]] &&
-			   ! version_compare "$ver1" "=" "$ver2"; then
-				return 0
-			else
-				return 1
-			fi
+			[[ $cmp -eq 2 ]] && return 0 || return 1
 			;;
 		">=")
-			if [[ "$(printf '%s\n%s' "$ver1" "$ver2" | sort -V | tail -n1)" == "$ver1" ]]; then
-				return 0
-			else
-				return 1
-			fi
+			[[ $cmp -ne 1 ]] && return 0 || return 1
 			;;
 		*)
 			return 1

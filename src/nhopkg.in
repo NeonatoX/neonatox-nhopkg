@@ -423,13 +423,25 @@ check_if_running()
 {
 	declare -x NHOPKG_LECHE
 	NHOPKG_LECHE=0
+	local _wait_attempts="${NHOPKG_LOCK_WAIT:-12}"
+	local _attempt=0
 	while [[ -e "${NHOPKG_LOCKFILE}" ]];
 	do
-		echo
-		echog "Nhopkg is already in use..."
-		OLDPID=$(cat "${NHOPKG_LOCKFILE}")
-		if [[ $(ps -p "${OLDPID}" | grep "nhopkg") ]]; then
-			NHOPKG_LECHE=1
+		NHOPKG_LECHE=1
+		OLDPID=$(cat "${NHOPKG_LOCKFILE}" 2>/dev/null)
+		# Check liveness over /proc instead of "ps -p": GNU ps and BusyBox ps
+		# behave differently (BusyBox lacks -p), and ps may not even be in the
+		# private BusyBox PATH. Anchored grep on /proc/PID/cmdline is portable.
+		if [[ -n "${OLDPID}" ]] && [[ -d "/proc/${OLDPID}" ]] \
+		   && grep -aq "nhopkg" "/proc/${OLDPID}/cmdline" 2>/dev/null; then
+			echog "Nhopkg is already in use (PID ${OLDPID}). Waiting for it to finish..."
+			_attempt=$((_attempt + 1))
+			if [[ ${_attempt} -ge ${_wait_attempts} ]]; then
+				echog " * Another nhopkg instance is still running after ${_wait_attempts} attempts; giving up." >&2
+				exit 1
+			fi
+			# Every 5 seconds Nhopkg checks if there are other Nhopkg running.
+			sleep 5
 		else
 			echog "Exist an older lock file, but seems that is not in use..."
 			if [[ -w "${NHOPKG_LOCKFILE}" ]]; then
@@ -444,8 +456,6 @@ check_if_running()
 				exit 1
 			fi
 		fi
-		# Every 5 seconds Nhopkg check if there are other Nhopkg running.
-		sleep 5
 	done
 	echo $$ > "${NHOPKG_LOCKFILE}"
 	return 0
@@ -977,7 +987,7 @@ getpackage()
 		fi
 
 		# Try by versioned name (e.g., zsnes → zsnes-2.0.12-n@RELEASEDATE@)
-		candidate=$(find "${ROOT_PKG_STATE_DIR}/repo/${repo}/packages/" -maxdepth 1 -name "${CASEPACKAGE}-[0-9]*" -type f 2>/dev/null | sort -V | tail -1)
+		candidate=$(nho_highest_version_file "${ROOT_PKG_STATE_DIR}/repo/${repo}/packages" "${CASEPACKAGE}-[0-9]*")
 		if [[ -n "${candidate}" ]]; then
 			pkgname=$(grep "^# Name:" "${candidate}" 2>/dev/null | awk -F'\t' '{print $2}')
 			pkgversion=$(grep "^# Version:" "${candidate}" 2>/dev/null | awk -F'\t' '{print $2}')
@@ -2078,9 +2088,10 @@ get_package_info()
 		fi
 
 		# Soportar búsqueda por nombre base (ej: "zsnes" → "zsnes-1.51-1")
-		local candidates=($(find "${ROOT_PKG_STATE_DIR}/repo/${repo}/packages/" -maxdepth 1 -name "${pkg_query}-[0-9]*" -type f 2>/dev/null | sort -V | tail -1))
-		if [[ ${#candidates[@]} -gt 0 ]]; then
-			pkg_query=$(basename "${candidates[0]}")
+		local candidate
+		candidate=$(nho_highest_version_file "${ROOT_PKG_STATE_DIR}/repo/${repo}/packages" "${pkg_query}-[0-9]*")
+		if [[ -n "${candidate}" ]]; then
+			pkg_query=$(basename "${candidate}")
 			found=1
 			source_type="repo"
 			break
