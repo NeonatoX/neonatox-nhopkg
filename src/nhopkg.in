@@ -813,7 +813,9 @@ verify_package_signature()
 backup_config_files()
 {
 	declare -a BACKUP_FILES=()
-	local BACKUP_DIR="${NHOPKG_TMPDIR}/backup"
+	# Hidden name: the build/backup flows pack the tmpdir with `tar cp *`,
+	# which skips dotfiles, so this must never leak into data.tar* packages.
+	local BACKUP_DIR="${NHOPKG_TMPDIR}/.nhopkg-backup"
 	if [[ -f "${NHOPKG_TMPDIR}/nhoid" ]]; then
 		local __np_tmp
 		__np_tmp="$(mktemp -t nhopkg.XXXXXX 2>/dev/null || echo "/tmp/nhopkg.${$}")"
@@ -843,7 +845,7 @@ backup_config_files()
 # Usage: bin_install_restore_config (without arguments)
 bin_install_restore_config()
 {
-	local BACKUP_DIR="${NHOPKG_TMPDIR}/backup"
+	local BACKUP_DIR="${NHOPKG_TMPDIR}/.nhopkg-backup"
 	if [[ -d "$BACKUP_DIR" ]]; then
 		find "$BACKUP_DIR" -type f | while IFS= read -r backup_file; do
 			local target="${backup_file#$BACKUP_DIR/}"
@@ -851,6 +853,7 @@ bin_install_restore_config()
 			[[ "${USE_INSTALL_ROOT}" = "yes" ]] && target="${INSTALL_ROOT}${target}"
 			cp -f "$backup_file" "$target"
 		done
+		rm -rf "$BACKUP_DIR"
 	fi
 }
 
