@@ -2,7 +2,7 @@
 
 # 12\. Prontidão para produção
 
-**nhopkg v0.5.1 está pronto para produção** em ambientes Linux controlados, especialmente sistemas baseados em LFS/BLFS.
+**nhopkg v1.0 está pronto para produção** em ambientes Linux controlados, especialmente sistemas baseados em LFS/BLFS.
 
 ## Por que está pronto
 

@@ -1,4 +1,4 @@
-# nhopkg v0.5.1 — Documentación
+# nhopkg v1.0 — Documentación
 
 **nhopkg** es un gestor de paquetes universal diseñado para funcionar en cualquier distribución GNU/Linux. Escrito en shell portable, es ideal para sistemas personalizados, entornos embebidos o distribuciones tipo LFS/BLFS.
 
@@ -26,4 +26,4 @@ Esta documentación está dividida en secciones independientes para facilitar su
   * [18\. Internacionalización (i18n)](i18n.md)
 
 
-Documentación de **nhopkg v0.5.1** — Enero 2026
+Documentación de **nhopkg v1.0** — Enero 2026

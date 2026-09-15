@@ -2,7 +2,7 @@
 
 # 12\. Production readiness
 
-**nhopkg v0.5.1 is production-ready** for controlled Linux environments, especially LFS/BLFS-based systems.
+**nhopkg v1.0 is production-ready** for controlled Linux environments, especially LFS/BLFS-based systems.
 
 ## Why it is ready
 

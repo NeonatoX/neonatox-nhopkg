@@ -119,8 +119,8 @@ NHOGET_RESUME=yes
 
 # Custom User-Agent for downloads (helps with BusyBox wget server blocks)
 # Default: empty (uses tool's default User-Agent)
-# Example: NHOGET_USER_AGENT="Nhopkg/0.5.1"
-NHOGET_USER_AGENT="Nhopkg/0.5.1"
+# Example: NHOGET_USER_AGENT="Nhopkg/1.0"
+NHOGET_USER_AGENT="Nhopkg/1.0"
 
 # Maximum number of simultaneous binary (.nho) downloads when installing the
 # full dependency graph. 1 = sequential (exact previous behavior).

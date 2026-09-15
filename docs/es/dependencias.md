@@ -1,6 +1,6 @@
 [← Índice](README.md)
 
-# Resolución de dependencias — nhopkg v0.5.1
+# Resolución de dependencias — nhopkg v1.0
 
 El Sistema Unificado de Resolución de Dependencias (UDEPSYS) es el módulo responsable de resolver, descargar e instalar las dependencias de los paquetes. Está implementado en la librería **`libnhopkg_udepsys`** (instalada como `/usr/lib/nhopkg/libnhopkg_udepsys`) y es cargada por el binario principal `nhopkg`. Expone los puntos de entrada públicos `dep_resolve_from_nhoid()`, `dep_install_queue()` y `dep_check_conflicts()`, además de las funciones auxiliares `version_compare()` (comparación de versiones mediante `sort -V`) y `get_repo_url()` (construcción de URL de repositorio). Las descargas de paquetes se delegan en el backend de descarga unificado `nhoget_url` de [`libnhopkg_download`](nhoget.md).
 

@@ -1,4 +1,4 @@
-# Comandos Principais — nhopkg v0.5.1
+# Comandos Principais — nhopkg v1.0
 
 nhopkg é um gerenciador universal de pacotes binários e fonte. Esta página documenta todos os comandos e opções aceitos pelo binário `nhopkg`. Tarefas administrativas (compilação de pacotes, gerenciamento de repositórios, criação de usuários) são tratadas por ferramentas complementares referenciadas ao final.
 

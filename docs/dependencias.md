@@ -1,6 +1,6 @@
 [← Index](README.md)
 
-# Dependency Resolution — nhopkg v0.5.1
+# Dependency Resolution — nhopkg v1.0
 
 The Unified Dependency Resolution System (UDEPSYS) is the module responsible for
 resolving, downloading, and installing package dependencies. It is implemented

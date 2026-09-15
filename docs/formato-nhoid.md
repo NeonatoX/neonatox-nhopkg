@@ -1,4 +1,4 @@
-# nhoid File Format — nhopkg v0.5.1
+# nhoid File Format — nhopkg v1.0
 
 The nhoid file is the metadata descriptor used in both binary (`.nho`) and source (`.srcnho`) packages. It defines package identity, dependencies, build steps, installation logic, and post-installation tasks.
 

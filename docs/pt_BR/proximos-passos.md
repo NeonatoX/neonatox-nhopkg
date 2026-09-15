@@ -2,7 +2,7 @@
 
 # 13\. Próximos passos
 
-Embora **nhopkg v0.5.1** seja estável, há espaço para crescimento.
+Embora **nhopkg v1.0** seja estável, há espaço para crescimento.
 
 ## Concluído
 

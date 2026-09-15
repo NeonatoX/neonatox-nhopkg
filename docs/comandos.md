@@ -1,4 +1,4 @@
-# Main Commands — nhopkg v0.5.1
+# Main Commands — nhopkg v1.0
 
 nhopkg is a universal binary and source package manager. This page documents every command and option accepted by the `nhopkg` binary. Administrative tasks (package building, repository management, user creation) are handled by companion tools referenced at the end.
 

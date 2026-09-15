@@ -2,7 +2,7 @@
 
 # 13\. Next steps
 
-Although **nhopkg v0.5.1** is stable, there is room for growth.
+Although **nhopkg v1.0** is stable, there is room for growth.
 
 ## Completed
 

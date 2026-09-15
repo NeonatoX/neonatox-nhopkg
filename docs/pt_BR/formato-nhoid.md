@@ -1,4 +1,4 @@
-# Formato do Arquivo nhoid — nhopkg v0.5.1
+# Formato do Arquivo nhoid — nhopkg v1.0
 
 O arquivo nhoid é o descritor de metadados usado em pacotes binários (`.nho`) e fonte (`.srcnho`). Ele define identidade do pacote, dependências, etapas de compilação, lógica de instalação e tarefas pós-instalação.
 

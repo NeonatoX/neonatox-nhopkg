@@ -2,7 +2,7 @@
 
 # 12\. ¿Listo para producción?
 
-Sí. **nhopkg v0.5.1 está técnicamente preparado para su uso en entornos de producción** , especialmente en distribuciones personalizadas, sistemas embebidos o entornos tipo LFS/BLFS donde se prioriza la transparencia, simplicidad y control total.
+Sí. **nhopkg v1.0 está técnicamente preparado para su uso en entornos de producción** , especialmente en distribuciones personalizadas, sistemas embebidos o entornos tipo LFS/BLFS donde se prioriza la transparencia, simplicidad y control total.
 
 **Conclusión técnica:** nhopkg no es un prototipo ni una herramienta experimental. Es un gestor de paquetes maduro, con características comparables a `pacman` (Arch), `xbps` (Void) o `apk` (Alpine), pero diseñado para ser minimalista, portable y fácil de auditar. 
 
@@ -55,6 +55,6 @@ Otras consideraciones:
 
 ## Conclusión final
 
-**nhopkg v0.5.1 es una base sólida y segura para una distribución de producción**. Su diseño refleja los principios de Unix: hace una cosa y la hace bien. No busca reemplazar a gestores complejos como `dnf` o `apt`, sino ofrecer una alternativa ligera, transparente y confiable para quienes construyen sus propios sistemas Linux.
+**nhopkg v1.0 es una base sólida y segura para una distribución de producción**. Su diseño refleja los principios de Unix: hace una cosa y la hace bien. No busca reemplazar a gestores complejos como `dnf` o `apt`, sino ofrecer una alternativa ligera, transparente y confiable para quienes construyen sus propios sistemas Linux.
 
 Si tu objetivo es una distribución controlada, reproducible y mantenible, **nhopkg está listo**.

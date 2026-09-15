@@ -2,7 +2,7 @@
 
 # 13\. Próximos pasos
 
-Aunque **nhopkg v0.5.1** es estable, hay margen de crecimiento.
+Aunque **nhopkg v1.0** es estable, hay margen de crecimiento.
 
 ## Completado
 
