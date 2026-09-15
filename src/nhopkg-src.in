@@ -229,6 +229,7 @@ EOF
 	fi
 	[[ -n "$PKG_SPLIT" ]] && echo -e "# Splitpackage:\t${PKG_SPLIT}" >> "$nhoid_file"
 	[[ -n "$PKG_PROVIDES" ]] && echo -e "# Provides:\t${PKG_PROVIDES}" >> "$nhoid_file"
+	[[ -n "$PKG_REPLACES" ]] && echo -e "# Replaces:\t${PKG_REPLACES}" >> "$nhoid_file"
 	[[ -n "$PKG_CONFLICTS" ]] && echo -e "# Conflicts:\t${PKG_CONFLICTS}" >> "$nhoid_file"
 	echo >> "$nhoid_file"
 	if [[ "${NHOPKG_SRC_META}" = "yes" ]]; then
@@ -385,6 +386,7 @@ cmd_init() {
 
 	prompt_multi PKG_SPLIT "Split packages"
 	prompt_multi PKG_PROVIDES "Provides"
+	prompt_multi PKG_REPLACES "Replaces"
 	prompt_multi PKG_CONFLICTS "Conflicts"
 
 	write_nhoid_header "$proj_dir/nhoid"
@@ -583,10 +585,16 @@ cmd_validate() {
 	fi
 	fi
 
-	# Note: the same name in both Provides: and Conflicts: is NOT an error.
+	# Note: a name in both Provides: and Conflicts: is NOT an error.
 	# nhopkg treats it as a REPLACE pattern: the new package provides a virtual
 	# name and will replace any installed package with that name (see
 	# dep_check_conflicts() in libnhopkg_udepsys).
+	#
+	# A name in both Replaces: and Conflicts: is the same REPLACE pattern but
+	# WITHOUT satisfying dependencies. Recommended for metapackages (bb-*):
+	# they replace the real utility without pretending to provide headers/libs.
+	# The real package should declare the reverse pair (Conflicts + Replaces of
+	# the bb-*) so the replacement works in both directions.
 
 	# Splitpackage checks
 	local split=$(grep "^# Splitpackage:" "$nhoid_file" 2>/dev/null | awk -F'\t' '{print $2}')

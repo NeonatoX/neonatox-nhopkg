@@ -45,7 +45,7 @@ declare -a DCASEPACKAGES=()		# Downloaded packages queue
 declare -A DEP_RESOLVED_CACHE=()   # Cache: spec -> pkgfile path
 declare -A DEP_REPO_CACHE=()	   # Cache: spec -> repo name
 declare   DEP_FOUND_REPO=""		# Last found repository
-declare   DEP_REPLACE_PACKAGE=""   # Package to be replaced
+declare   REPLACES_PACKAGE=""      # Package to be replaced
 
 # Internal side-channel outputs
 declare   DEP_PARSED_NAME=""
@@ -190,6 +190,7 @@ dep_check_conflicts() {
 	new_pkgrevision="$pkgrevision"
 	
 	local provides_list=()
+	local replaces_list=()
 	local conflicts_specs=()
 	
 	local _ud_tmp
@@ -198,6 +199,11 @@ dep_check_conflicts() {
 	while IFS= read -r line; do
 		local value=$(echo "$line" | awk -F'\t' '{print $2}')
 		[[ -n "$value" ]] && read -ra items <<< "$value" && provides_list+=("${items[@]}")
+	done < "$_ud_tmp"
+	grep "^# Replaces:" "${nhoid_file}" 2>/dev/null > "$_ud_tmp"
+	while IFS= read -r line; do
+		local value=$(echo "$line" | awk -F'\t' '{print $2}')
+		[[ -n "$value" ]] && read -ra items <<< "$value" && replaces_list+=("${items[@]}")
 	done < "$_ud_tmp"
 	grep "^# Conflicts:" "${nhoid_file}" 2>/dev/null > "$_ud_tmp"
 	while IFS= read -r line; do
@@ -209,7 +215,7 @@ dep_check_conflicts() {
 	[[ ${#conflicts_specs[@]} -eq 0 ]] && return 0
 	
 	echog " - Checking for conflicts..."
-	DEP_REPLACE_PACKAGE=""
+	REPLACES_PACKAGE=""
 	
 	for conflict_spec in "${conflicts_specs[@]}"; do
 		_dep_parse_spec "$conflict_spec"
@@ -219,9 +225,9 @@ dep_check_conflicts() {
 		
 		# 1. Check installed package with exact name
 		if [[ -f "${ROOT_PKG_STATE_DIR}/packages/${name}" ]]; then
-			if [[ " ${provides_list[@]} " == *" ${name} "* ]]; then
+			if [[ " ${provides_list[@]} " == *" ${name} "* ]] || [[ " ${replaces_list[@]} " == *" ${name} "* ]]; then
 				echog "   ${new_pkgname} will REPLACE '${name}'"
-				DEP_REPLACE_PACKAGE="$name"
+				REPLACES_PACKAGE="$name"
 				continue
 			fi
 			
@@ -857,7 +863,11 @@ _dep_install_single() {
     # Get data from package. Checks that is good package and get data from it.
     if [[ -f "${NHOPKG_TMPDIR}/nhoid" ]]; then
         get_nhoid_data "${NHOPKG_TMPDIR}/nhoid"
-        check_package_conflicts "${NHOPKG_TMPDIR}/nhoid"
+        if ! check_package_conflicts "${NHOPKG_TMPDIR}/nhoid"; then
+            echog " *** Cannot install: hard conflict detected." >&2
+            cleanup_tmp_dir
+            return 1
+        fi
     else
         echog " * The selected package is not valid." >&2
         # Clean and exits with error.
@@ -917,8 +927,8 @@ _dep_install_single() {
     verify_package_signature
     
     # Handle package replacement
-    if [[ -n "$DEP_REPLACE_PACKAGE" ]]; then
-        remove_replaced_package "$DEP_REPLACE_PACKAGE"
+    if [[ -n "$REPLACES_PACKAGE" ]]; then
+        remove_replaced_package "$REPLACES_PACKAGE"
     fi
     
     # Backup config files before removing old version
@@ -950,7 +960,7 @@ _dep_install_single() {
 #----------------------------------------------------------
 _dep_install_all_from_queue() {
 	for DCASEPACKAGE in ${DCASEPACKAGES[*]}; do
-		_dep_install_single "$DCASEPACKAGE"
+		_dep_install_single "$DCASEPACKAGE" || return 1
 	done
 	DCASEPACKAGES=()
 }

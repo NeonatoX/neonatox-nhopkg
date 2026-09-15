@@ -781,7 +781,14 @@ bin_install_progress()
 		printf " %02dm%02ds ETA" $ETA_TIME_MIN $ETA_TIME_SEC >&2
 	done
 	echo >&2
-	) | ${COMMAND}  2>/dev/null > ${LOG_FILE}
+	) | ${COMMAND} > "${LOG_FILE}" 2>"${LOG_FILE}.err"
+	local rc=${PIPESTATUS[2]}
+	rm -f "$tmp_tar"
+	if (( rc != 0 )); then
+		[[ -s "${LOG_FILE}.err" ]] && { echog " *** tar stderr:" >&2; sed 's/^/     /' "${LOG_FILE}.err" >&2; }
+	fi
+	rm -f "${LOG_FILE}.err"
+	return $rc
 }
 # ---------------------------------------------------------
 # verify_package_signature()
@@ -2930,7 +2937,11 @@ case "${NHOPKG_OPTION}" in
 			# Checks that is good package and get data from it.
 			if [[ -f "${NHOPKG_TMPDIR}/nhoid" ]]; then
 				get_nhoid_data "${NHOPKG_TMPDIR}/nhoid"
-				check_package_conflicts "${NHOPKG_TMPDIR}/nhoid"
+				if ! check_package_conflicts "${NHOPKG_TMPDIR}/nhoid"; then
+					echog " *** Cannot install: hard conflict detected." >&2
+					cleanup_tmp_dir
+					exit 1
+				fi
 			else
 				echog " * The selected package is not valid." >&2
 				# Clean and exits with error.
@@ -3250,7 +3261,11 @@ case "${NHOPKG_OPTION}" in
 			# Get data from package.
 			if [[ -f "${NHOPKG_TMPDIR}/nhoid" ]]; then
 				get_nhoid_data "${NHOPKG_TMPDIR}/nhoid"
-				check_package_conflicts "${NHOPKG_TMPDIR}/nhoid"
+				if ! check_package_conflicts "${NHOPKG_TMPDIR}/nhoid"; then
+					echog " *** Cannot build: hard conflict detected." >&2
+					cleanup_tmp_dir
+					exit 1
+				fi
 			else
 				echog " * The selected package is not valid." >&2
 				cleanup_tmp_dir
@@ -3350,7 +3365,11 @@ case "${NHOPKG_OPTION}" in
 					# Generate a temporary nhoid for the split package
 					build_nhoid_to_bin "${part}"
 					# Now check conflicts using this split-specific metadata
-					check_package_conflicts "${NHOPKG_TMPDIR}/nhoid"
+					if ! check_package_conflicts "${NHOPKG_TMPDIR}/nhoid"; then
+						echog " *** Cannot build split package: hard conflict detected." >&2
+						cleanup_tmp_dir
+						exit 1
+					fi
 					if [[ -n "${REPLACES_PACKAGE}" ]]; then
 						remove_replaced_package "${REPLACES_PACKAGE}"
 					fi
@@ -3472,7 +3491,11 @@ case "${NHOPKG_OPTION}" in
 				get_nhoid_data "${NHOPKG_TMPDIR}/nhoid"
 				# Save original name for later use in split packages
 				ORIGINAL_PKGNAME="${pkgname}"
-				check_package_conflicts "${NHOPKG_TMPDIR}/nhoid"
+				if ! check_package_conflicts "${NHOPKG_TMPDIR}/nhoid"; then
+					echog " *** Cannot build: hard conflict detected." >&2
+					cleanup_tmp_dir
+					exit 1
+				fi
 			else
 				echog " * Invalid source package." >&2
 				cleanup_tmp_dir
@@ -3601,7 +3624,11 @@ case "${NHOPKG_OPTION}" in
 					# Generate a temporary nhoid for the split package
 					build_nhoid_to_bin "${part}"
 					# Now check conflicts using this split-specific metadata
-					check_package_conflicts "${NHOPKG_TMPDIR}/nhoid"
+					if ! check_package_conflicts "${NHOPKG_TMPDIR}/nhoid"; then
+						echog " *** Cannot build split package: hard conflict detected." >&2
+						cleanup_tmp_dir
+						exit 1
+					fi
 					if [[ -n "${REPLACES_PACKAGE}" ]]; then
 						remove_replaced_package "${REPLACES_PACKAGE}"
 					fi
