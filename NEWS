@@ -1,3 +1,34 @@
+1.0 (2026-09-15)
+--------------------------------
+* Version 1.0: stable release bump
+* feat: BusyBox + zstd static private PATH for rolling release resilience
+* feat(nhouser): dual backend shadow-utils + BusyBox with runtime detection
+* feat(nhopkg-bb-setup): 40 coreutils/build helper applets and symlink generator
+* Implement GPG crypto library, repository signing, and trigger system
+* Rewrite nhopkg-repos: add sign, sign-all, verify, keygen, import-key, export-key, list-keys, remove-key, add-repo, remove-repo, list-repos
+* feat: transparent --root execution via unshare -m + chroot (ns_exec_in)
+* feat(nhopkg): parallel dependency downloads
+* feat(nhopkg): add # Replaces: field and unify replace/conflict flow
+* feat(nhopkg): add --base, --split, --no-split and --lib32 flags for split package control
+* feat(nhopkg): add --preserve-files (-p) to force file retention on remove
+* feat(nhopicker): add CLI wrapper for nhopicker library function
+* feat(nhopkg-src): metapackage projects and env-preset prompts
+* feat(nhopkg-src): support svn/hg sources, multi-group, generic checksums
+* feat(nhopkg-src): validate unbalanced quotes in nhoid functions
+* feat: NHOPKG_CONF env var to override config path at runtime
+* fix(nhopkg.conf): NHOPKG_USE_BUSYBOX env var to override config
+* feat: add repo-version, repo-arch and libc meson options
+* Make binlocate and git-branch configurable via Meson
+* fix(nhopkg): replace sort -V with portable version compare and bound lock waiting
+* fix(nhopkg): measure real data.tar bytes for install progress
+* fix(nhopkg): restore partition metadata after removing old version on reinstall
+* fix(nhopkg): keep BLFS bundles out of binary packages
+* refactor: centralize config backup, move _dep_install to udepsys lib, add split-package Backup support
+* BusyBox compat: replace tar rf, mktemp -u, process substitution and combined tar flags with portable equivalents; getent fallback with awk for musl
+* docs: sync docs with codebase, add ru translation tree and new libnhopkg/nhopkg-overlay pages
+* add Russian translation to README.md and docs/ru
+* fix(build): add -fno-link-libatomic to static zstd build
+
 2026.3 (2026-05-26)
 --------------------------------
 * Implement nhoget unified download system and extend nhopkg-src
