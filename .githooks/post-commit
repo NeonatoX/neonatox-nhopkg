@@ -1,0 +1,9 @@
+#!/bin/sh
+# Optional post-commit hook: remind about versioning cadence limits.
+# Enable once with:
+#   git config core.hooksPath .githooks
+# Silence permanently by deactivating the hook:
+#   git config core.hooksPath ""
+SCRIPT_DIR="$(dirname "$0")/../scripts"
+"$SCRIPT_DIR/nhopkg-check-version.sh" --quiet 2>/dev/null
+exit 0

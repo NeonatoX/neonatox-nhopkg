@@ -118,3 +118,8 @@ msginit_prog = find_program('msginit', required: false)
 subdir('src')
 subdir('data')
 subdir('po')
+
+# === Run target: versioning cadence reminder ===
+run_target('version-check',
+  command: [find_program('bash'), meson.project_source_root() / 'scripts' / 'nhopkg-check-version.sh']
+)

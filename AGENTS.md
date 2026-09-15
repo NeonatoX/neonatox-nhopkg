@@ -126,6 +126,23 @@ Rules:
   group by scope/theme, then edit.
 - `feat` = minor bump candidate, `fix` = patch candidate, breaking change = major.
 
+## Versioning Reminder
+
+`scripts/nhopkg-check-version.sh` flags a patch/minor/major candidate whenever
+the cadence limits above are reached (newest tag picked by creation date, so
+legacy `2026.x` tags and semver tags mix correctly):
+
+```bash
+meson compile -C builddir version-check   # or: scripts/nhopkg-check-version.sh
+```
+
+- `--quiet`: only prints when a bump is due (no output otherwise).
+- Optional per-commit reminder via a post-commit hook:
+  `git config core.hooksPath .githooks`
+  (deactivate with `git config core.hooksPath ""`).
+- Limits overridable via `PATCH_FIX_LIMIT`, `MINOR_COMMITS_LIMIT`,
+  `MINOR_DAYS_LIMIT`.
+
 ## Release Workflow (v1.0+)
 
 Always finish a release with this flow, in order:
