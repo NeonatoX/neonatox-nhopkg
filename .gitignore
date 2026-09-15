@@ -7,7 +7,6 @@ src/nhouser.in.*
 src/nhopicker.in.*
 src/*.patch
 src/*.diff
-AGENTS.md
 build
 builddir
 *.po~
@@ -15,3 +14,4 @@ PROPOSAL*
 docs/PROPOSAL*
 fake*
 test-*
+changelog*
