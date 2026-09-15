@@ -706,15 +706,41 @@ bin_install_progress()
 		*)      decompress_cmd="cat" ;;
 	esac
 
+	# Decompress ONCE into a temp plain tar and measure the REAL byte count.
+	# The progress bar is only a display: the bytes that actually go into tar
+	# are what matter, NOT the (sometimes wrong) Installed-Size nhoid field.
+	local tmp_tar="${NHOPKG_TMPDIR:-/tmp}/.${pkgname:-package}-extract.tar"
+	rm -f "$tmp_tar"
+	if ! $decompress_cmd "$data_file" > "$tmp_tar" 2>>"${LOG_FILE}"; then
+		echog " *** Failed to decompress: ${data_file}" >&2
+		return 1
+	fi
+	local actual_size=0
+	actual_size=$(wc -c < "$tmp_tar" 2>/dev/null || echo 0)
+
+	# An actually empty / malformed data.tar: forward whatever there is so tar
+	# reports the REAL error (loudly, not swallowed by a 2>/dev/null).
+	if (( actual_size <= 0 )); then
+		cat "$tmp_tar" | ${COMMAND} > "${LOG_FILE}" 2>"${LOG_FILE}.err"
+		local rc=${PIPESTATUS[1]}
+		rm -f "$tmp_tar"
+		if (( rc != 0 )); then
+			[[ -s "${LOG_FILE}.err" ]] && { echog " *** tar stderr:" >&2; sed 's/^/     /' "${LOG_FILE}.err" >&2; }
+		fi
+		rm -f "${LOG_FILE}.err"
+		return $rc
+	fi
+
 	SHELL_COLUMS=$(tput cols 2>/dev/null || echo 80)
 	UNTAR_SIZE=0
+	INSTALLED_SIZE="${actual_size}"
 	BAR_WIDTH=$((${SHELL_COLUMS}-$(echo "${pkgname}-${pkgversion}-${pkgrevision}:" | wc -m)-$(echo "${INSTALLED_SIZE}" | wc -m)-25))
 	MIN_BAR_WIDTH="5"
 	if (( ${BAR_WIDTH} < ${MIN_BAR_WIDTH} )); then
 		BAR_WIDTH="${MIN_BAR_WIDTH}"
 	fi
 	START_TIME=$(date -u +%s)
-	($decompress_cmd "$data_file") | (
+	cat "$tmp_tar" | (
 	while (( ${UNTAR_SIZE} < ${INSTALLED_SIZE} ));
 	do
 		dd bs=512 count=2048 2>/dev/null # || return 1
