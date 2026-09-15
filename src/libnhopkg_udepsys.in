@@ -574,34 +574,119 @@ _dep_provides_package() {
 #----------------------------------------------------------
 _dep_download_all() {
 	local specs=("$@")
+	local -a dl_repo=() dl_name=() dl_url=() dl_dest=()
+	local i repo pkgfile nho_name repo_url
+	local jobs="${NHOPKG_DOWNLOAD_JOBS:-4}"
 	
+	# Job count must be a positive integer; otherwise fall back to sequential
+	if [[ ! "$jobs" =~ ^[1-9][0-9]*$ ]]; then
+		jobs=1
+	fi
+	
+	# --- Fase A: precompute (parent, no network I/O) ---------------------------
 	for pkg_basename in "${specs[@]}"; do
-		local pkgfile=""
+		pkgfile=""
 		
 		for repo in ${NHOPKG_ACTIVE_REPOS}; do
 			if [[ -f "${ROOT_PKG_STATE_DIR}/repo/${repo}/packages/${pkg_basename}" ]]; then
 				pkgfile="${ROOT_PKG_STATE_DIR}/repo/${repo}/packages/${pkg_basename}"
-				DEP_FOUND_REPO="$repo"
 				break
 			fi
 		done
 		
-		[[ -z "$pkgfile" ]] && continue
+		if [[ -z "$pkgfile" ]]; then
+			echog " *** Package '${pkg_basename}' not found in active repositories." >&2
+			exit 1
+		fi
 		
 		get_nhoid_data "$pkgfile"
-		local nho_name="${pkgname}-${pkgversion}-${pkgrevision}.${pkgos}-${pkgarch}.nho"
+		nho_name="${pkgname}-${pkgversion}-${pkgrevision}.${pkgos}-${pkgarch}.nho"
+		repo_url=$(get_repo_url "$repo") || {
+			echog " *** Failed to resolve download URL for repository '${repo}'." >&2
+			exit 1
+		}
 		
-		echogn " --- Downloading from "
-		echo -n "${DEP_FOUND_REPO}: "
-		echo "$nho_name"
-		
-		local repo_url=$(get_repo_url "$DEP_FOUND_REPO")
-		
-		nhoget_url "${repo_url}/${nho_name}" "${ROOT_PKG_STATE_DIR}/cache/${nho_name}"
-		check_if_ok " *** Failed to download package."
-		
-		DCASEPACKAGES+=("$nho_name")
+		dl_repo+=("$repo")
+		dl_name+=("$nho_name")
+		dl_url+=("${repo_url}/${nho_name}")
+		dl_dest+=("${ROOT_PKG_STATE_DIR}/cache/${nho_name}")
 	done
+	
+	# --- Sequential mode (NHOPKG_DOWNLOAD_JOBS=1): exact previous behavior -----
+	if [[ $jobs -eq 1 ]]; then
+		for i in "${!dl_url[@]}"; do
+			echogn " --- Downloading from "
+			echo -n "${dl_repo[$i]}: "
+			echo "${dl_name[$i]}"
+			
+			nhoget_url "${dl_url[$i]}" "${dl_dest[$i]}"
+			check_if_ok " *** Failed to download package."
+			
+			DCASEPACKAGES+=("${dl_name[$i]}")
+		done
+		return 0
+	fi
+	
+	# --- Fase A (cont.): print the download notice serialized (queue order) ----
+	for i in "${!dl_url[@]}"; do
+		echogn " --- Downloading from "
+		echo -n "${dl_repo[$i]}: "
+		echo "${dl_name[$i]}"
+	done
+	
+	# --- Fase B: concurrent downloads with a job cap (requires bash >= 4.3) ----
+	local -a dl_status=() dl_log=()
+	local st lg active=0
+	for i in "${!dl_url[@]}"; do
+		st=$(mktemp) || { echog " *** Failed to create temp file." >&2; exit 1; }
+		lg=$(mktemp) || { echog " *** Failed to create temp file." >&2; exit 1; }
+		dl_status+=("$st")
+		dl_log+=("$lg")
+	done
+	
+	for i in "${!dl_url[@]}"; do
+		(
+			nhoget_url "${dl_url[$i]}" "${dl_dest[$i]}" > "${dl_log[$i]}" 2>&1
+			_dl_rc=$?
+			echo "$_dl_rc" > "${dl_status[$i]}"
+			[[ $_dl_rc -eq 0 ]] || rm -f "${dl_dest[$i]}"
+		) &
+		((active++))
+		if (( active >= jobs )); then
+			wait -n
+			((active--))
+		fi
+	done
+	wait
+	
+	# --- Fase C: fill DCASEPACKAGES with successes and report failures ---------
+	local -a dl_failed=() dl_failed_logs=()
+	local _dl_rc
+	for i in "${!dl_url[@]}"; do
+		_dl_rc=1
+		[[ -f "${dl_status[$i]}" ]] && _dl_rc=$(cat "${dl_status[$i]}")
+		rm -f "${dl_status[$i]}"
+		if [[ "$_dl_rc" == "0" ]] && [[ -f "${dl_dest[$i]}" ]]; then
+			DCASEPACKAGES+=("${dl_name[$i]}")
+			rm -f "${dl_log[$i]}"
+		else
+			dl_failed+=("${dl_name[$i]}")
+			dl_failed_logs+=("${dl_log[$i]}")
+		fi
+	done
+	
+	if [[ ${#dl_failed[@]} -gt 0 ]]; then
+		for i in "${!dl_failed[@]}"; do
+			echog " *** Failed to download package: ${dl_failed[$i]}" >&2
+			if [[ -s "${dl_failed_logs[$i]}" ]]; then
+				cat "${dl_failed_logs[$i]}" >&2
+			fi
+			rm -f "${dl_failed_logs[$i]}"
+		done
+		exit 1
+	fi
+	
+	return 0
 }
 
 #==============================================================================

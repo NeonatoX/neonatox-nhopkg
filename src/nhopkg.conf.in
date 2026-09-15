@@ -122,6 +122,10 @@ NHOGET_RESUME=yes
 # Example: NHOGET_USER_AGENT="Nhopkg/0.5.1"
 NHOGET_USER_AGENT="Nhopkg/0.5.1"
 
+# Maximum number of simultaneous binary (.nho) downloads when installing the
+# full dependency graph. 1 = sequential (exact previous behavior).
+NHOPKG_DOWNLOAD_JOBS=4
+
 #==============================================================================
 # Section: Init System
 #------------------------------------------------------------------------------

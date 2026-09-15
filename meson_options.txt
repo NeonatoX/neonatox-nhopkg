@@ -74,3 +74,9 @@ option('use-busybox',
   value: 'no',
   description: 'Enable BusyBox private PATH at runtime (user enables in nhopkg.conf)'
 )
+
+option('download-jobs',
+  type: 'integer',
+  value: 4,
+  description: 'Maximum simultaneous binary (.nho) downloads (1 = sequential)'
+)

@@ -39,6 +39,7 @@ libc_variant = get_option('libc')
 use_busybox = get_option('use-busybox')
 static_busybox = get_option('static-busybox')
 static_zstd = get_option('static-zstd')
+download_jobs = get_option('download-jobs')
 
 # === Configuración específica según libc (glibc / musl) ===
 if libc_variant == 'musl'
@@ -76,6 +77,7 @@ conf.set('BINLOCATE', binlocate)
 conf.set('NHOHOLD', nhohold)
 conf.set('NHOPKG_ACTIVE_REPOS', active_repos)
 conf.set('NHOPKG_USE_BUSYBOX', use_busybox == 'yes' ? 'yes' : 'no')
+conf.set('NHOPKG_DOWNLOAD_JOBS', download_jobs)
 
 # Variables para nhopkg.in
 conf.set('PACKAGE_NAME', meson.project_name())

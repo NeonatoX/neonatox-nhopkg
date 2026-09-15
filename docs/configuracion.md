@@ -54,6 +54,7 @@ General behavior options for dependency handling, verification, verbosity, and e
 | `STRIP_BINARIES` | `no` | `yes`, `no` | Strip binaries and libraries after installation (experimental) |
 | `NHOHOLD` | `"nhopkg glibc gcc"` | Space-separated package names | Packages to hold — never delete their files on uninstall |
 | `NHOPKG_USE_BUSYBOX` | `no` | `yes`, `no` | Use the static BusyBox private PATH (see [BusyBox Private PATH](#busybox-private-path)) |
+| `NHOPKG_DOWNLOAD_JOBS` | `4` | Positive integer | Maximum simultaneous binary (`.nho`) downloads when installing the full dependency graph. `1` = sequential (exact previous behavior). Requires `bash` ≥ 4.3 for values > 1 (`wait -n`) |
 
 ### BusyBox Private PATH
 
