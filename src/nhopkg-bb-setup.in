@@ -7,7 +7,7 @@ NHOPKG_BB_DIR="${DESTDIR}@prefix@/lib/nhopkg/bin"
 BUSYBOX_BIN="${NHOPKG_BB_DIR}/busybox"
 
 NHOPKG_BB_APPLETS=(
-    "[" expand cut
+    "[" expand cut wc
     awk sed grep sort cut tr head tail wc xargs
     mkdir cp mv rm rmdir ln ls du stat basename dirname chmod chown chgrp
     tar gzip gunzip dd mt pwd
