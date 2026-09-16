@@ -1,21 +1,24 @@
 #!/bin/sh
 set -e
 
-# Find musl compiler
-for cc in musl-gcc x86_64-linux-musl-gcc; do
-    MUSLGCC=$(command -v "$cc" 2>/dev/null || true)
-    [ -n "$MUSLGCC" ] && break
-done
+BB_VERSION="${1:-1.37.0}"
+SRC_DIR="${2:-/tmp/nhopkg-bb-build}"
+OUT_DIR="${3:-.}"
+BB_CONFIG="${4:-busybox.config}"
+MUSLGCC="${5:-}"
+
+# MUSLGCC lo pasa Meson (detección temprana); fallback solo para uso manual.
+if [ -z "$MUSLGCC" ]; then
+    for cc in musl-gcc x86_64-linux-musl-gcc aarch64-linux-musl-gcc; do
+        MUSLGCC=$(command -v "$cc" 2>/dev/null || true)
+        [ -n "$MUSLGCC" ] && break
+    done
+fi
 
 if [ -z "$MUSLGCC" ]; then
     echo "ERROR: musl compiler not found." >&2
     exit 1
 fi
-
-BB_VERSION="${1:-1.37.0}"
-SRC_DIR="${2:-/tmp/nhopkg-bb-build}"
-OUT_DIR="${3:-.}"
-BB_CONFIG="${4:-busybox.config}"
 
 # Resolve config to absolute path before any cd
 case "$BB_CONFIG" in

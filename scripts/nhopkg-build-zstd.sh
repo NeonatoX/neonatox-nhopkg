@@ -1,20 +1,23 @@
 #!/bin/sh
 set -e
 
-# Find musl compiler
-for cc in musl-gcc x86_64-linux-musl-gcc; do
-    MUSLGCC=$(command -v "$cc" 2>/dev/null || true)
-    [ -n "$MUSLGCC" ] && break
-done
+ZSTD_VERSION="${1:-1.5.7}"
+SRC_DIR="${2:-/tmp/nhopkg-zstd-build}"
+OUT_DIR="${3:-.}"
+MUSLGCC="${4:-}"
+
+# MUSLGCC lo pasa Meson (detección temprana); fallback solo para uso manual.
+if [ -z "$MUSLGCC" ]; then
+    for cc in musl-gcc x86_64-linux-musl-gcc aarch64-linux-musl-gcc; do
+        MUSLGCC=$(command -v "$cc" 2>/dev/null || true)
+        [ -n "$MUSLGCC" ] && break
+    done
+fi
 
 if [ -z "$MUSLGCC" ]; then
     echo "ERROR: musl compiler not found." >&2
     exit 1
 fi
-
-ZSTD_VERSION="${1:-1.5.7}"
-SRC_DIR="${2:-/tmp/nhopkg-zstd-build}"
-OUT_DIR="${3:-.}"
 
 # Resolve output dir to absolute path before any cd
 case "$OUT_DIR" in

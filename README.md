@@ -100,9 +100,10 @@ Then restart nhopkg. The private PATH is active on the next run.
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `static-busybox` | `yes` | Build static BusyBox with musl-gcc during `ninja` |
-| `static-zstd` | `yes` | Build static zstd with musl-gcc during `ninja` |
+| `static-busybox` | `auto` | Provider of static BusyBox: `auto` = prebuilt (tools release) > build (musl-gcc) > skip |
+| `static-zstd` | `auto` | Provider of static zstd: `auto` = prebuilt (tools release) > build (musl-gcc) > skip |
 | `use-busybox` | `no` | Enable private PATH at runtime (user enables in config) |
+| `musl-gcc-path` | empty | Explicit path to the musl compiler (overrides early detection) |
 
 Example with BusyBox enabled:
 
@@ -111,8 +112,8 @@ meson setup builddir \
   --prefix=/usr \
   --sysconfdir=/etc \
   --localstatedir=/var \
-  -D static-busybox=yes \
-  -D static-zstd=yes \
+  -D static-busybox=auto \
+  -D static-zstd=auto \
   -D use-busybox=yes
 ```
 
@@ -196,9 +197,9 @@ This installs:
 | `/usr/bin/nhopkg-repos` | Repository management tool |
 | `/usr/bin/nhopkg-overlay` | Isolated build environment (overlayfs) |
 | `/usr/lib/nhopkg/libnhopkg` | Shared library with common functions |
-| `/usr/lib/nhopkg/nhopkg-bb-setup` | BusyBox symlink generator (post-install) |
-| `/usr/lib/nhopkg/bin/busybox` | Static BusyBox binary (when `static-busybox=yes`) |
-| `/usr/lib/nhopkg/bin/zstd` | Static zstd binary (when `static-zstd=yes`) |
+| `/usr/lib/nhopkg/nhopkg-bb-setup` | BusyBox symlink manager + verifier (post-install, `--check`/`--regenerate`) |
+| `/usr/lib/nhopkg/bin/busybox` | Static BusyBox binary (prebuilt or compiled) |
+| `/usr/lib/nhopkg/bin/zstd` | Static zstd binary (prebuilt or compiled) |
 | `/etc/nhopkg/nhopkg.conf` | Configuration file |
 | `/usr/share/man/man8/nhopkg.8` | Man page (nhopkg) |
 | `/usr/share/man/man8/nhopkg-src.8` | Man page (nhopkg-src) |

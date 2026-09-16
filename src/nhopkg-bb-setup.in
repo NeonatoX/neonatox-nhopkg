@@ -1,12 +1,31 @@
 #!/bin/bash
-# nhopkg-bb-setup: Generate BusyBox symlinks for nhopkg private PATH
-# Called automatically as post-install step.
+# nhopkg-bb-setup: gestor de symlinks del PATH privado de nhopkg.
+# Regenera o verifica que cada applet sea un symlink válido a busybox,
+# limpiando cualquier entrada corrupta (archivo regular, directorio, symlink
+# roto o apuntando a otro destino) que deje una instalación/upgrade a medias.
+#
+# Uso:
+#   nhopkg-bb-setup                 regenerar (default; paso post-install de Meson)
+#   nhopkg-bb-setup --regenerate    regeneración forzada + verificación
+#   nhopkg-bb-setup --check         solo verificar; exit 1 si algo está roto
+set -u
 
-# Respect DESTDIR (set by Meson when installing into a staging dir).
+# Respect DESTDIR (lo define Meson al instalar en un staging dir).
 NHOPKG_BB_DIR="${DESTDIR}@prefix@/lib/nhopkg/bin"
 BUSYBOX_BIN="${NHOPKG_BB_DIR}/busybox"
 
-NHOPKG_BB_APPLETS=(
+MODE="regenerate"
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --check)      MODE="check"; shift ;;
+        --regenerate) MODE="regenerate"; shift ;;
+        *) echo "Usage: nhopkg-bb-setup [--check | --regenerate]" >&2
+           exit 2 ;;
+    esac
+done
+
+# Applets requeridos por nhopkg en el PATH privado (deduplicados).
+RAW_APPLETS=(
     "[" expand cut wc
     awk sed grep sort cut tr head tail wc xargs
     mkdir cp mv rm rmdir ln ls du stat basename dirname chmod chown chgrp
@@ -14,26 +33,79 @@ NHOPKG_BB_APPLETS=(
     md5sum sha1sum sha256sum sha512sum
     wget id date sleep cat nproc unshare od realpath chroot
     adduser addgroup passwd
-    tee sleep expr touch uname seq split comm echo uniq true
+    tee expr touch uname seq split comm echo uniq true
 )
-
-if [[ ! -x "$BUSYBOX_BIN" ]]; then
-    echo "BusyBox not found at $BUSYBOX_BIN. Skipping symlinks."
-    exit 0
-fi
-
-# Clean stale symlinks from previous versions
-for applet in "${NHOPKG_BB_APPLETS[@]}"; do
-    [[ -L "${NHOPKG_BB_DIR}/${applet}" ]] && rm -f "${NHOPKG_BB_DIR}/${applet}"
+declare -A _seen=()
+NHOPKG_BB_APPLETS=()
+for _a in "${RAW_APPLETS[@]}"; do
+    [[ -n "${_seen[$_a]:-}" ]] && continue
+    _seen[$_a]=1
+    NHOPKG_BB_APPLETS+=("$_a")
 done
 
+fail() { echo "ERROR: $*" >&2; exit 1; }
+
+[[ -e "$BUSYBOX_BIN" ]] || fail "BusyBox not found at $BUSYBOX_BIN"
+[[ -x "$BUSYBOX_BIN" ]] || fail "BusyBox not executable at $BUSYBOX_BIN"
+
+# Applets que el binario realmente provee
+mapfile -t BB_APPLETS < <("$BUSYBOX_BIN" --list 2>/dev/null) || true
+
+is_applet() {
+    local a
+    for a in "${BB_APPLETS[@]}"; do
+        [[ "$a" == "$1" ]] && return 0
+    done
+    return 1
+}
+
+# applet_ok: verifica que $1 sea un symlink válido a busybox en el PATH privado
+applet_ok() {
+    local path="${NHOPKG_BB_DIR}/$1"
+    [[ -L "$path" ]] || return 1
+    [[ "$(readlink "$path")" == "busybox" ]] || return 1
+    [[ -x "$path" ]] || return 1
+    return 0
+}
+
 mkdir -p "$NHOPKG_BB_DIR"
-_created=0
-for applet in "${NHOPKG_BB_APPLETS[@]}"; do
-    if "$BUSYBOX_BIN" --list 2>/dev/null | grep -Fqx "$applet"; then
-        ln -sf busybox "${NHOPKG_BB_DIR}/${applet}"
-        _created=$(( _created + 1 ))
+
+if [[ "$MODE" == "check" ]]; then
+    _broken=0
+    for _a in "${NHOPKG_BB_APPLETS[@]}"; do
+        if is_applet "$_a"; then
+            applet_ok "$_a" || { echo "BROKEN: $_a"; ((_broken++)); }
+        elif [[ -L "${NHOPKG_BB_DIR}/${_a}" || -e "${NHOPKG_BB_DIR}/${_a}" ]]; then
+            echo "STALE: $_a (present but not provided by busybox)"
+            ((_broken++))
+        fi
+    done
+    if [[ $_broken -eq 0 ]]; then
+        echo "OK: ${#NHOPKG_BB_APPLETS[@]} applets valid in $NHOPKG_BB_DIR"
+        exit 0
+    fi
+    echo "$_broken applet(s) invalid in $NHOPKG_BB_DIR" >&2
+    exit 1
+fi
+
+# --- regenerate ---
+_created=0 _replaced=0
+for _a in "${NHOPKG_BB_APPLETS[@]}"; do
+    # nombres fijos de la lista: defensa contra rutas no deseadas
+    [[ "$_a" == */* ]] && continue
+    path="${NHOPKG_BB_DIR}/${_a}"
+    if applet_ok "$_a"; then
+        continue  # ya es un symlink válido
+    fi
+    if [[ -L "$path" || -e "$path" ]]; then
+        rm -rf -- "$path"
+        ((_replaced++))
+    fi
+    if is_applet "$_a"; then
+        ln -sf busybox "$path"
+        applet_ok "$_a" || fail "applet $_a not valid after creation"
+        ((_created++))
     fi
 done
 
-echo "Created ${_created} symlinks in ${NHOPKG_BB_DIR}"
+echo "Regenerated: ${_created} created, ${_replaced} replaced (${#NHOPKG_BB_APPLETS[@]} applets total)"

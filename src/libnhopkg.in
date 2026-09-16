@@ -22,14 +22,52 @@ OLDIFS="${IFS}"
 # Binary locate tool, set at build time via -D binlocate= (locate/plocate)
 export BINLOCATE="@BINLOCATE@"
 
-# BusyBox private PATH setup
+# BusyBox private PATH setup (self-healing)
 setup_busybox_path()
 {
     [[ "${NHOPKG_USE_BUSYBOX}" != "yes" ]] && return 0
     local bb_dir="@prefix@/lib/nhopkg/bin"
+    local bb_setup="@prefix@/lib/nhopkg/nhopkg-bb-setup"
     [[ ! -d "$bb_dir" ]] && return 0
-    [[ ! -x "$bb_dir/ls" ]] && return 0
-    export PATH="${bb_dir}:${PATH}"
+
+    # Verificar applets clave (symlinks a busybox)
+    local sym_applets=(awk sed grep tar)
+    local binary_applets=(zstd busybox)
+    local key target bb_path_valid=1
+
+    for key in "${sym_applets[@]}"; do
+        if [[ ! -L "${bb_dir}/${key}" ]]; then bb_path_valid=0; break; fi
+        target="$(readlink "${bb_dir}/${key}" 2>/dev/null)"
+        [[ "$target" == "busybox" ]] || { bb_path_valid=0; break; }
+    done
+    if [[ $bb_path_valid -eq 1 ]]; then
+        for key in "${binary_applets[@]}"; do
+            [[ -x "${bb_dir}/${key}" ]] || { bb_path_valid=0; break; }
+        done
+    fi
+
+    # Self-heal: intentar regenerar si hubo corrupción
+    if [[ $bb_path_valid -eq 0 && -x "$bb_setup" ]]; then
+        echo "Warning: BusyBox private PATH applets broken; regenerating..." >&2
+        "$bb_setup" --regenerate &>/dev/null
+        bb_path_valid=1
+        for key in "${sym_applets[@]}"; do
+            if [[ ! -L "${bb_dir}/${key}" ]]; then bb_path_valid=0; break; fi
+            target="$(readlink "${bb_dir}/${key}" 2>/dev/null)"
+            [[ "$target" == "busybox" ]] || { bb_path_valid=0; break; }
+        done
+        if [[ $bb_path_valid -eq 1 ]]; then
+            for key in "${binary_applets[@]}"; do
+                [[ -x "${bb_dir}/${key}" ]] || { bb_path_valid=0; break; }
+            done
+        fi
+    fi
+
+    if [[ $bb_path_valid -eq 1 ]]; then
+        export PATH="${bb_dir}:${PATH}"
+    else
+        echo "Warning: BusyBox private PATH unavailable; using system tools" >&2
+    fi
     return 0
 }
 
@@ -1097,15 +1135,15 @@ SHOOTER_SCRIPT
 
 		if $verbose; then
 			echogn " --- Updating: "
-			echo "${desc}"
+			echo -n "${desc}"
 		fi
 
 		if "$cmd" "$@" &>/dev/null; then
 			((update_count++))
-			$verbose && echog "\t** OK: Update completed successfully"
+			$verbose && echog " [OK]"
 		else
 			((update_errors++))
-			$verbose && echog "\t** Fail: Update failed"
+			$verbose && echog " [FAIL]"
 		fi
 	}
 
@@ -1161,6 +1199,11 @@ SHOOTER_SCRIPT
 
 	# 8. Update GDK Pixbuf loaders
 	run_update "$GDK_PIXBUF" "$(echogn "gdk-pixbuf loaders")" --update-cache
+	
+	# 9. BusyBox private PATH
+	if [[ "${NHOPKG_USE_BUSYBOX}" = "yes" && -x "@prefix@/lib/nhopkg/nhopkg-bb-setup" ]]; then
+		run_update "@prefix@/lib/nhopkg/nhopkg-bb-setup" "$(echogn "nhopkg busybox private PATH")" --regenerate
+	fi
 
 	# Summary
 	if $verbose; then

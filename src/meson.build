@@ -106,8 +106,19 @@ install_data(
   install_mode: 'rwxr-xr-x'
 )
 
-# --- Static BusyBox ---
-if static_busybox == 'yes'
+# --- Static BusyBox (provider: download | build) ---
+if busybox_provider == 'download'
+  busybox_build = custom_target(
+    'busybox-static',
+    output: 'busybox',
+    command: ['cp', busybox_file, '@OUTPUT@'],
+    install: true,
+    install_dir: join_paths(get_option('libdir'), 'nhopkg', 'bin'),
+    install_mode: 'rwxr-xr-x',
+  )
+
+  meson.add_install_script(nhopkg_bb_setup)
+elif busybox_provider == 'build'
   busybox_build = custom_target(
     'busybox-static',
     input: ['../scripts/nhopkg-build-busybox.sh', 'busybox.config'],
@@ -118,6 +129,7 @@ if static_busybox == 'yes'
       meson.current_build_dir(),
       meson.current_build_dir(),
       '@INPUT1@',
+      musl_cc.full_path(),
     ],
     install: true,
     install_dir: join_paths(get_option('libdir'), 'nhopkg', 'bin'),
@@ -126,8 +138,17 @@ if static_busybox == 'yes'
   meson.add_install_script(nhopkg_bb_setup)
 endif
 
-# --- Static zstd ---
-if static_zstd == 'yes'
+# --- Static zstd (provider: download | build) ---
+if zstd_provider == 'download'
+  zstd_build = custom_target(
+    'zstd-static',
+    output: 'zstd',
+    command: ['cp', zstd_file, '@OUTPUT@'],
+    install: true,
+    install_dir: join_paths(get_option('libdir'), 'nhopkg', 'bin'),
+    install_mode: 'rwxr-xr-x',
+  )
+elif zstd_provider == 'build'
   zstd_build = custom_target(
     'zstd-static',
     input: '../scripts/nhopkg-build-zstd.sh',
@@ -137,6 +158,7 @@ if static_zstd == 'yes'
       '1.5.7',
       meson.current_build_dir(),
       meson.current_build_dir(),
+      musl_cc.full_path(),
     ],
     install: true,
     install_dir: join_paths(get_option('libdir'), 'nhopkg', 'bin'),

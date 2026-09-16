@@ -56,16 +56,16 @@ option('git-branch',
 
 option('static-busybox',
   type: 'combo',
-  choices: ['yes', 'no'],
-  value: 'yes',
-  description: 'Build static BusyBox with musl-gcc (autocontained PATH)'
+  choices: ['auto', 'download', 'build', 'no'],
+  value: 'auto',
+  description: 'Provider for static BusyBox: auto = prebuilt > build > skip'
 )
 
 option('static-zstd',
   type: 'combo',
-  choices: ['yes', 'no'],
-  value: 'yes',
-  description: 'Build static zstd with musl-gcc (required for package decompression)'
+  choices: ['auto', 'download', 'build', 'no'],
+  value: 'auto',
+  description: 'Provider for static zstd: auto = prebuilt > build > skip'
 )
 
 option('use-busybox',
@@ -73,6 +73,12 @@ option('use-busybox',
   choices: ['yes', 'no'],
   value: 'no',
   description: 'Enable BusyBox private PATH at runtime (user enables in nhopkg.conf)'
+)
+
+option('musl-gcc-path',
+  type: 'string',
+  value: '',
+  description: 'Explicit path to the musl compiler (overrides early detection)'
 )
 
 option('download-jobs',
