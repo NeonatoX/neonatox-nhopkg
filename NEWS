@@ -1,3 +1,13 @@
+1.1 (2026-09-16)
+--------------------------------
+* feat(build): BusyBox + zstd providers auto/download/build/no and self-healing PATH
+* feat(nhopkg): emit # Replaces: and split Replaces_ fields in binary nhoid generation
+* fix(nhopkg): force zstd overwrite to stop -U/update/upgrade hang on repository re-sync
+* fix(nhopkg): keep Backup staging dir out of data.tar packages
+* fix(build): tolerate unset DESTDIR in nhopkg-bb-setup install script
+* style(nhopkg): unify icon cache update output format
+* infra: add versioning cadence reminder (nhopkg-check-version.sh) and post-commit hook
+
 1.0 (2026-09-15)
 --------------------------------
 * Version 1.0: stable release bump
