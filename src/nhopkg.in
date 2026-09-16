@@ -964,7 +964,7 @@ bin_install_create_config_files()
 		mv "${NHOPKG_TMPDIR}/.${PKG_DISPLAY_NAME}-${pkgversion}-${pkgrevision}-installed.log" "${INSTALL_ROOT}${NHOPKG_LOCALSTATEDIR}/files/${PKG_DISPLAY_NAME}-${pkgversion}-${pkgrevision}" \
 		2> /dev/null
 		check_if_ok " *** Failed to install package."
-		zstd --rm "${INSTALL_ROOT}${NHOPKG_LOCALSTATEDIR}/files/${PKG_DISPLAY_NAME}-${pkgversion}-${pkgrevision}" 2> /dev/null
+		zstd -f --rm "${INSTALL_ROOT}${NHOPKG_LOCALSTATEDIR}/files/${PKG_DISPLAY_NAME}-${pkgversion}-${pkgrevision}" 2> /dev/null
 		check_if_ok " *** Failed to install package."
 		# Touch info package file and make symlinks.
 		grep '^#' "${NHOPKG_TMPDIR}/nhoid" > "${INSTALL_ROOT}${NHOPKG_LOCALSTATEDIR}/packages/${PKG_DISPLAY_NAME}-${pkgversion}-${pkgrevision}"
@@ -980,7 +980,7 @@ bin_install_create_config_files()
 		mv "${NHOPKG_TMPDIR}/.${PKG_DISPLAY_NAME}-${pkgversion}-${pkgrevision}-installed.log" "${NHOPKG_LOCALSTATEDIR}/files/${PKG_DISPLAY_NAME}-${pkgversion}-${pkgrevision}" \
 		2> /dev/null
 		check_if_ok " *** Failed to install package."
-		zstd --rm "${NHOPKG_LOCALSTATEDIR}/files/${PKG_DISPLAY_NAME}-${pkgversion}-${pkgrevision}" 2> /dev/null
+		zstd -f --rm "${NHOPKG_LOCALSTATEDIR}/files/${PKG_DISPLAY_NAME}-${pkgversion}-${pkgrevision}" 2> /dev/null
 		check_if_ok " *** Failed to install package."
 		# Touch info package file and make symlinks.
 		grep '^#' "${NHOPKG_TMPDIR}/nhoid" > "${NHOPKG_LOCALSTATEDIR}/packages/${PKG_DISPLAY_NAME}-${pkgversion}-${pkgrevision}"
@@ -1747,12 +1747,12 @@ build_save_log_files()
 
 	if [ -f "${NHOPKG_BUILDIR}/${PKG_DISPLAY_NAME}-${pkgversion}-${pkgrevision}-install-${INSTALL_DATE}.log" ]; then
 		mv "${NHOPKG_BUILDIR}/${PKG_DISPLAY_NAME}-${pkgversion}-${pkgrevision}-install-${INSTALL_DATE}.log" "$LOGDIR/"
-		zstd --rm "$LOGDIR/${PKG_DISPLAY_NAME}-${pkgversion}-${pkgrevision}-install-${INSTALL_DATE}.log" 2>/dev/null
+		zstd -f --rm "$LOGDIR/${PKG_DISPLAY_NAME}-${pkgversion}-${pkgrevision}-install-${INSTALL_DATE}.log" 2>/dev/null
 	fi
 
 	if [ -f "${NHOPKG_BUILDIR}/${PKG_DISPLAY_NAME}-${pkgversion}-${pkgrevision}-build-${BUILD_DATE}.log" ]; then
 		mv "${NHOPKG_BUILDIR}/${PKG_DISPLAY_NAME}-${pkgversion}-${pkgrevision}-build-${BUILD_DATE}.log" "$LOGDIR/"
-		zstd --rm "$LOGDIR/${PKG_DISPLAY_NAME}-${pkgversion}-${pkgrevision}-build-${BUILD_DATE}.log" 2>/dev/null
+		zstd -f --rm "$LOGDIR/${PKG_DISPLAY_NAME}-${pkgversion}-${pkgrevision}-build-${BUILD_DATE}.log" 2>/dev/null
 	fi
 }
 ## build_search_for_files(). Search for files installed by package.
@@ -2463,7 +2463,7 @@ update_repositories()
 		# Compress .zst files in /files
 		for filedb in "${REPO_FILE_DIR}"/*; do
 			if [[ -f "${filedb}" && "${filedb}" != *.zst ]]; then
-				zstd --rm "${filedb}" 2>/dev/null
+				zstd -f --rm "${filedb}" 2>/dev/null
 			fi
 		done
 		
@@ -3197,7 +3197,7 @@ case "${NHOPKG_OPTION}" in
 				tar --files-from="${NHOPKG_LOCALSTATEDIR}/files/${pkgname}-${pkgversion}-${pkgrevision}" -c -p 2>/dev/null | zstd > "${NHOPKG_TMPDIR}/data.tar.zst" 2>/dev/null
 				cd ${PWD}
 			fi
-			zstd --rm "${NHOPKG_LOCALSTATEDIR}/files/${pkgname}-${pkgversion}-${pkgrevision}" 2> /dev/null
+			zstd -f --rm "${NHOPKG_LOCALSTATEDIR}/files/${pkgname}-${pkgversion}-${pkgrevision}" 2> /dev/null
 			## 4. Compress new package.
 			# Building binary package.
 			cd "${NHOPKG_TMPDIR}"
@@ -3803,7 +3803,7 @@ case "${NHOPKG_OPTION}" in
 				exit 1
 			}
 			for i in $(ls "${ROOT_PKG_STATE_DIR}/repo/files" 2>/dev/null); do
-				zstd --rm "${ROOT_PKG_STATE_DIR}/repo/files/${i}" 2> /dev/null
+				zstd -f --rm "${ROOT_PKG_STATE_DIR}/repo/files/${i}" 2> /dev/null
 			done
 			mv "${ROOT_PKG_STATE_DIR}/cache/lastsync" "${ROOT_PKG_STATE_DIR}/repo/lastsync"
 			echog " - Repository database updated successfully."
@@ -3884,7 +3884,7 @@ case "${NHOPKG_OPTION}" in
 			# Compress .zst files in /files (like the original does)
 			for filedb in "${REPO_FILE_DIR}"/*; do
 				if [[ -f "${filedb}" && "${filedb}" != *.zst ]]; then
-					zstd --rm "${filedb}" 2>/dev/null
+					zstd -f --rm "${filedb}" 2>/dev/null
 				fi
 			done
 

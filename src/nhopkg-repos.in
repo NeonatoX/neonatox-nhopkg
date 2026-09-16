@@ -605,7 +605,7 @@ case "${NHOPKG_OPTION}" in
 			pkg_files_name="${pkgname}-${pkgversion}-${pkgrevision}"
 			if tar -xf "${nhopackage_path}" --to-command='zstd -dc | tar -tf -' data.tar.zst > "${repo_tmp_dir}/${pkg_files_name}" 2>/dev/null; then
 				mv "${repo_tmp_dir}/${pkg_files_name}" "${repo_files_dir}/"
-				zstd --rm "${repo_files_dir}/${pkg_files_name}" 2>/dev/null
+				zstd -f --rm "${repo_files_dir}/${pkg_files_name}" 2>/dev/null
 			fi
 
 			dest_nho_path="${repo_nho_dir}/${nhopackage_basename}"
@@ -617,7 +617,7 @@ case "${NHOPKG_OPTION}" in
 		# Compress metadata
 		if [[ -d "${repo_packages_dir}" ]] && [[ -n "$(ls -A "${repo_packages_dir}" 2>/dev/null)" ]]; then
 			tar cf "${repo_packages_file}" -C "${repo_packages_dir}" . 2>/dev/null
-			zstd --rm "${repo_packages_file}" 2>/dev/null || {
+			zstd -f --rm "${repo_packages_file}" 2>/dev/null || {
 				echog " *** Unable to compress packages DB for ${repo_name}." >&2
 				cleanup_tmp_dir; exit 1
 			}
@@ -626,7 +626,7 @@ case "${NHOPKG_OPTION}" in
 
 		if [[ -d "${repo_files_dir}" ]] && [[ -n "$(ls -A "${repo_files_dir}" 2>/dev/null)" ]]; then
 			tar cf "${repo_files_file}" -C "${repo_files_dir}" . 2>/dev/null
-			zstd --rm "${repo_files_file}" 2>/dev/null || {
+			zstd -f --rm "${repo_files_file}" 2>/dev/null || {
 				echog " *** Unable to compress files DB for ${repo_name}." >&2
 				cleanup_tmp_dir; exit 1
 			}
@@ -637,7 +637,7 @@ case "${NHOPKG_OPTION}" in
 		echo $(date -u +%s) > "${repo_nho_dir}/lastsync"
 
 		# Create content.db
-		cd "${repo_nho_dir}" && du *[0-9].nho > content.db && zstd --rm content.db && cd "${CWD}"
+		cd "${repo_nho_dir}" && du *[0-9].nho > content.db && zstd -f --rm content.db && cd "${CWD}"
 
 		# Sign repo metadata (via libnhopkg_crypto)
 		crypto_sign_repo_metadata "${repo_nho_dir}" "${SIGN_KEY}"
