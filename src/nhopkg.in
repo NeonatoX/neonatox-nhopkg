@@ -1912,11 +1912,15 @@ build_nhoid_to_bin()
 	echo -e "# SHA256:\t${PACKAGESHA256}" >> "${NHOPKG_TMPDIR}/nhoid"
 	# Add Provides and Conflicts (support split packages)
 	if [[ -n "${part}" ]]; then
-		# Subpackage: look for Provides_$part and Conflicts_$part
+		# Subpackage: look for Replaces_$part, Provides_$part and Conflicts_$part
+		echo >> "${NHOPKG_TMPDIR}/nhoid"
+		grep -h "^# Replaces_${part}:" "${NHOPKG_TMPDIR}/.nhoid" | sed "s/^# Replaces_${part}:/# Replaces:/" >> "${NHOPKG_TMPDIR}/nhoid" 2>/dev/null || true
 		grep -h "^# Provides_${part}:" "${NHOPKG_TMPDIR}/.nhoid" | sed "s/^# Provides_${part}:/# Provides:/" >> "${NHOPKG_TMPDIR}/nhoid" 2>/dev/null || true
 		grep -h "^# Conflicts_${part}:" "${NHOPKG_TMPDIR}/.nhoid" | sed "s/^# Conflicts_${part}:/# Conflicts:/" >> "${NHOPKG_TMPDIR}/nhoid" 2>/dev/null || true
 	else
-		# Main package: use base Provides and Conflicts
+		# Main package: use base Replaces, Provides and Conflicts
+		echo >> "${NHOPKG_TMPDIR}/nhoid"
+		grep -h "^# Replaces:" "${NHOPKG_TMPDIR}/.nhoid" >> "${NHOPKG_TMPDIR}/nhoid" 2>/dev/null || true
 		grep -h "^# Provides:" "${NHOPKG_TMPDIR}/.nhoid" >> "${NHOPKG_TMPDIR}/nhoid" 2>/dev/null || true
 		grep -h "^# Conflicts:" "${NHOPKG_TMPDIR}/.nhoid" >> "${NHOPKG_TMPDIR}/nhoid" 2>/dev/null || true
 	fi
