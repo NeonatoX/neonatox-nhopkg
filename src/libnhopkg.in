@@ -1161,7 +1161,7 @@ SHOOTER_SCRIPT
 			[[ -d "$dir" ]] && "$ICON_CACHE" -q -t -f "$dir" &>/dev/null
 		done
 		((update_count++))
-		$verbose && echog "\t** OK: Update completed successfully"
+		$verbose && echog " [OK]"
 	fi
 
 	# 3. Update desktop database
