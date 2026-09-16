@@ -1154,8 +1154,7 @@ SHOOTER_SCRIPT
 	if [[ -n "$ICON_CACHE" && -x "$ICON_CACHE" && -d /usr/share/icons ]]; then
 		if $verbose; then
 			echogn " --- Updating: "
-			echo -n "$(echogn "icons")"
-			echo
+			echogn "icons"
 		fi
 		for dir in /usr/share/icons/*/; do
 			[[ -d "$dir" ]] && "$ICON_CACHE" -q -t -f "$dir" &>/dev/null
