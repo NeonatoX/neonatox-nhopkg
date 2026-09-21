@@ -28,13 +28,14 @@ done
 # Applets requeridos por nhopkg en el PATH privado (deduplicados).
 RAW_APPLETS=(
     "[" expand cut wc
-    awk sed grep sort cut tr head tail wc xargs
+    awk sed grep sort tr head tail xargs
     mkdir cp mv rm rmdir ln ls du stat basename dirname chmod chown chgrp
     tar gzip gunzip dd mt pwd
     md5sum sha1sum sha256sum sha512sum
     wget id date sleep cat nproc unshare od realpath chroot
     adduser addgroup passwd
     tee expr touch uname seq split comm echo uniq true
+    env printenv
 )
 declare -A _seen=()
 NHOPKG_BB_APPLETS=()
