@@ -26,8 +26,8 @@ export BINLOCATE="@BINLOCATE@"
 setup_busybox_path()
 {
     [[ "${NHOPKG_USE_BUSYBOX}" != "yes" ]] && return 0
-    local bb_dir="@prefix@/lib/nhopkg/bin"
-    local bb_setup="@prefix@/lib/nhopkg/nhopkg-bb-setup"
+    local bb_dir="${NHOPKG_BB_DIR:-@prefix@/lib/nhopkg/bin}"
+    local bb_setup="${NHOPKG_BB_SETUP:-@prefix@/lib/nhopkg/nhopkg-bb-setup}"
     [[ ! -d "$bb_dir" ]] && return 0
 
     # Verificar applets clave (symlinks a busybox)
@@ -1200,8 +1200,8 @@ SHOOTER_SCRIPT
 	run_update "$GDK_PIXBUF" "$(echogn "gdk-pixbuf loaders")" --update-cache
 	
 	# 9. BusyBox private PATH
-	if [[ "${NHOPKG_USE_BUSYBOX}" = "yes" && -x "@prefix@/lib/nhopkg/nhopkg-bb-setup" ]]; then
-		run_update "@prefix@/lib/nhopkg/nhopkg-bb-setup" "$(echogn "nhopkg busybox private PATH")" --regenerate
+	if [[ "${NHOPKG_USE_BUSYBOX}" = "yes" && -x "${NHOPKG_BB_SETUP:-@prefix@/lib/nhopkg/nhopkg-bb-setup}" ]]; then
+		run_update "${NHOPKG_BB_SETUP:-@prefix@/lib/nhopkg/nhopkg-bb-setup}" "$(echogn "nhopkg busybox private PATH")" --regenerate
 	fi
 
 	# Summary

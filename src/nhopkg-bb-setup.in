@@ -12,7 +12,7 @@ set -u
 
 # Respect DESTDIR (lo define Meson al instalar en un staging dir).
 # ${DESTDIR:-}: en un install normal Meson no exporta DESTDIR, queda sin definir.
-NHOPKG_BB_DIR="${DESTDIR:-}@prefix@/lib/nhopkg/bin"
+NHOPKG_BB_DIR="${NHOPKG_BB_DIR:-${DESTDIR:-}@prefix@/lib/nhopkg/bin}"
 BUSYBOX_BIN="${NHOPKG_BB_DIR}/busybox"
 
 MODE="regenerate"

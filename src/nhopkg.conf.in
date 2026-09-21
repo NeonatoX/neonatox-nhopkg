@@ -42,13 +42,13 @@ BUILDIR=/usr/src
 NHOPKG_BUILDIR=${BUILDIR}/nhopkg
 
 # Core common functions
-NHOPKG_LIB=@prefix@/lib/nhopkg/libnhopkg
+NHOPKG_LIB="${NHOPKG_LIB:-@prefix@/lib/nhopkg/libnhopkg}"
 
 # Download library (nhoget)
-NHOPKG_DOWNLOAD_LIB=@prefix@/lib/nhopkg/libnhopkg_download
+NHOPKG_DOWNLOAD_LIB="${NHOPKG_DOWNLOAD_LIB:-@prefix@/lib/nhopkg/libnhopkg_download}"
 
 # Crypto library (signing/verification)
-NHOPKG_CRYPTO_LIB=@prefix@/lib/nhopkg/libnhopkg_crypto
+NHOPKG_CRYPTO_LIB="${NHOPKG_CRYPTO_LIB:-@prefix@/lib/nhopkg/libnhopkg_crypto}"
 
 # Lock file to avoid multiple nhopkg instances running at the same time
 NHOPKG_LOCKFILE=/var/lock/nhopkg

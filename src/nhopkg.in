@@ -100,7 +100,7 @@ export NHOPKG_MACHINE
 #==============================================================================
 # Section: Unified Dependency Resolution System (external library)
 #==============================================================================
-NHOPKG_UDEP_LIB="@prefix@/lib/nhopkg/libnhopkg_udepsys"
+NHOPKG_UDEP_LIB="${NHOPKG_UDEP_LIB:-@prefix@/lib/nhopkg/libnhopkg_udepsys}"
 if [[ -e "${NHOPKG_UDEP_LIB}" ]]; then
 	source "${NHOPKG_UDEP_LIB}" 2> /dev/null
 else
@@ -112,7 +112,7 @@ fi
 #==============================================================================
 # Section: Download library (nhoget) (external library)
 #==============================================================================
-NHOPKG_DOWNLOAD_LIB="@prefix@/lib/nhopkg/libnhopkg_download"
+NHOPKG_DOWNLOAD_LIB="${NHOPKG_DOWNLOAD_LIB:-@prefix@/lib/nhopkg/libnhopkg_download}"
 if [[ -e "${NHOPKG_DOWNLOAD_LIB}" ]]; then
 	source "${NHOPKG_DOWNLOAD_LIB}" 2> /dev/null
 fi
@@ -121,7 +121,7 @@ fi
 #==============================================================================
 # Section: Crypto library (signing/verification) (external library)
 #==============================================================================
-NHOPKG_CRYPTO_LIB="@prefix@/lib/nhopkg/libnhopkg_crypto"
+NHOPKG_CRYPTO_LIB="${NHOPKG_CRYPTO_LIB:-@prefix@/lib/nhopkg/libnhopkg_crypto}"
 if [[ -e "${NHOPKG_CRYPTO_LIB}" ]]; then
 	source "${NHOPKG_CRYPTO_LIB}" 2> /dev/null
 fi
