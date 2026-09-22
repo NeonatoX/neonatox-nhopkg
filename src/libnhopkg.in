@@ -84,6 +84,221 @@ BOLD="\\033[1;39m"
 PROGRESS_BAR_BEGIN='='
 PROGRESS_BAR_END='>'
 PROGRESS_BAR_EMPTY=' '
+PROGRESS_BAR_SPINNER='/-\|'
+#==============================================================================
+# Section: Nhopkg progress bar (unified draw function).
+#==============================================================================
+# nhopkg_draw_progress_bar(). Draws a progress bar on stderr.
+# Usage: nhopkg_draw_progress_bar <mode> [current] [total] [label] [start_time]
+#   mode: bytes | count | indeterminate
+#     * bytes         -> percentage + size (kB/MB/GB) + ETA. Install and
+#                        downloads with a known Content-Length.
+#     * count         -> "N de M" items, no bytes and no ETA. remove / check /
+#                        sign-all / add-to-repo / upgrade / DB generation.
+#     * indeterminate -> spinner, no percentage and no ETA. Downloads without
+#                        Content-Length, lastsync, phases without a total.
+# Notes:
+#   - Writes to stderr and only draws when fd 2 is a TTY: never emits \r
+#     garbage into cron/CI logs or into pipes.
+#   - Terminal width is computed once per process and cached; the width is
+#     NEVER mutated while drawing (fixes the historic BAR_WIDTH-- bug).
+#   - Redraws are throttled: only when the integer percentage advances.
+#   - ETA uses $EPOCHSECONDS (bash >= 5); `date` only as fallback. The clock
+#     is sampled once by the caller via _nh_now() and passed as start_time.
+# Returns: 0 in success.
+# ---------------------------------------------------------
+NHOPKG_PROGRESS_WIDTH=""
+NHOPKG_LAST_DRAWN_PERCENT=""
+NHOPKG_LAST_DRAWN_KEY=""
+NHOPKG_SPINNER_IDX=0
+
+nhopkg_draw_progress_bar()
+{
+	# Only draw when stderr is interactive (avoid \r noise in logs/pipes).
+	[[ -t 2 ]] || return 0
+
+	local mode="${1}"
+	local current="${2:-0}"
+	local total="${3:-0}"
+	local label="${4:-}"
+	local start_time="${5:-}"
+	local percent width filled index now elapsed remain eta eta_min eta_sec
+	local size_shown eta_shown bar head tail
+
+	# Cache terminal width once per process.
+	if [[ -z "${NHOPKG_PROGRESS_WIDTH}" ]]; then
+		NHOPKG_PROGRESS_WIDTH=$(tput cols 2>/dev/null || echo 80)
+		if (( NHOPKG_PROGRESS_WIDTH < 20 )); then
+			NHOPKG_PROGRESS_WIDTH=80
+		fi
+	fi
+	width=${NHOPKG_PROGRESS_WIDTH}
+
+	case "${mode}" in
+		indeterminate)
+			NHOPKG_SPINNER_IDX=$(( NHOPKG_SPINNER_IDX + 1 ))
+			index=$(( NHOPKG_SPINNER_IDX % 4 ))
+			printf "\r %-20s %s" "${label}" "${PROGRESS_BAR_SPINNER:${index}:1}" >&2
+			return 0
+			;;
+		bytes|count)
+			# Sanitize current/total (never divide by zero, always clamp).
+			(( total <= 0 )) && total=1
+			(( current < 0 )) && current=0
+			(( current > total )) && current=${total}
+			percent=$(( current * 100 / total ))
+
+			# Throttle: only redraw when the integer percent advances (or when
+			# the phase itself changes). The state is cleared at 100% so the
+			# next bar always paints its first frame.
+			if (( percent < 100 )) && \
+				[[ "${NHOPKG_LAST_DRAWN_KEY:-}" == "${label}|${total}" ]] && \
+				[[ "${NHOPKG_LAST_DRAWN_PERCENT:-}" == "${percent}" ]]; then
+				return 0
+			fi
+			NHOPKG_LAST_DRAWN_KEY="${label}|${total}"
+			NHOPKG_LAST_DRAWN_PERCENT="${percent}"
+			if (( percent == 100 )); then
+				NHOPKG_LAST_DRAWN_KEY=""
+				NHOPKG_LAST_DRAWN_PERCENT=""
+			fi
+
+			# Bar width: terminal minus the fixed surrounding fields.
+			if [[ "${mode}" == "bytes" ]]; then
+				# \r + label + ": " + "%3d%% [" (7) + "]" + " %7s" (size) + ETA (11)
+				width=$(( width - ${#label} - 31 ))
+			else
+				# \r + label + ": " + "N de M" (len) + " [" + "]"
+				width=$(( width - ${#label} - ${#current} - 7 ))
+			fi
+			(( width < 8 )) && width=8
+
+			filled=$(( width * current / total ))
+			(( filled > width )) && filled=${width}
+
+			# Build the bar in one shot (no per-character printf loop).
+			printf -v head '%*s' "${filled}" ""
+			head="${head// /${PROGRESS_BAR_BEGIN}}"
+			if (( percent < 100 )); then
+				printf -v tail '%*s' "$(( width - filled - 1 ))" ""
+				tail="${tail// /${PROGRESS_BAR_EMPTY}}"
+				bar="${head}${PROGRESS_BAR_END}${tail}"
+			else
+				bar="${head:0:${width}}"
+			fi
+
+			if [[ "${mode}" == "bytes" ]]; then
+				if (( current == 0 )); then
+					size_shown="0 kB"
+				elif (( current >= 1073741824 )); then
+					printf -v size_shown "%d GB" $(( current / 1073741824 ))
+				elif (( current >= 1048576 )); then
+					printf -v size_shown "%d MB" $(( current / 1048576 ))
+				else
+					printf -v size_shown "%d kB" $(( current / 1024 ))
+				fi
+
+				if [[ -n "${EPOCHSECONDS:-}" ]]; then
+					now=${EPOCHSECONDS}
+				else
+					now=$(date -u +%s)
+				fi
+				elapsed=$(( now - start_time ))
+				if (( current > 0 && elapsed > 0 )); then
+					remain=$(( total - current ))
+					eta=$(( elapsed * remain / current + 1 ))
+					eta_min=$(( eta / 60 ))
+					eta_sec=$(( eta % 60 ))
+					printf -v eta_shown "%02dm%02ds" "${eta_min}" "${eta_sec}"
+				else
+					eta_shown="--:--"
+				fi
+				printf "\r %-5s: %3d%% [%s] %7s %s ETA" "${label}" "${percent}" "${bar}" "${size_shown}" "${eta_shown}" >&2
+			else
+				printf "\r %-5s: %s de %s [%s]" "${label}" "${current}" "${total}" "${bar}" >&2
+			fi
+			;;
+	esac
+	return 0
+}
+
+# _nh_now(). Epoch seconds without spawning `date` on bash >= 5.
+# Usage: _nh_now (without arguments)
+# Returns: echo the current epoch time.
+# ---------------------------------------------------------
+_nh_now()
+{
+	if [[ -n "${EPOCHSECONDS:-}" ]]; then
+		echo "${EPOCHSECONDS}"
+	else
+		date -u +%s
+	fi
+}
+
+# nhoget_url_with_progress(). Downloads $url to $dest showing progress.
+# Usage: nhoget_url_with_progress <url> <dest> [label]
+# Returns: exit code of the real download.
+# Notes:
+#   - Probes Content-Length first (curl -sI / wget --spider); if it cannot be
+#     determined, falls back to an indeterminate spinner.
+#   - Runs the real download in background and samples the partial file size
+#     with `stat -c%s` (BusyBox / `wc -c` fallback) every 0.2s.
+#   - The background process writes to a private log so it never interleaves
+#     with the bar; the log is shown on failure and removed on success.
+#   - The percentage is clamped to 0..100 (nhoget_url resumes with -c / -C -).
+# ---------------------------------------------------------
+nhoget_url_with_progress()
+{
+	local url="$1"
+	local dest="$2"
+	local label="${3:-$(basename "${dest}")}"
+	local total="" backend log pid curr start rc
+
+	# Not a TTY: plain silent download, no progress and no background process.
+	[[ -t 2 ]] || {
+		nhoget_url "${url}" "${dest}"
+		return $?
+	}
+
+	backend=$(nhoget_detect_backend 2>/dev/null || echo "auto")
+	if [[ "${backend}" == "curl" ]]; then
+		total=$(curl -sI --connect-timeout "${NHOGET_TIMEOUT:-20}" "${url}" 2>/dev/null | tr -d '\r' | grep -i '^content-length:' | tail -1 | awk -F': *' '{print $2}' | tr -dc '0-9')
+	elif command -v wget &>/dev/null && [[ "${backend}" != "curl" ]]; then
+		total=$(wget --spider -S "${url}" 2>&1 | grep -i 'Content-Length:' | tail -1 | awk '{print $2}' | tr -dc '0-9')
+	fi
+	if [[ -n "${total}" && "${total}" =~ ^[0-9]+$ && "${total}" -gt 0 ]]; then
+		:
+	else
+		total=""
+	fi
+
+	start=$(_nh_now)
+	log="${dest}.nhprog.log"
+	nhoget_url "${url}" "${dest}" > "${log}" 2>&1 &
+	pid=$!
+	while kill -0 "${pid}" 2>/dev/null; do
+		sleep 0.2
+		curr=$(stat -c %s "${dest}" 2>/dev/null || echo 0)
+		[[ "${curr}" =~ ^[0-9]+$ ]] || curr=0
+		if [[ -n "${total}" ]]; then
+			nhopkg_draw_progress_bar bytes "${curr}" "${total}" "${label}" "${start}"
+		else
+			nhopkg_draw_progress_bar indeterminate "" "" "${label}"
+		fi
+	done
+	wait "${pid}"
+	rc=$?
+	echo >&2
+	if (( rc != 0 )); then
+		if [[ -s "${log}" ]]; then
+			sed 's/^/     /' "${log}" >&2
+		fi
+		rm -f "${log}"
+		return "${rc}"
+	fi
+	rm -f "${log}"
+	return 0
+}
 #==============================================================================
 # Section: Nhopkg multilanguage (gettext).
 #==============================================================================
