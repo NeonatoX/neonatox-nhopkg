@@ -1231,10 +1231,20 @@ generate_repo_db() {
 		mkdir -p "$outdir"
 		> "$dbfile"  # ← FIX: truncar archivo del repo actual
 		
+		_nh_dbg_total=0
+		for _nh_dbg_f in "$pkgdir"/*; do
+			[[ -f "$_nh_dbg_f" && ! -L "$_nh_dbg_f" ]] || continue
+			[[ $(basename "$_nh_dbg_f") == *-*-* ]] || continue
+			_nh_dbg_total=$((_nh_dbg_total + 1))
+		done
+		_nh_dbg_done=0
 		for pkgfile in "$pkgdir"/*; do
 			[[ -f "$pkgfile" && ! -L "$pkgfile" ]] || continue
 			[[ $(basename "$pkgfile") == *-*-* ]] || continue
 			
+			# Extraer metadatos (se hace una sola vez, luego se escribe la entrada)
+			_nh_dbg_done=$((_nh_dbg_done + 1))
+			nhopkg_draw_progress_bar count "${_nh_dbg_done}" "${_nh_dbg_total}" "${r}:db"
 			# Extraer campos del nhoid
 			local name ver rel desc lic arch url size sha deps
 			name=$(grep "^# Name:" "$pkgfile" 2>/dev/null | awk -F'\t' '{print $2}')
@@ -1265,6 +1275,7 @@ generate_repo_db() {
 				echo "---"
 			} >> "$dbfile"
 		done
+		echo >&2
 		echog " - Generated: ${dbfile}"
 	done
 	return 0
@@ -1283,8 +1294,17 @@ generate_installed_db() {
 	mkdir -p "$(dirname "$output")"
 	> "$tmpfile"
 	
-	for pkgfile in "${NHOPKG_LOCALSTATEDIR}/packages/"*; do
+	local -a _nh_idb_candidates=()
+	for _nh_idb_f in "${NHOPKG_LOCALSTATEDIR}/packages/"*; do
+		[[ -f "$_nh_idb_f" && ! -L "$_nh_idb_f" ]] || continue
+		_nh_idb_candidates+=("$_nh_idb_f")
+	done
+	_nh_idb_total=${#_nh_idb_candidates[@]}
+	_nh_idb_done=0
+	for pkgfile in "${_nh_idb_candidates[@]}"; do
 		[[ -f "$pkgfile" && ! -L "$pkgfile" ]] || continue
+		_nh_idb_done=$((_nh_idb_done + 1))
+		nhopkg_draw_progress_bar count "${_nh_idb_done}" "${_nh_idb_total}" "installed.db"
 		local name version release
 		name=$(grep "^# Name:" "$pkgfile" 2>/dev/null | awk -F'\t' '{print $2}')
 		version=$(grep "^# Version:" "$pkgfile" 2>/dev/null | awk -F'\t' '{print $2}')
@@ -1292,6 +1312,7 @@ generate_installed_db() {
 		[[ -n "$name" && -n "$version" && -n "$release" ]] && \
 			echo "${name}|${version}|${release}" >> "$tmpfile"
 	done
+	echo >&2
 	
 	sort -u "$tmpfile" > "$output"
 	rm -f "$tmpfile"
