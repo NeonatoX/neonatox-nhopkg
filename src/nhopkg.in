@@ -3655,15 +3655,22 @@ case "${NHOPKG_OPTION}" in
 			get_basic_data "${NHOPKG_LOCALSTATEDIR}/packages/${CASEPACKAGE}"
 			echogn " :: Checking for:"
 			echo " ${pkgname}-${pkgversion}-${pkgrevision}"
-			# Set the 100% percent.
-			LISTED_FILES_NUM=$(zstd -dc "${NHOPKG_LOCALSTATEDIR}/files/${pkgname}-${pkgversion}-${pkgrevision}.zst" 2> /dev/null | grep -vc '^#')
+			# Decompress the file list ONCE and reuse it (it used to be decompressed twice).
+			_chk_list="${NHOPKG_TMPDIR:-/tmp}/.nh_check_list.$$"
+			zstd -dc "${NHOPKG_LOCALSTATEDIR}/files/${pkgname}-${pkgversion}-${pkgrevision}.zst" 2> /dev/null | grep -v '^#' > "${_chk_list}"
+			LISTED_FILES_NUM=$(grep -vc '^#' "${_chk_list}")
 			CHECKED_FILES_NUM=0
-			for checked_file in $(zstd -dc "${NHOPKG_LOCALSTATEDIR}/files/${pkgname}-${pkgversion}-${pkgrevision}.zst" 2> /dev/null | grep -v '^#');
+			_nh_chk_i=0
+			for checked_file in $(cat "${_chk_list}");
 			do
+				_nh_chk_i=$((_nh_chk_i + 1))
 				if [[ -e "${checked_file}" ]]; then
 					((CHECKED_FILES_NUM++))
 				fi
+				nhopkg_draw_progress_bar count "${_nh_chk_i}" "${LISTED_FILES_NUM}" "${pkgname}"
 			done
+			rm -f "${_chk_list}"
+			echo >&2
 			PERCENT=$((${CHECKED_FILES_NUM} * 100 / ${LISTED_FILES_NUM}))
 			if [[ "${CHECKED_FILES_NUM}" != "${LISTED_FILES_NUM}" ]]; then
 				echog " *** Package check fail!"
@@ -3880,7 +3887,11 @@ case "${NHOPKG_OPTION}" in
 	check_if_ok " * Packages will not be updated."
 
 	## 5. Process each upgrade individually
+	_nh_up_total=${#packages_to_update[@]}
+	_nh_up_i=0
 	for pkg_name in "${packages_to_update[@]}"; do
+		_nh_up_i=$((_nh_up_i + 1))
+		nhopkg_draw_progress_bar count "${_nh_up_i}" "${_nh_up_total}" "upgrade"
 		echog " --- Processing upgrade: $pkg_name"
 
 		# Get package info
@@ -3968,6 +3979,7 @@ case "${NHOPKG_OPTION}" in
 
 		cleanup_tmp_dir
 	done
+	echo >&2
 
 	## 6. Finalize
 	shooter_updates
