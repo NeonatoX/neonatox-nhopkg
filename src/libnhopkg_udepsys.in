@@ -614,6 +614,7 @@ _dep_download_all() {
 	
 	# --- Sequential mode (NHOPKG_DOWNLOAD_JOBS=1): exact previous behavior -----
 	if [[ $jobs -eq 1 ]]; then
+		_nh_dep_total=${#dl_url[@]}
 		for i in "${!dl_url[@]}"; do
 			echogn " --- Downloading from "
 			echo -n "${dl_repo[$i]}: "
@@ -623,7 +624,9 @@ _dep_download_all() {
 			check_if_ok " *** Failed to download package."
 			
 			DCASEPACKAGES+=("${dl_name[$i]}")
+			nhopkg_draw_progress_bar count "$((i + 1))" "${_nh_dep_total}" "pkg"
 		done
+		echo >&2
 		return 0
 	fi
 	
@@ -636,7 +639,7 @@ _dep_download_all() {
 	
 	# --- Fase B: concurrent downloads with a job cap (requires bash >= 4.3) ----
 	local -a dl_status=() dl_log=()
-	local st lg active=0
+	local st lg active=0 completed=0
 	for i in "${!dl_url[@]}"; do
 		st=$(mktemp) || { echog " *** Failed to create temp file." >&2; exit 1; }
 		lg=$(mktemp) || { echog " *** Failed to create temp file." >&2; exit 1; }
@@ -655,9 +658,14 @@ _dep_download_all() {
 		if (( active >= jobs )); then
 			wait -n
 			((active--))
+			((completed++))
+			nhopkg_draw_progress_bar count "${completed}" "${#dl_url[@]}" "pkg"
 		fi
 	done
 	wait
+	((completed += active))
+	nhopkg_draw_progress_bar count "${completed}" "${#dl_url[@]}" "pkg"
+	echo >&2
 	
 	# --- Fase C: fill DCASEPACKAGES with successes and report failures ---------
 	local -a dl_failed=() dl_failed_logs=()
