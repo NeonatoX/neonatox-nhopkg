@@ -2290,6 +2290,94 @@ get_latest_version_in_repos()
 	return 1
 }
 # ---------------------------------------------------------
+# sync_repo()
+# Description: Synchronizes a single repository into its subdirectory.
+# Parameters: repo, repo_url, verify_meta ("yes"/"no")
+# Returns: 0 on success or already-up-to-date, 1 on download/extract failure.
+# ---------------------------------------------------------
+sync_repo()
+{
+	local repo="${1}"
+	local repo_url="${2}"
+	local verify_meta="${3:-no}"
+
+	echogn " :: Updating repository:"
+	echo " ${repo} (${repo_url})"
+
+	REPO_PKG_DIR="${ROOT_PKG_STATE_DIR}/repo/${repo}/packages"
+	REPO_FILE_DIR="${ROOT_PKG_STATE_DIR}/repo/${repo}/files"
+	mkdir -p "${REPO_PKG_DIR}" "${REPO_FILE_DIR}" "${ROOT_PKG_STATE_DIR}/cache"
+
+	# Download lastsync (trivial file: no progress bar).
+	nhoget_url "${repo_url}/lastsync" "${ROOT_PKG_STATE_DIR}/cache/lastsync" || {
+		echog " * Unable to download lastsync for ${repo}." >&2
+		return 1
+	}
+
+	# Check if it's already updated.
+	if [[ -f "${ROOT_PKG_STATE_DIR}/repo/${repo}/lastsync" ]]; then
+		ISYNC=$(cat "${ROOT_PKG_STATE_DIR}/repo/${repo}/lastsync")
+		FSYNC=$(cat "${ROOT_PKG_STATE_DIR}/cache/lastsync")
+		if (( ${ISYNC} >= ${FSYNC} )); then
+			echog "   - Already up to date."
+			rm -f "${ROOT_PKG_STATE_DIR}/cache/lastsync"
+			return 0
+		fi
+	fi
+
+	# Download databases (with progress).
+	echog "   - Downloading database..."
+	nhoget_url_with_progress "${repo_url}/core.packages.tar.zst" "${ROOT_PKG_STATE_DIR}/cache/core.packages.tar.zst" || {
+		echog " *** Failed to download packages DB for ${repo}." >&2
+		return 1
+	}
+	nhoget_url_with_progress "${repo_url}/core.files.tar.zst" "${ROOT_PKG_STATE_DIR}/cache/core.files.tar.zst" || {
+		echog " *** Failed to download files DB for ${repo}." >&2
+		return 1
+	}
+
+	# Verify repository metadata signatures (via libnhopkg_crypto)
+	if [[ "${verify_meta}" == "yes" && "${NHOPKG_VERIFY_REPO_METADATA}" == "yes" ]]; then
+		nhoget_url "${repo_url}/core.packages.tar.zst.asc" \
+			"${ROOT_PKG_STATE_DIR}/cache/core.packages.tar.zst.asc" 2>/dev/null || true
+		nhoget_url "${repo_url}/core.files.tar.zst.asc" \
+			"${ROOT_PKG_STATE_DIR}/cache/core.files.tar.zst.asc" 2>/dev/null || true
+		nhoget_url "${repo_url}/lastsync.asc" \
+			"${ROOT_PKG_STATE_DIR}/cache/lastsync.asc" 2>/dev/null || true
+
+		if ! crypto_verify_repo_metadata "${ROOT_PKG_STATE_DIR}/cache"; then
+			echog " *** Repository metadata verification failed for ${repo}." >&2
+			if [[ "${NHOPKG_REQUIRE_SIGNED_METADATA}" == "yes" ]]; then
+				return 1
+			fi
+		fi
+	fi
+
+	# Extract databases.
+	zstd -dc "${ROOT_PKG_STATE_DIR}/cache/core.packages.tar.zst" 2>/dev/null | tar xf - -C "${REPO_PKG_DIR}" 2>/dev/null || {
+		echog " *** Failed to extract packages DB for ${repo}." >&2
+		return 1
+	}
+	zstd -dc "${ROOT_PKG_STATE_DIR}/cache/core.files.tar.zst" 2>/dev/null | tar xf - -C "${REPO_FILE_DIR}" 2>/dev/null || {
+		echog " *** Failed to extract files DB for ${repo}." >&2
+		return 1
+	}
+
+	# Compress .zst files in /files.
+	for filedb in "${REPO_FILE_DIR}"/*; do
+		if [[ -f "${filedb}" && "${filedb}" != *.zst ]]; then
+			zstd -f --rm "${filedb}" 2>/dev/null
+		fi
+	done
+
+	# Update lastsync and clean the temporary cache.
+	mv "${ROOT_PKG_STATE_DIR}/cache/lastsync" "${ROOT_PKG_STATE_DIR}/repo/${repo}/lastsync"
+	rm -f "${ROOT_PKG_STATE_DIR}/cache/core.packages.tar.zst" "${ROOT_PKG_STATE_DIR}/cache/core.files.tar.zst"
+	rm -f "${ROOT_PKG_STATE_DIR}/cache/core.packages.tar.zst.asc" "${ROOT_PKG_STATE_DIR}/cache/core.files.tar.zst.asc"
+	rm -f "${ROOT_PKG_STATE_DIR}/cache/lastsync.asc"
+	return 0
+}
+# ---------------------------------------------------------
 # update_repositories()
 # Description: Updates all configured repositories.
 # Parameters: none
@@ -2327,79 +2415,10 @@ update_repositories()
 			echog " *** Skipping '${repo}': no URL defined (\$${repo_var})" >&2
 			continue
 		fi
-		
-		echogn " :: Updating repository:"
-		echo " ${repo} (${repo_url})"
-		
-		REPO_PKG_DIR="${ROOT_PKG_STATE_DIR}/repo/${repo}/packages"
-		REPO_FILE_DIR="${ROOT_PKG_STATE_DIR}/repo/${repo}/files"
-		mkdir -p "${REPO_PKG_DIR}" "${REPO_FILE_DIR}" "${ROOT_PKG_STATE_DIR}/cache"
-		
-		# Download lastsync
-		nhoget_url "${repo_url}/lastsync" "${ROOT_PKG_STATE_DIR}/cache/lastsync"
-		check_if_ok " * Unable to download lastsync for ${repo}."
-		
-		# Check if it's already updated
-		if [[ -f "${ROOT_PKG_STATE_DIR}/repo/${repo}/lastsync" ]]; then
-			ISYNC=$(cat "${ROOT_PKG_STATE_DIR}/repo/${repo}/lastsync")
-			FSYNC=$(cat "${ROOT_PKG_STATE_DIR}/cache/lastsync")
-			if (( ${ISYNC} >= ${FSYNC} )); then
-				echog "   - Already up to date."
-				rm -f "${ROOT_PKG_STATE_DIR}/cache/lastsync"
-				continue
-			fi
-		fi
-		
-		# Download databases
-		echog "   - Downloading database..."
-		nhoget_url "${repo_url}/core.packages.tar.zst" "${ROOT_PKG_STATE_DIR}/cache/core.packages.tar.zst"
-		check_if_ok " *** Failed to download packages DB for ${repo}."
-		nhoget_url "${repo_url}/core.files.tar.zst" "${ROOT_PKG_STATE_DIR}/cache/core.files.tar.zst"
-		check_if_ok " *** Failed to download files DB for ${repo}."
-		
-		# Verify repository metadata signatures (via libnhopkg_crypto)
-		if [[ "${NHOPKG_VERIFY_REPO_METADATA}" == "yes" ]]; then
-			# Download .asc signatures alongside metadata
-			nhoget_url "${repo_url}/core.packages.tar.zst.asc" \
-				"${ROOT_PKG_STATE_DIR}/cache/core.packages.tar.zst.asc" 2>/dev/null || true
-			nhoget_url "${repo_url}/core.files.tar.zst.asc" \
-				"${ROOT_PKG_STATE_DIR}/cache/core.files.tar.zst.asc" 2>/dev/null || true
-			nhoget_url "${repo_url}/lastsync.asc" \
-				"${ROOT_PKG_STATE_DIR}/cache/lastsync.asc" 2>/dev/null || true
-
-			if ! crypto_verify_repo_metadata "${ROOT_PKG_STATE_DIR}/cache"; then
-				echog " *** Repository metadata verification failed for ${repo}." >&2
-				if [[ "${NHOPKG_REQUIRE_SIGNED_METADATA}" == "yes" ]]; then
-					cleanup_tmp_dir
-					exit 1
-				fi
-			fi
-		fi
-		
-		# Extract files
-		zstd -dc "${ROOT_PKG_STATE_DIR}/cache/core.packages.tar.zst" 2>/dev/null | tar xf - -C "${REPO_PKG_DIR}" 2>/dev/null || {
-			echog " *** Failed to extract packages DB for ${repo}." >&2
+		sync_repo "${repo}" "${repo_url}" "yes" || {
 			cleanup_tmp_dir
 			exit 1
 		}
-		zstd -dc "${ROOT_PKG_STATE_DIR}/cache/core.files.tar.zst" 2>/dev/null | tar xf - -C "${REPO_FILE_DIR}" 2>/dev/null || {
-			echog " *** Failed to extract files DB for ${repo}." >&2
-			cleanup_tmp_dir
-			exit 1
-		}
-		
-		# Compress .zst files in /files
-		for filedb in "${REPO_FILE_DIR}"/*; do
-			if [[ -f "${filedb}" && "${filedb}" != *.zst ]]; then
-				zstd -f --rm "${filedb}" 2>/dev/null
-			fi
-		done
-		
-		# Update lastsync
-		mv "${ROOT_PKG_STATE_DIR}/cache/lastsync" "${ROOT_PKG_STATE_DIR}/repo/${repo}/lastsync"
-		rm -f "${ROOT_PKG_STATE_DIR}/cache/core.packages.tar.zst" "${ROOT_PKG_STATE_DIR}/cache/core.files.tar.zst"
-		rm -f "${ROOT_PKG_STATE_DIR}/cache/core.packages.tar.zst.asc" "${ROOT_PKG_STATE_DIR}/cache/core.files.tar.zst.asc"
-		rm -f "${ROOT_PKG_STATE_DIR}/cache/lastsync.asc"
 	done
 	
 	echog " - All repositories updated successfully."
@@ -3714,10 +3733,10 @@ case "${NHOPKG_OPTION}" in
 			nhoget_url "${NHOPKG_REPO}/content.db.zst" "${ROOT_PKG_STATE_DIR}/cache/content.db.zst"
 			check_if_ok " * Unable to download files from repository."
 			echog " --- Downloading files database."
-			nhoget_url "${NHOPKG_REPO}/core.files.tar.zst" "${ROOT_PKG_STATE_DIR}/cache/core.files.tar.zst"
+			nhoget_url_with_progress "${NHOPKG_REPO}/core.files.tar.zst" "${ROOT_PKG_STATE_DIR}/cache/core.files.tar.zst"
 			check_if_ok " *** Unable to download files from repository."
 			echog " --- Downloading packages database."
-			nhoget_url "${NHOPKG_REPO}/core.packages.tar.zst" "${ROOT_PKG_STATE_DIR}/cache/core.packages.tar.zst"
+			nhoget_url_with_progress "${NHOPKG_REPO}/core.packages.tar.zst" "${ROOT_PKG_STATE_DIR}/cache/core.packages.tar.zst"
 			check_if_ok " *** Unable to download files from repository."
 			mv "${ROOT_PKG_STATE_DIR}/cache/content.db.zst" "${ROOT_PKG_STATE_DIR}/repo/content.db.zst"
 			zstd -dc "${ROOT_PKG_STATE_DIR}/cache/core.packages.tar.zst" 2>/dev/null | tar xf - -C "${ROOT_PKG_STATE_DIR}/repo/packages" 2>/dev/null || {
@@ -3766,61 +3785,10 @@ case "${NHOPKG_OPTION}" in
 				echog " *** Skipping '${repo}': no URL defined (\$NHOPKG_REPO_${repo^^})" >&2
 				continue
 			fi
-
-			echogn " :: Updating repository:"
-			echo " ${repo} (${repo_url})"
-
-			# Specific directories
-			REPO_PKG_DIR="${ROOT_PKG_STATE_DIR}/repo/${repo}/packages"
-			REPO_FILE_DIR="${ROOT_PKG_STATE_DIR}/repo/${repo}/files"
-			mkdir -p "${REPO_PKG_DIR}" "${REPO_FILE_DIR}" "${ROOT_PKG_STATE_DIR}/cache"
-
-			# Download lastsync
-			nhoget_url "${repo_url}/lastsync" "${ROOT_PKG_STATE_DIR}/cache/lastsync"
-			check_if_ok " * Unable to download lastsync for ${repo}."
-
-			# Check if it's already synchronized
-			if [[ -f "${ROOT_PKG_STATE_DIR}/repo/${repo}/lastsync" ]]; then
-				ISYNC=$(cat "${ROOT_PKG_STATE_DIR}/repo/${repo}/lastsync")
-				FSYNC=$(cat "${ROOT_PKG_STATE_DIR}/cache/lastsync")
-				if (( ${ISYNC} >= ${FSYNC} )); then
-					echog "   - Already up to date."
-					rm -f "${ROOT_PKG_STATE_DIR}/cache/lastsync"
-					continue
-				fi
-			fi
-
-			# Download databases
-			echog "   - Downloading database..."
-			nhoget_url "${repo_url}/core.packages.tar.zst" "${ROOT_PKG_STATE_DIR}/cache/core.packages.tar.zst"
-			check_if_ok " *** Failed to download packages DB for ${repo}."
-			nhoget_url "${repo_url}/core.files.tar.zst" "${ROOT_PKG_STATE_DIR}/cache/core.files.tar.zst"
-			check_if_ok " *** Failed to download files DB for ${repo}."
-
-			# Extract to the repo subdirectory
-			zstd -dc "${ROOT_PKG_STATE_DIR}/cache/core.packages.tar.zst" 2>/dev/null | tar xf - -C "${REPO_PKG_DIR}" 2>/dev/null || {
-				echog " *** Failed to extract packages DB for ${repo}." >&2
+			sync_repo "${repo}" "${repo_url}" "no" || {
 				cleanup_tmp_dir
 				exit 1
 			}
-			zstd -dc "${ROOT_PKG_STATE_DIR}/cache/core.files.tar.zst" 2>/dev/null | tar xf - -C "${REPO_FILE_DIR}" 2>/dev/null || {
-				echog " *** Failed to extract files DB for ${repo}." >&2
-				cleanup_tmp_dir
-				exit 1
-			}
-
-			# Compress .zst files in /files (like the original does)
-			for filedb in "${REPO_FILE_DIR}"/*; do
-				if [[ -f "${filedb}" && "${filedb}" != *.zst ]]; then
-					zstd -f --rm "${filedb}" 2>/dev/null
-				fi
-			done
-
-			# Move lastsync
-			mv "${ROOT_PKG_STATE_DIR}/cache/lastsync" "${ROOT_PKG_STATE_DIR}/repo/${repo}/lastsync"
-
-			# Cleaning temporary repo cache
-			rm -f "${ROOT_PKG_STATE_DIR}/cache/core.packages.tar.zst" "${ROOT_PKG_STATE_DIR}/cache/core.files.tar.zst"
 		done
 
 		echog " - All repositories updated successfully."
