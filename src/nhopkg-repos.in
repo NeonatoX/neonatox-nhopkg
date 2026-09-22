@@ -316,6 +316,8 @@ case "${NHOPKG_OPTION}" in
 		failed=0
 
 		find "${REPO_ROOT}" -name '*.nho' -print0 2>/dev/null > "${REPO_ROOT}/.nho-list.tmp"
+		_nh_sign_total=$(tr -cd '\0' < "${REPO_ROOT}/.nho-list.tmp" | wc -c)
+		_nh_sign_done=0
 		while IFS= read -r -d '' pkg; do
 			echogn " :: $(basename "${pkg}")..."
 
@@ -334,6 +336,8 @@ case "${NHOPKG_OPTION}" in
 				echo " already signed (skipped)"
 				skipped=$((skipped + 1))
 				rm -rf "${pkg_dir}"
+				_nh_sign_done=$((_nh_sign_done + 1))
+				nhopkg_draw_progress_bar count "${_nh_sign_done}" "${_nh_sign_total}" "sign"
 				continue
 			fi
 
@@ -346,8 +350,11 @@ case "${NHOPKG_OPTION}" in
 				failed=$((failed + 1))
 			fi
 			rm -rf "${pkg_dir}"
+			_nh_sign_done=$((_nh_sign_done + 1))
+			nhopkg_draw_progress_bar count "${_nh_sign_done}" "${_nh_sign_total}" "sign"
 		done < "${REPO_ROOT}/.nho-list.tmp"
 		rm -f "${REPO_ROOT}/.nho-list.tmp"
+		echo >&2
 
 		echog " --- Sign-all complete: ${signed} signed, ${skipped} skipped, ${failed} failed."
 		[[ ${failed} -eq 0 ]] || exit 1
@@ -543,6 +550,8 @@ case "${NHOPKG_OPTION}" in
 
 	# Determine repo for each .nho and group them
 	declare -A repo_packages
+	_nh_scan_total=${#nhopackage_list[@]}
+	_nh_scan_done=0
 	for nhopackage_path in "${nhopackage_list[@]}"; do
 		nhopackage_basename=$(basename "${nhopackage_path}")
 
@@ -560,7 +569,10 @@ case "${NHOPKG_OPTION}" in
 
 		repo_packages["${pkg_repo}"]+="${nhopackage_path} "
 		echogn " - ${nhopackage_basename}"; echo "   -> Repository: ${pkg_repo}"
+		_nh_scan_done=$((_nh_scan_done + 1))
+		nhopkg_draw_progress_bar count "${_nh_scan_done}" "${_nh_scan_total}" "scan"
 	done
+	echo >&2
 
 	# Process each active repository
 	for repo_name in ${NHOPKG_ACTIVE_REPOS}; do
@@ -581,6 +593,8 @@ case "${NHOPKG_OPTION}" in
 		repo_files_file="${repo_tmp_dir}/repo_files.tar"
 		mkdir -p "${repo_packages_dir}" "${repo_files_dir}"
 
+		_nh_pkg_total=${#repo_pkg_list[@]}
+		_nh_pkg_done=0
 		for nhopackage_path in "${repo_pkg_list[@]}"; do
 			nhopackage_basename=$(basename "${nhopackage_path}")
 			echogn " - Adding ${nhopackage_basename}..."
@@ -612,7 +626,10 @@ case "${NHOPKG_OPTION}" in
 			if [[ "${nhopackage_path}" != "${dest_nho_path}" ]]; then
 				cp "${nhopackage_path}" "${dest_nho_path}" || continue
 			fi
+			_nh_pkg_done=$((_nh_pkg_done + 1))
+			nhopkg_draw_progress_bar count "${_nh_pkg_done}" "${_nh_pkg_total}" "repo:${repo_name}"
 		done
+		echo >&2
 
 		# Compress metadata
 		if [[ -d "${repo_packages_dir}" ]] && [[ -n "$(ls -A "${repo_packages_dir}" 2>/dev/null)" ]]; then
@@ -675,6 +692,14 @@ case "${NHOPKG_OPTION}" in
 	#-----------------------------------------------------------
 	# 1. Process incoming packages
 	#-----------------------------------------------------------
+	_nh_in_total=0
+	for _nh_in_p in $CASEPACKAGES; do
+		case "$_nh_in_p" in
+			--*) continue ;;
+		esac
+		_nh_in_total=$((_nh_in_total + 1))
+	done
+	_nh_in_done=0
 	for pkgpath in $CASEPACKAGES; do
 		case "$pkgpath" in
 			--*) continue ;;
@@ -744,7 +769,10 @@ case "${NHOPKG_OPTION}" in
 			tar -tf - 2>/dev/null > "$NHOPKG_TMPDIR/$repo/files/$meta_name"
 			rm -f "$NHOPKG_TMPDIR/data.tar.zst"
 		fi
+		_nh_in_done=$((_nh_in_done + 1))
+		nhopkg_draw_progress_bar count "${_nh_in_done}" "${_nh_in_total}" "pkg"
 	done
+	echo >&2
 
 	#-----------------------------------------------------------
 	# 2. Rebuild repository metadata (per affected repo)
@@ -766,6 +794,12 @@ case "${NHOPKG_OPTION}" in
 			tar xf - -C "$tmpbuild" 2>/dev/null
 		fi
 
+		_nh_meta_total=0
+		for _nh_meta_c in "$repo/packages/"*; do
+			[ -f "$_nh_meta_c" ] || continue
+			_nh_meta_total=$((_nh_meta_total + 1))
+		done
+		_nh_meta_done=0
 		for newmeta in "$repo/packages/"*; do
 			[ -f "$newmeta" ] || continue
 			get_basic_data "$newmeta"
@@ -774,7 +808,10 @@ case "${NHOPKG_OPTION}" in
 			cp "$newmeta" "$tmpbuild/$full"
 			ln -sf "$full" "$tmpbuild/$pkgname-$pkgversion"
 			ln -sf "$full" "$tmpbuild/$pkgname"
+			_nh_meta_done=$((_nh_meta_done + 1))
+			nhopkg_draw_progress_bar count "${_nh_meta_done}" "${_nh_meta_total}" "${reponame}:pkgs"
 		done
+		echo >&2
 
 		tar cf "$NHOPKG_TMPDIR/$reponame/.packages.$$" -C "$tmpbuild" . 2>/dev/null
 		zstd -q -f "$NHOPKG_TMPDIR/$reponame/.packages.$$"
@@ -790,13 +827,22 @@ case "${NHOPKG_OPTION}" in
 			tar xf - -C "$tmpfiles" 2>/dev/null
 		fi
 
+		_nh_file_total=0
+		for _nh_file_c in "$repo/files/"*; do
+			[ -f "$_nh_file_c" ] || continue
+			_nh_file_total=$((_nh_file_total + 1))
+		done
+		_nh_file_done=0
 		for newfile in "$repo/files/"*; do
 			[ -f "$newfile" ] || continue
 			name=$(basename "$newfile")
 			pkgbase=$(echo "$name" | sed 's/-[^-]*-[^-]*$//')
 			rm -f "$tmpfiles/$pkgbase"-*
 			cp "$newfile" "$tmpfiles/"
+			_nh_file_done=$((_nh_file_done + 1))
+			nhopkg_draw_progress_bar count "${_nh_file_done}" "${_nh_file_total}" "${reponame}:files"
 		done
+		echo >&2
 
 		tar cf "$NHOPKG_TMPDIR/$reponame/.filesbuild.$$" -C "$tmpfiles" . 2>/dev/null
 		zstd -q -f "$NHOPKG_TMPDIR/$reponame/.filesbuild.$$"
