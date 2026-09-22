@@ -731,58 +731,22 @@ bin_install_progress()
 		return $rc
 	fi
 
-	SHELL_COLUMS=$(tput cols 2>/dev/null || echo 80)
 	UNTAR_SIZE=0
 	INSTALLED_SIZE="${actual_size}"
-	BAR_WIDTH=$((${SHELL_COLUMS}-$(echo "${pkgname}-${pkgversion}-${pkgrevision}:" | wc -m)-$(echo "${INSTALLED_SIZE}" | wc -m)-25))
-	MIN_BAR_WIDTH="5"
-	if (( ${BAR_WIDTH} < ${MIN_BAR_WIDTH} )); then
-		BAR_WIDTH="${MIN_BAR_WIDTH}"
-	fi
-	START_TIME=$(date -u +%s)
-	cat "$tmp_tar" | (
+	START_TIME=$(_nh_now)
+	(
 	while (( ${UNTAR_SIZE} < ${INSTALLED_SIZE} ));
 	do
-		dd bs=512 count=2048 2>/dev/null # || return 1
-		(( UNTAR_SIZE += 1024 ))
+		dd bs=8M count=1 2>/dev/null
+		(( UNTAR_SIZE += 8388608 ))
 		if (( ${UNTAR_SIZE} > ${INSTALLED_SIZE} )); then
-			UNTAR_SIZE=$INSTALLED_SIZE
+			UNTAR_SIZE=${INSTALLED_SIZE}
 		fi
-		# Print title.
-		printf "\r %-5s: " ${FILE_NAME} >&2
-		# pPrint percentage.
-		export PERCENT=$(( 100 * $UNTAR_SIZE / $INSTALLED_SIZE ))
-		printf "%3d%% [" $PERCENT >&2
-		# Print progress bar.
-		PROGRESS_BAR=$(( $BAR_WIDTH * $UNTAR_SIZE / $INSTALLED_SIZE ))
-		for i in $(seq 1 $PROGRESS_BAR);
-		do
-			printf "${PROGRESS_BAR_BEGIN}" >&2
-		done
-		if (( "${PERCENT}" < "100" )); then
-			printf "${PROGRESS_BAR_END}" >&2
-		else
-			printf "${PROGRESS_BAR_BEGIN}" >&2
-		fi
-		for i in $(seq $PROGRESS_BAR $(( BAR_WIDTH-- )));
-		do
-			printf "${PROGRESS_BAR_EMPTY}" >&2
-		done
-		# Print size of file copied.
-		printf -v size "%d kB" $UNTAR_SIZE
-		printf "] %7s" "$size" >&2
-		# Print ETA.
-		ELAPSED_TIME=$(( $(date -u +%s) - $START_TIME ))
-		REMAIN_TIME=$(( $INSTALLED_SIZE - $UNTAR_SIZE ))
-		ETA_TIME=$(( ($ELAPSED_TIME * $REMAIN_TIME) / $UNTAR_SIZE + 1))
-		# Get minutes and seconds
-		ETA_TIME_MIN=$(( $ETA_TIME / 60 ))
-		ETA_TIME_SEC=$(( $ETA_TIME % 60 ))
-		printf " %02dm%02ds ETA" $ETA_TIME_MIN $ETA_TIME_SEC >&2
+		nhopkg_draw_progress_bar bytes "${UNTAR_SIZE}" "${INSTALLED_SIZE}" "${FILE_NAME}" "${START_TIME}"
 	done
 	echo >&2
-	) | ${COMMAND} > "${LOG_FILE}" 2>"${LOG_FILE}.err"
-	local rc=${PIPESTATUS[2]}
+	) < "${tmp_tar}" | ${COMMAND} > "${LOG_FILE}" 2>"${LOG_FILE}.err"
+	local rc=${PIPESTATUS[1]}
 	rm -f "$tmp_tar"
 	if (( rc != 0 )); then
 		[[ -s "${LOG_FILE}.err" ]] && { echog " *** tar stderr:" >&2; sed 's/^/     /' "${LOG_FILE}.err" >&2; }
@@ -1128,35 +1092,7 @@ downloadpackage()
 remove_progress()
 {
 	((DELETED_FILES++))
-	printf "\r %-5s: " "${pkgname}-${pkgversion}-${pkgrevision}" >&2
-	# Print percentage.
-	export PERCENT=$(( 100 * $DELETED_FILES / $TOTAL_FILES ))
-	printf "%3d%% [" $PERCENT >&2
-	# Print progress bar.
-	PROGRESS_BAR=$(( $BAR_WIDTH * $DELETED_FILES / $TOTAL_FILES ))
-	for i in $(seq 1 $PROGRESS_BAR);
-	do
-		printf "${PROGRESS_BAR_BEGIN}" >&2
-	done
-	if (( "${PERCENT}" < "100" )); then
-		printf "${PROGRESS_BAR_END}" >&2
-	else
-		printf "${PROGRESS_BAR_BEGIN}" >&2
-	fi
-	for i in $(seq $PROGRESS_BAR $(( BAR_WIDTH-- )));
-	do
-		printf "${PROGRESS_BAR_EMPTY}" >&2
-	done
-	# Print size of file copied.
-	printf "]" >&2
-	# Print ETA.
-	ELAPSED_TIME=$(( $(date -u +%s) - $START_TIME ))
-	REMAIN_TIME=$(( $TOTAL_FILES - $DELETED_FILES ))
-	ETA_TIME=$(( ($ELAPSED_TIME * $REMAIN_TIME) / $DELETED_FILES + 1))
-	# Get minutes and seconds.
-	ETA_TIME_MIN=$(( $ETA_TIME / 60 ))
-	ETA_TIME_SEC=$(( $ETA_TIME % 60 ))
-	printf " %02dm%02ds ETA" $ETA_TIME_MIN $ETA_TIME_SEC >&2
+	nhopkg_draw_progress_bar count "${DELETED_FILES}" "${TOTAL_FILES}" "${pkgname}-${pkgversion}-${pkgrevision}"
 }
 ## check_inverse_dependencies(). Checks what packages are depending of other.
 # Usage: check_inverse_dependencies (without arguments)
@@ -1222,14 +1158,6 @@ remove_package()
 	# Progress Bar variables.
 	TOTAL_FILES=$(zstd -dc "${state_dir}/files/${pkgname}-${pkgversion}-${pkgrevision}.zst" 2>/dev/null | grep -vc "^#")
 	DELETED_FILES="0"
-	SHELL_COLUMS=$(tput cols 2>/dev/null || echo 80)
-	BAR_WIDTH=$((${SHELL_COLUMS}-$(echo "${pkgname}-${pkgversion}-${pkgrevision}:" | wc -m)-22))
-	MIN_BAR_WIDTH="5"
-	export PERCENT
-	if (( ${BAR_WIDTH} < ${MIN_BAR_WIDTH} )); then
-		BAR_WIDTH="${MIN_BAR_WIDTH}"
-	fi
-	START_TIME=$(date -u +%s)
 	for removefiles in $(zstd -dc "${state_dir}/files/${pkgname}-${pkgversion}-${pkgrevision}.zst" 2>/dev/null | grep -v "^#")
 	do
 		# Check that file begin with /.
