@@ -247,7 +247,7 @@ NHOPKG_GIT_BRANCH="@NHOPKG_GIT_BRANCH@"
 # if translations are available.
 #==============================================================================
 
-NHOPKG_GETTEXT=yes
+NHOPKG_GETTEXT="${NHOPKG_GETTEXT:-yes}"
 
 # gettext internal variables (do not edit)
 TEXTDOMAIN=@PACKAGE_NAME@
