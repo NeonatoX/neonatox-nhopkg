@@ -534,7 +534,7 @@ case "${NHOPKG_OPTION}" in
 
 	# Find all .nho packages in the input directory
 	nhopackage_list=()
-	local _cr_tmp
+	_cr_tmp=""
 	_cr_tmp=$(mktemp) || exit 1
 	find "${REPO_OUTPUT_ROOT}" -maxdepth 1 -name '*.nho' -print0 > "$_cr_tmp"
 	while IFS= read -r -d '' nhopackage_file; do
