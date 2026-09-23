@@ -425,6 +425,12 @@ check_if_running()
 	NHOPKG_LECHE=0
 	local _wait_attempts="${NHOPKG_LOCK_WAIT:-12}"
 	local _attempt=0
+	# /var/lock suele apuntar a /run/lock; en un arranque limpio /run es un
+	# tmpfs vacío y el directorio puede no existir, así que se crea antes.
+	if ! mkdir -p "$(dirname "${NHOPKG_LOCKFILE}")"; then
+		echog " * Cannot create lock directory: $(dirname "${NHOPKG_LOCKFILE}")" >&2
+		exit 1
+	fi
 	while [[ -e "${NHOPKG_LOCKFILE}" ]];
 	do
 		NHOPKG_LECHE=1
