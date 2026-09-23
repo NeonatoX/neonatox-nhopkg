@@ -62,19 +62,36 @@ cp "$BB_CONFIG" .config
 # Force static build
 sed -i 's/.*CONFIG_STATIC.*/CONFIG_STATIC=y/' .config || true
 
+# Avoid auto-linking of libatomic: on some toolchains (e.g. GCC 16 + arch
+# musl-gcc specs) the driver emits a broken -latomic merge that kills the
+# static link; musl post-libc has all atomics built in, so it is unneeded.
+sed -i 's/^CONFIG_EXTRA_CFLAGS=.*/CONFIG_EXTRA_CFLAGS="-fno-link-libatomic"/' .config || true
+
 # Resolve any new config options
 yes "" | make oldconfig
 
 JOBS=$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 1)
 
 echo "Compiling BusyBox ${BB_VERSION} with musl-gcc..."
-CC="$MUSLGCC" make -j"$JOBS"
+# CC must go on the make command line: BusyBox's Makefile assigns
+# "CC = $(CROSS_COMPILE)gcc", so an exported CC would be ignored and the
+# build would link against glibc instead of musl (result aborts on fresh
+# boots with rtld_static_init).
+make -j"$JOBS" CC="$MUSLGCC"
 
 # Verify static build (use readelf since 'file' may not exist yet)
 if ! readelf -d busybox 2>/dev/null | grep -q "NEEDED"; then
     echo "OK: BusyBox is static"
 else
     echo "ERROR: BusyBox is not static!" >&2
+    exit 1
+fi
+
+# Reject glibc-linked results: a musl static BusyBox never carries these
+# strings. If the musl toolchain is broken and falls back to glibc, the
+# resulting binary can abort (rtld_static_init) on the target system.
+if grep -aq 'rtld_static_init\|GNU C Library' busybox; then
+    echo "ERROR: built BusyBox is linked against glibc, not musl (musl toolchain not working)." >&2
     exit 1
 fi
 

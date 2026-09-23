@@ -55,9 +55,10 @@ cd "zstd-${ZSTD_VERSION}"
 JOBS=$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 1)
 
 echo "Compiling zstd ${ZSTD_VERSION} with musl-gcc..."
+# CC va en la línea de comandos para que el Makefile no la ignore con una
+# asignación propia (igual que en nhopkg-build-busybox.sh).
 CFLAGS="-DZSTD_NO_TERMINAL_GUARD -Os -s -fno-link-libatomic" \
-CC="$MUSLGCC" ZSTD_LIBS="-static" LDFLAGS="-static" \
-make -j"$JOBS" -C programs zstd
+make -j"$JOBS" -C programs zstd CC="$MUSLGCC" ZSTD_LIBS="-static" LDFLAGS="-static"
 
 # Verify static build
 if ! readelf -d programs/zstd 2>/dev/null | grep -q "NEEDED"; then
