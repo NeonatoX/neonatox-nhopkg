@@ -79,13 +79,13 @@ busybox_prebuilt = {
   'internal': 'busybox',
   'version': '1.37.0',
   'rev': 'r1',
-  'sha256': '115d3e2e941eb736e8e867e238473ac475a8bd24cfbbc7ddc45a141f95923f89',
+  'sha256': 'af1822c686fda5ab1473e5b87f182483b4dbced8da2434ef0c0887518b8c80a5',
 }
 zstd_prebuilt = {
   'internal': 'zstd',
   'version': '1.5.6',
   'rev': 'r1',
-  'sha256': '519a1e6ec6f34595a236283c637f9c9063e00fc53f043e1bcd9299b02e36139c',
+  'sha256': '990ef0a49890d73862ddb6e6a4db34fff3a0290fcffdff00d580b4c576055fb7',
 }
 
 _tools_cache = meson.current_build_dir() / '.nhopkg-tools'
