@@ -8,7 +8,7 @@ set -e
 #     URL           - URL completa del asset .zip (tools-0.9.1)
 #     INTERNAL_NAME - nombre del binario dentro del zip (busybox|zstd)
 #     OUT_BIN       - ruta absoluta donde se escribe el binario verificado
-#     SHA256        - sha256 del binario (ancla de integridad, pin del release)
+#     SHA256        - sha256 del archivo .zip descargado (ancla de integridad, pin del release)
 
 URL="${1:?Usage: nhopkg-fetch-tools.sh <URL> <NAME> <OUT_BIN> <SHA256>}"
 NAME="${2:?missing internal binary name}"
@@ -40,7 +40,13 @@ else
     exit 1
 fi
 
-# 2) Extraer el binario (unzip > bsdtar)
+# 2) Verificar el archivo .zip contra el hash pinneado del release (fallo rápido)
+echo "${EXPECTED_SHA}  ${ZIP}" | sha256sum -c - >/dev/null 2>&1 || {
+    echo "ERROR: pinned sha256 verification failed for $(basename "$ZIP")" >&2
+    exit 1
+}
+
+# 3) Extraer el binario (unzip > bsdtar)
 if command -v unzip >/dev/null 2>&1; then
     unzip -o -q "$ZIP" "$NAME" -d "$EXTRACT_DIR"
 elif command -v bsdtar >/dev/null 2>&1; then
@@ -55,14 +61,8 @@ fi
     exit 1
 }
 
-# 3) Verificar: hash pinneado del release
+# Control extra: SHA256SUMS embebido en el zip (integridad del binario extraído)
 cd "$EXTRACT_DIR"
-echo "${EXPECTED_SHA}  ${NAME}" | sha256sum -c - >/dev/null 2>&1 || {
-    echo "ERROR: pinned sha256 verification failed for ${NAME}" >&2
-    exit 1
-}
-
-# Control extra: SHA256SUMS embebido en el zip (si existe)
 if [ -f SHA256SUMS ]; then
     sha256sum -c SHA256SUMS >/dev/null 2>&1 || {
         echo "ERROR: embedded SHA256SUMS verification failed for ${NAME}" >&2
