@@ -135,6 +135,15 @@ The staging directory is auto-created (or taken from \fBNHOPACKAGING\fR in
 nhopkg.conf) and removed afterwards. If the recipe does not honor
 \fBDESTDIR\fR the build fails with a clear message.
 .TP
+.B \fI--arch\fR \fIarch\fR
+Target architecture used for \fB# Arch:\fR and the \fI.nho\fR filename instead
+of \fBuname -m\fR (e.g. \fBaarch64\fR, \fBx86_64-musl\fR). Only valid together
+with \fB\-\-packaging\fR (or \fBNHOPKG_PACKAGING=yes\fR): re-labelling a
+package that is installed and registered on the live system would make its
+Arch not match the host, so nhopkg refuses \fB--arch\fR outside packaging mode.
+Only affects package metadata and naming \-\- it never changes the toolchain or
+sysroot.
+.TP
 .B \-\-verify-package-signature
 Verify the GPG signature of a package before installing it.
 .TP

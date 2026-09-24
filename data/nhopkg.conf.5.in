@@ -331,6 +331,16 @@ with \fBmktemp\fR inside \fBTMPDIR\fR and removes it after the build; a
 user-provided directory is never removed.
 Default:
 .I "" (empty)
+.TP
+.B NHOPKG_TARGET_ARCH
+Target architecture written to \fB# Arch:\fR and used in the \fI.nho\fR
+filename (instead of \fBuname -m\fR), e.g. \fBaarch64\fR or \fBx86_64-musl\fR.
+Only applies in packaging mode (\fBNHOPKG_PACKAGING=yes\fR); ignored otherwise,
+so a native build never registers an installed package with a mismatched Arch.
+Overridable per-invocation with \fB\-\-arch\fR (which also requires packaging).
+Only affects package metadata and naming (no toolchain or sysroot changes).
+Default:
+.I "" (empty)
 .SS "13. Database"
 .TP
 .B NHOPKG_DB
@@ -405,6 +415,7 @@ NHOPKG_CMAKE_BUILD_PARALLEL_LEVEL=""
 # --- Packaging mode ---
 # NHOPKG_PACKAGING=yes   # build .nho into a staging DESTDIR (no install)
 # NHOPACKAGING=/path/to/staging
+# NHOPKG_TARGET_ARCH=aarch64   # # Arch: and .nho filename (else uname -m)
 
 # --- Source package creation ---
 FIND_DIRS="/bin /boot /etc /lib /opt /sbin /srv /usr"

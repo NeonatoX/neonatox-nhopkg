@@ -204,11 +204,16 @@ Build binary packages without touching the running system. Only applies to the b
 |---|---|---|---|
 | `NHOPKG_PACKAGING` | `no` | `yes`, `no` | Build the `.nho` into a staging `DESTDIR`: recipes install into `NHOPACKAGING`, the package is not registered in the database and no install hook runs |
 | `NHOPACKAGING` | `""` (empty) | Valid directory path | Staging directory. If empty, auto-created with `mktemp` inside `TMPDIR` and removed after the build; a user-provided directory is never removed |
+| `NHOPKG_TARGET_ARCH` | `""` (empty) | Arch label (`aarch64`, `x86_64-musl`, ...) | Use this architecture for `# Arch:` and the `.nho` filename instead of `uname -m`. **Only applies with `NHOPKG_PACKAGING=yes`** (otherwise ignored, so a native build never registers a mismatched Arch). Metadata only; no toolchain/sysroot changes. Overridable with `--arch` (also requires packaging) |
 
 Recipes must honor `DESTDIR` (e.g. `make install DESTDIR="$DESTDIR"`). If the
 recipe installs nothing into the staging dir, the build aborts with a clear
 message (no fallback to scanning `/`). Can also be activated per-invocation
-with `nhopkg -b paquete.srcnho --packaging`.
+with `nhopkg -b paquete.srcnho --packaging`. To build the `.nho` for another
+architecture (aarch64, x86_64-musl, ...) set `NHOPKG_TARGET_ARCH` or pass
+`--arch <arch>` — **only valid in packaging mode** (it would make the Arch of an
+installed/registered package mismatch the host). Only `# Arch:` and the
+filename change, the toolchain is untouched:
 
 ---
 
@@ -294,6 +299,7 @@ NHOPKG_CMAKE_BUILD_PARALLEL_LEVEL=""
 # --- Packaging Mode ---
 # NHOPKG_PACKAGING=yes   # build .nho into a staging DESTDIR (no install)
 # NHOPACKAGING=/path/to/staging  # custom staging dir (left in place)
+# NHOPKG_TARGET_ARCH=aarch64    # # Arch: + .nho name (packaging only; else uname -m) --arch variant
 
 # --- Source Package Creation ---
 FIND_DIRS="/bin /boot /etc /lib /opt /sbin /srv /usr"

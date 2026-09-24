@@ -47,6 +47,11 @@ recipe installs nothing into the staging dir the build aborts with a clear
 message — there is no fallback to scanning `/`. `--packaging` is only valid
 with `--build`/`--super-build`.
 
+To label the `.nho` for another architecture (`# Arch:` and filename), use
+`--arch <arch>` or `NHOPKG_TARGET_ARCH` — only valid in packaging mode and only
+metadata changes (a package installed on a real system must keep its host
+Arch); the toolchain is not touched.
+
 ## Source types
 
 The `# Packageurl:` field in the `nhoid` selects how the source is fetched:
