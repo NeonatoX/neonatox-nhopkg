@@ -404,6 +404,7 @@ nhopkg_help()
 	echog " --no-split <name>\tBuild all split packages except the selected one(s) (with -b/-C)."
 	echog " --lib32\tBuild only the lib32 split package, skipping the base build (with -b/-C)."
 	echog " --packaging\tBuild .nho into a temp DESTDIR without installing anything on the live system (with -b/-C)."
+	echog " --arch <arch>\tTarget arch for # Arch: and the .nho filename (only with --packaging)."
 	echog " --verify-package-signature\tVerify the GPG signature of the package before installing it."
 	echog " --no-verify-package-signature\tSkip signature verification."
 	echog " --purge\tRemove inverse dependencies of package."
@@ -1871,6 +1872,10 @@ build_nhoid_to_bin()
 		final_arch="any"
 	elif [[ -n "${original_arch}" ]] && ([[ "${original_arch}" == "noarch" ]] || [[ "${original_arch}" == "all" ]] || [[ "${original_arch}" == "any" ]]); then
 		final_arch="${original_arch}"
+	elif [[ "${NHOPKG_PACKAGING}" = "yes" && -n "${NHOPKG_TARGET_ARCH}" ]]; then
+		# NHOPKG_TARGET_ARCH (or --arch, only valid in packaging mode) overrides
+		# the host arch from uname -m for the binary metadata.
+		final_arch="${NHOPKG_TARGET_ARCH}"
 	else
 		final_arch="${BUILD_ARCH}"
 	fi
@@ -2513,7 +2518,7 @@ SPLIT_ONLY_PARTS=""
 SPLIT_SKIP_PARTS=""
 SPLIT_LIB32_ONLY="no"
 SHORTOPTIONS="RiSdXrBbklno:wxst:UehuvCyp"
-LONGOPTIONS="recursive,root:,no-check-deps,no-check-arch,no-check-sha256,force-check-deps,force-check-arch,force-check-sha256,install,super-install,dios,remove,backup,purge,build,check,list,info,output:,show,update-shooters,search,list-repo,update,clean,help,license,license-all,version,update-db,verbose,super-build,sign-package,no-sign-package,verify-package-signature,no-verify-package-signature,upgrade,strip-binaries,preserve-files,base,split:,no-split:,lib32,packaging"
+LONGOPTIONS="recursive,root:,no-check-deps,no-check-arch,no-check-sha256,force-check-deps,force-check-arch,force-check-sha256,install,super-install,dios,remove,backup,purge,build,check,list,info,output:,show,update-shooters,search,list-repo,update,clean,help,license,license-all,version,update-db,verbose,super-build,sign-package,no-sign-package,verify-package-signature,no-verify-package-signature,upgrade,strip-binaries,preserve-files,base,split:,no-split:,lib32,packaging,arch:"
 NHPARAMS=$(getopt -o ${SHORTOPTIONS} -l ${LONGOPTIONS} -n ${NHNAME} -- "$@")
 if [[ "${?}" != "0" ]]; then
 	nhopkg_usage
@@ -2762,6 +2767,15 @@ while [[ "${1}" != "--" ]]; do
 			# on the live system (no DB registry, no install hooks).
 			NHOPKG_PACKAGING="yes"
 		;;
+		--arch)
+			shift
+			# Target architecture: overrides uname -m for # Arch: and the .nho
+			# filename (only valid with --packaging; metadata-only, no toolchain
+			# or sysroot changes).
+			NHOPKG_TARGET_ARCH="${1}"
+			NHOPKG_TARGET_ARCH_CLI="yes"
+			shift
+		;;
 		-s|--search)
 			shift
 			if [[ -z "${NHOPKG_OPTION}" ]]; then
@@ -2902,6 +2916,14 @@ fi
 # are the only ones that compile and install a source package.
 if [[ "${NHOPKG_PACKAGING}" = "yes" && "${NHOPKG_OPTION}" != "build" && "${NHOPKG_OPTION}" != "super-build" ]]; then
 	echog " * The --packaging option is only valid with --build (-b) or --super-build (-C)." >&2
+	exit 1
+fi
+# --arch re-labels # Arch: and the .nho filename. It must not alter a package
+# that gets installed and registered on the live system (the DB Arch would no
+# longer match the host), so it is only accepted in packaging mode. The config
+# variable NHOPKG_TARGET_ARCH is ignored outside packaging too.
+if [[ "${NHOPKG_TARGET_ARCH_CLI}" = "yes" && "${NHOPKG_PACKAGING}" != "yes" ]]; then
+	echog " * The --arch option is only valid combined with --packaging (or NHOPKG_PACKAGING=yes)." >&2
 	exit 1
 fi
 # Get selected packages.

@@ -303,6 +303,14 @@ NHOPKG_CMAKE_BUILD_PARALLEL_LEVEL=""
 NHOPKG_PACKAGING="${NHOPKG_PACKAGING:-no}"
 NHOPACKAGING="${NHOPACKAGING:-}"
 
+# Target architecture for the built package: used for # Arch: in the binary
+# nhoid and for the .nho filename, instead of uname -m (e.g. aarch64, x86_64-musl).
+# Only applies in packaging mode (NHOPKG_PACKAGING=yes); otherwise it is
+# ignored so a native build can never register an installed package with a
+# mismatched Arch. Overridable per-invocation with --arch (which also requires
+# packaging mode). Affects only metadata/naming (no toolchain or sysroot changes).
+NHOPKG_TARGET_ARCH="${NHOPKG_TARGET_ARCH:-}"
+
 
 #==============================================================================
 # Section: Source Package Creation
