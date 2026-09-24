@@ -120,6 +120,21 @@ Sign the binary package with GPG during \fB\-\-build\fR.
 .B \-\-no-sign-package
 Skip GPG signing during \fB\-\-build\fR.
 .TP
+.B \-\-lib32
+Build only the \fIlib32\fR split package, skipping the base build (only with
+.BR \-\-build / \-\-super-build ).
+.TP
+.B \-\-packaging
+Build the binary \fI.nho\fR into a temporary \fBDESTDIR\fR (packaging mode,
+only with
+.BR \-\-build / \-\-super-build ).
+Nothing is installed on the live system: the package is not registered in the
+database and the install hooks (\fInpostinstall()\fR) are not executed; they
+stay inside the \fI.nho\fR for when the package is actually installed.
+The staging directory is auto-created (or taken from \fBNHOPACKAGING\fR in
+nhopkg.conf) and removed afterwards. If the recipe does not honor
+\fBDESTDIR\fR the build fails with a clear message.
+.TP
 .B \-\-verify-package-signature
 Verify the GPG signature of a package before installing it.
 .TP

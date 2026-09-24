@@ -44,6 +44,7 @@ nhopkg is a universal binary and source package manager. This page documents eve
 | `--force-check-sha256` | Force checksum verification even if disabled in config |
 | `--sign-package` | Sign the binary package with GPG during `--build` |
 | `--no-sign-package` | Skip GPG signing |
+| `--packaging` | Build the `.nho` into a temporary `DESTDIR` without installing anything on the live system (only with `-b`/`-C`): no database registry, no install hooks, staging dir auto-removed |
 | `--verify-package-signature` | Verify the GPG signature of a package before installing it |
 | `--no-verify-package-signature` | Skip signature verification |
 | `--license` | Display a short license notice |
@@ -72,6 +73,9 @@ sudo nhopkg -b foo.srcnho
 
 # Build directly from a Git repository
 sudo nhopkg -C foo
+
+# Build only the binary package, installing nothing on this system
+sudo nhopkg -b foo.srcnho --packaging
 
 # Remove a package
 sudo nhopkg -r gimp

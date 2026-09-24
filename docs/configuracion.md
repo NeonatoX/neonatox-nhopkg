@@ -196,7 +196,23 @@ Settings used when generating binary packages from source.
 
 ---
 
-## 12. Database
+## 12. Packaging Mode
+
+Build binary packages without touching the running system. Only applies to the build flows (`-b`/`--build` and `-C`/`--super-build`); any other action fails at startup.
+
+| Variable | Default | Accepted Values | Description |
+|---|---|---|---|
+| `NHOPKG_PACKAGING` | `no` | `yes`, `no` | Build the `.nho` into a staging `DESTDIR`: recipes install into `NHOPACKAGING`, the package is not registered in the database and no install hook runs |
+| `NHOPACKAGING` | `""` (empty) | Valid directory path | Staging directory. If empty, auto-created with `mktemp` inside `TMPDIR` and removed after the build; a user-provided directory is never removed |
+
+Recipes must honor `DESTDIR` (e.g. `make install DESTDIR="$DESTDIR"`). If the
+recipe installs nothing into the staging dir, the build aborts with a clear
+message (no fallback to scanning `/`). Can also be activated per-invocation
+with `nhopkg -b paquete.srcnho --packaging`.
+
+---
+
+## 13. Database
 
 nhopkg internal file database configuration.
 
@@ -274,6 +290,10 @@ NHOPKG_LDFLAGS="-Wl,-O1 -Wl,--as-needed -Wl,-z,relro"
 NHOPKG_BUILD_JOBS=""
 NHOPKG_MAKEFLAGS=""
 NHOPKG_CMAKE_BUILD_PARALLEL_LEVEL=""
+
+# --- Packaging Mode ---
+# NHOPKG_PACKAGING=yes   # build .nho into a staging DESTDIR (no install)
+# NHOPACKAGING=/path/to/staging  # custom staging dir (left in place)
 
 # --- Source Package Creation ---
 FIND_DIRS="/bin /boot /etc /lib /opt /sbin /srv /usr"

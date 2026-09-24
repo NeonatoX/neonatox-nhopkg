@@ -309,7 +309,29 @@ Default includes:
 .RS
 .I mimeinfo.cache info/dir info/dir.old /etc/ld.so.cache ${NHOPKG_BUILDIR} /etc/mtab /etc/fstab
 .RE
-.SS "12. Database"
+.SS "12. Packaging mode"
+.TP
+.B NHOPKG_PACKAGING
+Build binary packages without touching the running system (same as
+.BR \-\-packaging ).
+Only applies to the build flows (\fB\-b\fR/\fB\-\-build\fR and
+\fB\-C\fR/\fB\-\-super-build\fR): recipes install into a staging directory
+(\fBNHOPACKAGING\fR) via an exported \fBDESTDIR\fR, the \fI.nho\fR is built
+from there, and the package is neither registered in the database nor is its
+post-install hook executed. A recipe that ignores \fBDESTDIR\fR aborts the
+build with a clear message.
+Values:
+.I no
+(default) or
+.I yes
+.TP
+.B NHOPACKAGING
+Staging directory used in packaging mode. If empty, nhopkg auto-creates one
+with \fBmktemp\fR inside \fBTMPDIR\fR and removes it after the build; a
+user-provided directory is never removed.
+Default:
+.I "" (empty)
+.SS "13. Database"
 .TP
 .B NHOPKG_DB
 Path to the locate-style package database.
@@ -379,6 +401,10 @@ NHOPKG_LDFLAGS="-Wl,-O1"
 NHOPKG_BUILD_JOBS=""
 NHOPKG_MAKEFLAGS=""
 NHOPKG_CMAKE_BUILD_PARALLEL_LEVEL=""
+
+# --- Packaging mode ---
+# NHOPKG_PACKAGING=yes   # build .nho into a staging DESTDIR (no install)
+# NHOPACKAGING=/path/to/staging
 
 # --- Source package creation ---
 FIND_DIRS="/bin /boot /etc /lib /opt /sbin /srv /usr"
