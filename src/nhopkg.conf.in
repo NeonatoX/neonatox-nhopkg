@@ -284,6 +284,25 @@ NHOPKG_BUILD_JOBS=""
 NHOPKG_MAKEFLAGS=""
 NHOPKG_CMAKE_BUILD_PARALLEL_LEVEL=""
 
+#==============================================================================
+# Section: Packaging (--packaging / NHOPKG_PACKAGING=yes)
+#------------------------------------------------------------------------------
+# When enabled (NHOPKG_PACKAGING=yes or --packaging with -b/--build or
+# -C/--super-build), nhopkg builds the binary package WITHOUT touching the
+# running system: recipes install into a staging directory (NHOPACKAGING,
+# auto-created in TMPDIR if left empty) via an exported DESTDIR.
+#
+#   NHOPKG_PACKAGING=yes  -> recipes install into ${NHOPACKAGING} (staging)
+#   NHOPKG_PACKAGING=no   -> current behavior (install into the system)
+#
+# The staging directory is removed after the build. Recipes keep working
+# transparently: ninstall/nalloc-flavored recipes that honor DESTDIR land in
+# the staging dir; package metadata (nhoid, installed files, size, hash) is
+# generated from the staging dir, never from the live system.
+#==============================================================================
+NHOPKG_PACKAGING="${NHOPKG_PACKAGING:-no}"
+NHOPACKAGING="${NHOPACKAGING:-}"
+
 
 #==============================================================================
 # Section: Source Package Creation

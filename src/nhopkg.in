@@ -403,6 +403,7 @@ nhopkg_help()
 	echog " --split <name>\tBuild only the selected split package(s) (with -b/-C)."
 	echog " --no-split <name>\tBuild all split packages except the selected one(s) (with -b/-C)."
 	echog " --lib32\tBuild only the lib32 split package, skipping the base build (with -b/-C)."
+	echog " --packaging\tBuild .nho into a temp DESTDIR without installing anything on the live system (with -b/-C)."
 	echog " --verify-package-signature\tVerify the GPG signature of the package before installing it."
 	echog " --no-verify-package-signature\tSkip signature verification."
 	echog " --purge\tRemove inverse dependencies of package."
@@ -1667,14 +1668,21 @@ build_save_log_files()
 	[ -z "$part" ] && part=""
 	get_package_display_name "$part"
 
-	LOGDIR="${NHOPKG_LOCALSTATEDIR}/logs"
+	# In packaging mode nothing is installed on the live system, so the logs do
+	# not belong to ${NHOPKG_LOCALSTATEDIR}/logs: they are moved to ${CWD}
+	# next to the .nho (owned by the build user, like the error flow does).
+	if [[ "${NHOPKG_PACKAGING}" = "yes" ]]; then
+		LOGDIR="${CWD}"
+	else
+		LOGDIR="${NHOPKG_LOCALSTATEDIR}/logs"
 
-	if [ -e "$LOGDIR" ] && [ ! -d "$LOGDIR" ]; then
-		echog " --- Veryfing logs path"
-		rm -f "$LOGDIR"
+		if [ -e "$LOGDIR" ] && [ ! -d "$LOGDIR" ]; then
+			echog " --- Veryfing logs path"
+			rm -f "$LOGDIR"
+		fi
+
+		mkdir -p "$LOGDIR"
 	fi
-
-	mkdir -p "$LOGDIR"
 
 	echogn " --- Saving logs on"
 	echo " $LOGDIR"
@@ -1688,6 +1696,16 @@ build_save_log_files()
 		mv "${NHOPKG_BUILDIR}/${PKG_DISPLAY_NAME}-${pkgversion}-${pkgrevision}-build-${BUILD_DATE}.log" "$LOGDIR/"
 		zstd -f --rm "$LOGDIR/${PKG_DISPLAY_NAME}-${pkgversion}-${pkgrevision}-build-${BUILD_DATE}.log" 2>/dev/null
 	fi
+
+	# In packaging mode the logs land in the user's CWD, so they must not end
+	# up owned by root.
+	if [[ "${NHOPKG_PACKAGING}" = "yes" ]]; then
+		for _saved_log in \
+			"${LOGDIR}/${PKG_DISPLAY_NAME}-${pkgversion}-${pkgrevision}-install-${INSTALL_DATE}.log.zst" \
+			"${LOGDIR}/${PKG_DISPLAY_NAME}-${pkgversion}-${pkgrevision}-build-${BUILD_DATE}.log.zst"; do
+			[[ -f "${_saved_log}" ]] && chown "${DIROWNER}" "${_saved_log}" 2>/dev/null || true
+		done
+	fi
 }
 ## build_search_for_files(). Search for files installed by package.
 # Usage: build_search_for_files (with/without split arguments)
@@ -1700,27 +1718,62 @@ build_search_for_files()
 	get_package_display_name "$part"
 
 	touch "${NHOPKG_TMPDIR}/.${PKG_DISPLAY_NAME}-${pkgversion}-${pkgrevision}-installed.log"
-	# Safely iterate FIND_DIRS (may contain spaces); parse into array by spaces.
-	IFS=' ' read -r -a FIND_DIRS_ARRAY <<< "${FIND_DIRS:-}"
-	for searchdir in "${FIND_DIRS_ARRAY[@]}"; do
-		if [[ -z "${searchdir}" ]]; then
-			continue
+	# In packaging mode the list comes from the staging dir (NHOPACKAGING):
+	# paths are made relative (usr/bin/foo) and an empty staging dir means the
+	# recipe ignored DESTDIR (fail with a clear message, no fallback to /).
+	local _srch_prefix=""
+	if [[ "${NHOPKG_PACKAGING}" = "yes" ]]; then
+		_srch_prefix="${NHOPACKAGING}/"
+		log="${NHOPKG_TMPDIR}/.${PKG_DISPLAY_NAME}-${pkgversion}-${pkgrevision}-installed.log"
+		ref="${NHOPKG_TMPDIR}/.nho-preinstall${part:+-${part}}"
+		local _staging_find
+		_staging_find="$(mktemp -t nhopkg.XXXXXX 2>/dev/null || echo "/tmp/nhopkg.${$}")"
+		if command -v find &>/dev/null && find --version 2>&1 | grep -qi gnu; then
+			find -- "${NHOPACKAGING}" \( -type f -o -type l \) -cnewer "$ref" > "$_staging_find" 2>&1 || true
+		elif command -v busybox &>/dev/null; then
+			busybox find "${NHOPACKAGING}" \( -type f -o -type l \) -exec sh -c '
+				t=$(busybox stat -c %Z "$1" 2>/dev/null); shift; for f; do [ "$(busybox stat -c %Z "$f" 2>/dev/null)" -gt "$t" ] && echo "$f"; done
+			' _ "$ref" {} + > "$_staging_find" 2>&1 || true
+		else
+			echog " ERROR: find no disponible" >&2
 		fi
-		if [[ -d "${searchdir}" ]]; then
-			log="${NHOPKG_TMPDIR}/.${PKG_DISPLAY_NAME}-${pkgversion}-${pkgrevision}-installed.log"
-			ref="${NHOPKG_TMPDIR}/.nho-preinstall${part:+-${part}}"
-			
-			if command -v find &>/dev/null && find --version 2>&1 | grep -qi gnu; then
-				find -- "${searchdir}" \( -type f -o -type l \) -cnewer "$ref" >> "$log" 2>&1
-			elif command -v busybox &>/dev/null; then
-				busybox find "${searchdir}" \( -type f -o -type l \) -exec sh -c '
-					t=$(busybox stat -c %Z "$1" 2>/dev/null); shift; for f; do [ "$(busybox stat -c %Z "$f" 2>/dev/null)" -gt "$t" ] && echo "$f"; done
-				' _ "$ref" {} + >> "$log" 2>&1
-			else
-				echog " ERROR: find no disponible" >> "$log" 2>&1
+		# Remove the staging prefix to get relative paths (usr/bin/foo).
+		while IFS= read -r _staged_file; do
+			[[ -n "${_staged_file}" ]] || continue
+			printf '%s\n' "${_staged_file#"${NHOPACKAGING}"/}" >> "$log"
+		done < "$_staging_find"
+		rm -f "$_staging_find"
+		# The recipe installed nothing into the staging dir: it ignored DESTDIR.
+		if [[ -z "$(grep -v '^#' "$log" 2>/dev/null)" ]]; then
+			echog " *** Packaging mode: recipe installed nothing into DESTDIR (${NHOPACKAGING})." >&2
+			echog ' *** Add DESTDIR support to ninstall() (e.g. "make install DESTDIR=\$DESTDIR").' >&2
+			echog " *** Or build without --packaging." >&2
+			cleanup_tmp_dir
+			exit 1
+		fi
+	else
+		# Safely iterate FIND_DIRS (may contain spaces); parse into array by spaces.
+		IFS=' ' read -r -a FIND_DIRS_ARRAY <<< "${FIND_DIRS:-}"
+		for searchdir in "${FIND_DIRS_ARRAY[@]}"; do
+			if [[ -z "${searchdir}" ]]; then
+				continue
 			fi
-		fi
-	done
+			if [[ -d "${searchdir}" ]]; then
+				log="${NHOPKG_TMPDIR}/.${PKG_DISPLAY_NAME}-${pkgversion}-${pkgrevision}-installed.log"
+				ref="${NHOPKG_TMPDIR}/.nho-preinstall${part:+-${part}}"
+
+				if command -v find &>/dev/null && find --version 2>&1 | grep -qi gnu; then
+					find -- "${searchdir}" \( -type f -o -type l \) -cnewer "$ref" >> "$log" 2>&1
+				elif command -v busybox &>/dev/null; then
+					busybox find "${searchdir}" \( -type f -o -type l \) -exec sh -c '
+						t=$(busybox stat -c %Z "$1" 2>/dev/null); shift; for f; do [ "$(busybox stat -c %Z "$f" 2>/dev/null)" -gt "$t" ] && echo "$f"; done
+					' _ "$ref" {} + >> "$log" 2>&1
+				else
+					echog " ERROR: find no disponible" >> "$log" 2>&1
+				fi
+			fi
+		done
+	fi
 	# Delete NoUpgrade files.
 	IFS=' ' read -r -a NOUPGRADE_ARRAY <<< "${NOUPGRADE_FILES:-}"
 	for noupgrade in "${NOUPGRADE_ARRAY[@]}"; do
@@ -1747,12 +1800,12 @@ build_search_for_files()
 	grep -v '^#' "${NHOPKG_TMPDIR}/.${PKG_DISPLAY_NAME}-${pkgversion}-${pkgrevision}-installed.log" > "$__np_tmp" || true
 	while IFS= read -r casefile; do
 		[[ -n "${casefile}" ]] || continue
-		if [[ ! -e "${casefile}" ]]; then
+		if [[ ! -e "${_srch_prefix}${casefile}" ]]; then
 			sed -e "s@^${casefile}@@" -i "${NHOPKG_TMPDIR}/.${PKG_DISPLAY_NAME}-${pkgversion}-${pkgrevision}-installed.log" 2> /dev/null || true
 			sed -e '/^$/d' -i "${NHOPKG_TMPDIR}/.${PKG_DISPLAY_NAME}-${pkgversion}-${pkgrevision}-installed.log" 2> /dev/null || true
-		elif [[ -f "${casefile}" ]]; then
+		elif [[ -f "${_srch_prefix}${casefile}" ]]; then
 			# Use du -- to be safe with leading dashes.
-			PACKAGE_SIZE=$(( PACKAGE_SIZE + $(du -- "${casefile}" | awk '{print $1}') ))
+			PACKAGE_SIZE=$(( PACKAGE_SIZE + $(du -- "${_srch_prefix}${casefile}" | awk '{print $1}') ))
 		fi
 	done < "$__np_tmp"
 	rm -f "$__np_tmp"
@@ -1942,6 +1995,12 @@ build_make_binary_package()
 	echog " - Building binary package."
 	echog " --- Searching files in the system."
 	build_search_for_files ${part}
+	# In packaging mode the installed.log holds relative paths (usr/bin/foo),
+	# so all operations must prefix the staging dir.
+	local _srch_prefix=""
+	if [[ "${NHOPKG_PACKAGING}" = "yes" ]]; then
+		_srch_prefix="${NHOPACKAGING}/"
+	fi
 	## Configure the new binary package
 	if [[ -n $(cat "${NHOPKG_TMPDIR}/.${PKG_DISPLAY_NAME}-${pkgversion}-${pkgrevision}-installed.log") ]]; then
 		# Strip binaries and libraries if enabled  (experimental)
@@ -1951,24 +2010,25 @@ build_make_binary_package()
 			local processed=0
 
 			while IFS= read -r file; do
-				[[ -f "$file" && -r "$file" ]] || continue
+				local _strip_path="${_srch_prefix}${file}"
+				[[ -f "$_strip_path" && -r "$_strip_path" ]] || continue
 
 				# avoid setuid/setgid
-				[[ -u "$file" || -g "$file" ]] && continue
+				[[ -u "$_strip_path" || -g "$_strip_path" ]] && continue
 
 				# ELF check
-				[[ $(head -c 4 "$file") != $'\x7fELF' ]] && continue
+				[[ $(head -c 4 "$_strip_path") != $'\x7fELF' ]] && continue
 
 				local file_output
-				file_output=$(file -b "$file" 2>/dev/null)
+				file_output=$(file -b "$_strip_path" 2>/dev/null)
 
 				# avoid static binaries
 				[[ "$file_output" == *"statically linked"* ]] && continue
 
 				if [[ "$file_output" == *"shared object"* ]]; then
-					strip --strip-unneeded "$file" 2>/dev/null && ((processed++))
+					strip --strip-unneeded "$_strip_path" 2>/dev/null && ((processed++))
 				else
-					strip --strip-debug "$file" 2>/dev/null && ((processed++))
+					strip --strip-debug "$_strip_path" 2>/dev/null && ((processed++))
 				fi
 			done < "${NHOPKG_TMPDIR}/.${PKG_DISPLAY_NAME}-${pkgversion}-${pkgrevision}-installed.log"
 
@@ -1976,7 +2036,11 @@ build_make_binary_package()
 		fi
 	# Package and compress files.
 	echog " --- Compressing package."
-		tar cp --files-from="${NHOPKG_TMPDIR}/.${PKG_DISPLAY_NAME}-${pkgversion}-${pkgrevision}-installed.log" 2>/dev/null | zstd > "${NHOPKG_TMPDIR}/data.tar.zst" 2>/dev/null
+		if [[ "${NHOPKG_PACKAGING}" = "yes" ]]; then
+			tar -C "${NHOPACKAGING}" cp --files-from="${NHOPKG_TMPDIR}/.${PKG_DISPLAY_NAME}-${pkgversion}-${pkgrevision}-installed.log" 2>/dev/null | zstd > "${NHOPKG_TMPDIR}/data.tar.zst" 2>/dev/null
+		else
+			tar cp --files-from="${NHOPKG_TMPDIR}/.${PKG_DISPLAY_NAME}-${pkgversion}-${pkgrevision}-installed.log" 2>/dev/null | zstd > "${NHOPKG_TMPDIR}/data.tar.zst" 2>/dev/null
+		fi
 		# Sign data.tar.zst if enabled (via libnhopkg_crypto)
 		crypto_sign_package
 		# Go to the temp directory and package.
@@ -2449,7 +2513,7 @@ SPLIT_ONLY_PARTS=""
 SPLIT_SKIP_PARTS=""
 SPLIT_LIB32_ONLY="no"
 SHORTOPTIONS="RiSdXrBbklno:wxst:UehuvCyp"
-LONGOPTIONS="recursive,root:,no-check-deps,no-check-arch,no-check-sha256,force-check-deps,force-check-arch,force-check-sha256,install,super-install,dios,remove,backup,purge,build,check,list,info,output:,show,update-shooters,search,list-repo,update,clean,help,license,license-all,version,update-db,verbose,super-build,sign-package,no-sign-package,verify-package-signature,no-verify-package-signature,upgrade,strip-binaries,preserve-files,base,split:,no-split:,lib32"
+LONGOPTIONS="recursive,root:,no-check-deps,no-check-arch,no-check-sha256,force-check-deps,force-check-arch,force-check-sha256,install,super-install,dios,remove,backup,purge,build,check,list,info,output:,show,update-shooters,search,list-repo,update,clean,help,license,license-all,version,update-db,verbose,super-build,sign-package,no-sign-package,verify-package-signature,no-verify-package-signature,upgrade,strip-binaries,preserve-files,base,split:,no-split:,lib32,packaging"
 NHPARAMS=$(getopt -o ${SHORTOPTIONS} -l ${LONGOPTIONS} -n ${NHNAME} -- "$@")
 if [[ "${?}" != "0" ]]; then
 	nhopkg_usage
@@ -2692,6 +2756,12 @@ while [[ "${1}" != "--" ]]; do
 			# ninstall_lib32 replaces nbuild and ninstall.
 			SPLIT_LIB32_ONLY="yes"
 		;;
+		--packaging)
+			shift
+			# Build .nho into a temporary DESTDIR without installing anything
+			# on the live system (no DB registry, no install hooks).
+			NHOPKG_PACKAGING="yes"
+		;;
 		-s|--search)
 			shift
 			if [[ -z "${NHOPKG_OPTION}" ]]; then
@@ -2827,6 +2897,12 @@ if [[ "${SPLIT_BASE_ONLY}" = "yes" || -n "${SPLIT_ONLY_PARTS}" || -n "${SPLIT_SK
 	if [[ "${SPLIT_BASE_ONLY}" = "yes" && ( -n "${SPLIT_ONLY_PARTS}" || -n "${SPLIT_SKIP_PARTS}" ) ]]; then
 		echog " * Warning: --base overrides --split/--no-split; only the base package will be built." >&2
 	fi
+fi
+# --packaging is only valid for --build (-b) or --super-build (-C): those flows
+# are the only ones that compile and install a source package.
+if [[ "${NHOPKG_PACKAGING}" = "yes" && "${NHOPKG_OPTION}" != "build" && "${NHOPKG_OPTION}" != "super-build" ]]; then
+	echog " * The --packaging option is only valid with --build (-b) or --super-build (-C)." >&2
+	exit 1
 fi
 # Get selected packages.
 shift
@@ -3245,7 +3321,9 @@ case "${NHOPKG_OPTION}" in
 			check_package_hash
 			check_package_arch
 			# Handle package replacement
-			if [[ -n "${REPLACES_PACKAGE}" ]]; then
+			# (in packaging mode only the notice is relevant: the removal itself
+			# is a system mutation that must not happen during a pure packaging build)
+			if [[ -n "${REPLACES_PACKAGE}" && "${NHOPKG_PACKAGING}" != "yes" ]]; then
 				remove_replaced_package "${REPLACES_PACKAGE}"
 			fi
 
@@ -3294,8 +3372,12 @@ case "${NHOPKG_OPTION}" in
 			build_make_binary_package
 
 			## 9. Clean up after main package.
-			bin_install_setting_up
-			bin_install_create_config_files
+			# In packaging mode nothing was installed on the live system: skip
+			# the DB registry and the install hooks.
+			if [[ "${NHOPKG_PACKAGING}" != "yes" ]]; then
+				bin_install_setting_up
+				bin_install_create_config_files
+			fi
 		done
 
 		# If SPLITPACKAGE is not empty, create subpackages
@@ -3330,7 +3412,9 @@ case "${NHOPKG_OPTION}" in
 						cleanup_tmp_dir
 						exit 1
 					fi
-					if [[ -n "${REPLACES_PACKAGE}" ]]; then
+					# In packaging mode the removal of the replaced package is a
+					# system mutation that must not happen during a pure build.
+					if [[ -n "${REPLACES_PACKAGE}" && "${NHOPKG_PACKAGING}" != "yes" ]]; then
 						remove_replaced_package "${REPLACES_PACKAGE}"
 					fi
 					# Check that the split package is installed
@@ -3356,8 +3440,12 @@ case "${NHOPKG_OPTION}" in
 					build_make_binary_package "${part}"
 
 					# Configure post-installation
-					bin_install_setting_up "${part}"
-					bin_install_create_config_files "${part}"
+					# (in packaging mode the hooks stay inside the .nho and only
+					# run when someone installs it; nothing is registered here).
+					if [[ "${NHOPKG_PACKAGING}" != "yes" ]]; then
+						bin_install_setting_up "${part}"
+						bin_install_create_config_files "${part}"
+					fi
 
 					# Save log files for this part
 					build_save_log_files "${part}"
@@ -3481,7 +3569,9 @@ case "${NHOPKG_OPTION}" in
 			check_package_hash
 			check_package_arch
 			# Handle package replacement
-			if [[ -n "${REPLACES_PACKAGE}" ]]; then
+			# (in packaging mode only the notice is relevant: the removal itself
+			# is a system mutation that must not happen during a pure packaging build)
+			if [[ -n "${REPLACES_PACKAGE}" && "${NHOPKG_PACKAGING}" != "yes" ]]; then
 				remove_replaced_package "${REPLACES_PACKAGE}"
 			fi
 			
@@ -3527,8 +3617,12 @@ case "${NHOPKG_OPTION}" in
 			build_make_binary_package
 
 			## 9. Clean up after main package.
-			bin_install_setting_up
-			bin_install_create_config_files
+			# In packaging mode nothing was installed on the live system: skip
+			# the DB registry and the install hooks.
+			if [[ "${NHOPKG_PACKAGING}" != "yes" ]]; then
+				bin_install_setting_up
+				bin_install_create_config_files
+			fi
 		done
 
 		# Support for subpackages (same as --build)
@@ -3589,7 +3683,9 @@ case "${NHOPKG_OPTION}" in
 						cleanup_tmp_dir
 						exit 1
 					fi
-					if [[ -n "${REPLACES_PACKAGE}" ]]; then
+					# In packaging mode the removal of the replaced package is a
+					# system mutation that must not happen during a pure build.
+					if [[ -n "${REPLACES_PACKAGE}" && "${NHOPKG_PACKAGING}" != "yes" ]]; then
 						remove_replaced_package "${REPLACES_PACKAGE}"
 					fi
 					# Check that the split package is installed
@@ -3615,8 +3711,12 @@ case "${NHOPKG_OPTION}" in
 					build_make_binary_package "${part}"
 
 					# Configure post-installation
-					bin_install_setting_up "${part}"
-					bin_install_create_config_files "${part}"
+					# (in packaging mode the hooks stay inside the .nho and only
+					# run when someone installs it; nothing is registered here).
+					if [[ "${NHOPKG_PACKAGING}" != "yes" ]]; then
+						bin_install_setting_up "${part}"
+						bin_install_create_config_files "${part}"
+					fi
 					
 					# Save log files for this part
 					build_save_log_files "${part}"

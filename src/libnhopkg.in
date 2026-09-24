@@ -473,6 +473,24 @@ make_tmp_dir()
 	NHOPKG_TMPDIR=$(mktemp -u -d -t "${TEMPLATE_TMPDIR}" -p "${TMPDIR}")
 	mkdir -p "${NHOPKG_TMPDIR}"
 	check_if_ok " * Unable to create temporary directory."
+	# DESTDIR is always exported in build flows so recipes behave transparently
+	# with the packaging mode activated or not. In packaging mode it points to
+	# the staging directory (NHOPACKAGING); in normal mode to '/' (current
+	# behavior). The staging directory is created as a sibling of
+	# NHOPKG_TMPDIR: it survives the cleanup_tmp_dir/make_tmp_dir cycles that
+	# each split package performs, but is removed at exit by cleanup_all().
+	if [[ "${NHOPKG_PACKAGING}" = "yes" ]]; then
+		if [[ -z "${NHOPACKAGING}" || ! -d "${NHOPACKAGING}" ]]; then
+			NHOPACKAGING=$(mktemp -d "${NHOPKG_TMPDIR}.staging.XXXXXX")
+			check_if_ok " * Unable to create packaging staging directory."
+			# Remember that the staging directory was created by nhopkg
+			# (mktemp), so it can be removed on exit.
+			NHOPACKAGING_TMP_CREATED="yes"
+		fi
+		export DESTDIR="${NHOPACKAGING}"
+	else
+		export DESTDIR="/"
+	fi
 	return 0
 }
 # ---------------------------------------------------------
@@ -506,6 +524,10 @@ cleanup_tmp_dir()
 		# Force and recursive mode.
 		rm -Rf "${NHOPKG_TMPDIR}"
 	fi
+	# DESTDIR is exported by make_tmp_dir() during build flows; it must never
+	# leak back into the user's environment.
+	unset DESTDIR
+	return 0
 }
 ## Funtion cleanup_all(). Clean up nhopkg.
 # Usage: cleanup_all (without arguments)
@@ -516,6 +538,18 @@ cleanup_all()
 		# If tmpdir exist, delete it.
 		cleanup_tmp_dir
 	fi
+	# Packaging mode: remove the staging directory only if we created it via
+	# make_tmp_dir() (mktemp), never a user-provided NHOPACKAGING. This must
+	# happen at the final exit (cleanup_all) and not in cleanup_tmp_dir: the
+	# cleanups between split packages share the same staging dir.
+	if [[ "${NHOPKG_PACKAGING}" = "yes" ]]; then
+		if [[ "${NHOPACKAGING_TMP_CREATED}" = "yes" && -n "${NHOPACKAGING}" && "${NHOPACKAGING}" != "/" ]]; then
+			echog " --- Deleting packaging staging directory."
+			rm -Rf "${NHOPACKAGING}"
+		fi
+		unset DESTDIR
+	fi
+	return 0
 }
 ## cleanup_build_dir(). Clean up nhopkg build directory.
 # Usage: cleanup_build_dir (without arguments)
