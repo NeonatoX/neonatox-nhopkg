@@ -16,7 +16,7 @@ Los siguientes elementos de la hoja de ruta ya están implementados:
 | Compilación en sandbox | `nhopkg-overlay` (superposición del directorio de compilación) |
 | Descargas unificadas | `libnhopkg_download` / `nhoget` (GNU wget, curl, BusyBox wget, VCS) |
 | Firma y verificación GPG | `libnhopkg_crypto`, firma de `nhopkg-repos`, `NHOPKG_REQUIRE_SIGNATURE` |
-| Automatizar la creación de repositorios | `nhopkg-repos` (`--create-repo`, `--add-to-repo`) |
+| Automatizar la creación de repositorios | `nhopkg-repos` (`--add-to-repo`) |
 | PATH privado resiliente con BusyBox | BusyBox estático en `lib/nhopkg/bin` con enlaces simbólicos vía `nhopkg-bb-setup` |
 | Páginas man | `nhopkg.8`, `nhoget.8`, `nhopkg-repos.8`, `nhopkg-src.8`, `nhopkg-overlay.8`, `nhouser.8`, `nhopkg.conf.5` |
 | Grupos de paquetes claros | Meta-paquetes con `nhopkg-src --init --meta` / `get_packages_by_group_names()` |

@@ -28,4 +28,4 @@ Repositories are created and maintained with the companion tool `nhopkg-repos`:
 
     
     
-    sudo nhopkg-repos -g /path/to/packages
+    sudo nhopkg-repos -A /path/to/packages/*.nho --repo-dir /path/to/packages

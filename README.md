@@ -257,7 +257,7 @@ nhopkg-src --init myapp
 cd myapp && nhopkg-src --createpackage
 
 # Create a local repository
-sudo nhopkg-repos -g /path/to/repository
+sudo nhopkg-repos -A /path/to/packages/*.nho --repo-dir /path/to/repository
 
 # Search for packages
 nhopkg -s name
@@ -275,11 +275,8 @@ sudo nhopkg-overlay
 ### Managing Repositories
 
 ```bash
-# Create a repository from .nho packages
-sudo nhopkg-repos -g /path/to/packages
-
-# Add packages to an existing repository
-sudo nhopkg-repos -A --repo-dir /var/www/repo *.nho
+# Create or update a repository from .nho packages
+sudo nhopkg-repos -A /path/to/packages/*.nho --repo-dir /var/www/repo
 
 # Synchronise repository databases
 sudo nhopkg -U

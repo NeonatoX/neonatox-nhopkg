@@ -52,9 +52,9 @@ El comando `--update` sincroniza **todos los repositorios activos** en paralelo:
 
 Esto evita conflictos entre repositorios y permite una resolución de dependencias precisa.
 
-## Creación de repositorios (`nhopkg-repos -g`)
+## Creación de repositorios (`nhopkg-repos -A`)
 
-Los repositorios se crean y mantienen con la herramienta complementaria `nhopkg-repos`. El comando `-g, --create-repo` es especialmente potente en entornos multi-repositorio:
+Los repositorios se crean y mantienen con la herramienta complementaria `nhopkg-repos`. El comando `-A, --add-to-repo` es especialmente potente en entornos multi-repositorio:
 
   1. Analiza todos los archivos `.nho` en un directorio de entrada.
   2. Extrae el campo `# Repository:` de cada `nhoid`.
@@ -67,7 +67,7 @@ Los repositorios se crean y mantienen con la herramienta complementaria `nhopkg-
 Por ejemplo, si ejecutas:
     
     
-    sudo nhopkg-repos -g /path/to/packages
+    sudo nhopkg-repos -A /path/to/packages/*.nho --repo-dir /path/to/packages
 
 y tus paquetes tienen `# Repository: extra` y `# Repository: multilib`, obtendrás:
     

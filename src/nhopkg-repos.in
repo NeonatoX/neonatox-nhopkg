@@ -21,8 +21,7 @@
 ###############################################################################
 # Description: Repository management tool for nhopkg package manager.
 #  Operations:
-#  - create-repo:      Create new repository structure from .nho packages
-#  - add-to-repo:      Incrementally add .nho packages to existing repository
+#  - add-to-repo:      Add .nho packages to a repository (creates it if needed)
 #  - sign, sign-all:   Sign packages with GPG
 #  - verify:           Verify package GPG signature
 #  - keygen:           Generate new GPG key for packager
@@ -69,8 +68,8 @@ fi
 #==============================================================================
 # Section: Argument parsing
 #==============================================================================
-SHORTOPTIONS="g:Ao:sk:"
-LONGOPTIONS="create-repo:,add-to-repo,repo-dir:,sign:,sign-all,verify:,keygen,import-key:,export-key:,list-keys,remove-key:,add-repo:,remove-repo:,list-repos,key:,batch,passphrase-file:,verify-incoming,help,version"
+SHORTOPTIONS="Ao:sk:"
+LONGOPTIONS="add-to-repo,repo-dir:,sign:,sign-all,verify:,keygen,import-key:,export-key:,list-keys,remove-key:,add-repo:,remove-repo:,list-repos,key:,batch,passphrase-file:,verify-incoming,help,version"
 
 NHPARAMS=$(getopt -o ${SHORTOPTIONS} -l ${LONGOPTIONS} -n "nhopkg-repos" -- "$@")
 [[ "${?}" != "0" ]] && { echo "Use --help for usage."; exit 1; }
@@ -84,18 +83,6 @@ VERIFY_INCOMING=0
 
 while [[ "${1}" != "--" ]]; do
 	case "${1}" in
-		-g|--create-repo)
-			shift
-			if [[ -d "${1}" ]]; then
-				REPO_DIR="$(echo ${1} | sed -e 's@/$@@')"
-			else
-				echog " * The selected directory doesn't exist in your system." >&2
-				exit 1
-			fi
-			[[ -z "${NHOPKG_OPTION}" ]] || { echog " * You have selected more than one valid option." >&2; exit 1; }
-			NHOPKG_OPTION="create-repo"
-			shift
-		;;
 		-A|--add-to-repo)
 			shift
 			[[ -z "${NHOPKG_OPTION}" ]] || { echog " * You have selected more than one valid option." >&2; exit 1; }
@@ -204,8 +191,7 @@ while [[ "${1}" != "--" ]]; do
 			echog "Usage: nhopkg-repos <command> [options]"
 			echo
 			echog "Repository management:"
-			echog "  -g, --create-repo <dir>       Create repository from directory"
-			echog "  -A, --add-to-repo             Add packages to existing repository"
+			echog "  -A, --add-to-repo             Add packages to a repository"
 			echog "  -o, --repo-dir <dir>          Repository root directory"
 			echog "      --add-repo <name> <url>   Add repository to configuration"
 			echog "      --remove-repo <name>      Remove repository from configuration"
@@ -254,7 +240,7 @@ CASEPACKAGES="$@"
 }
 
 # Root validation for repo operations
-if [[ "${NHOPKG_OPTION}" == "create-repo" || "${NHOPKG_OPTION}" == "add-to-repo" ]]; then
+if [[ "${NHOPKG_OPTION}" == "add-to-repo" ]]; then
 	[[ "${UID}" != "0" ]] && { echo " * Root privileges required." >&2; exit 1; }
 fi
 
@@ -496,179 +482,7 @@ case "${NHOPKG_OPTION}" in
 		;;
 
 	#----------------------------------------------------------------------
-	# create-repo: Create repository structure from .nho packages
-	#----------------------------------------------------------------------
-	create-repo)
-	echogn " :: Creating software repository from:"
-	echo " ${REPO_DIR}"
-	REPO_OUTPUT_ROOT="${REPO_DIR}"
-	get_pwd_dir
-	check_if_root_uid
-
-	if [[ ! -d "${REPO_OUTPUT_ROOT}" ]]; then
-		echog " * Input/output directory does not exist: ${REPO_OUTPUT_ROOT}" >&2
-		exit 1
-	fi
-
-	# Determine active repositories from config
-	if [[ -z "${NHOPKG_ACTIVE_REPOS}" ]]; then
-		NHOPKG_ACTIVE_REPOS=""
-		for var in $(compgen -v NHOPKG_REPO_); do
-			repo_name="${var#NHOPKG_REPO_}"
-			if [[ -n "${!var}" ]]; then
-				NHOPKG_ACTIVE_REPOS+="${repo_name} "
-			fi
-		done
-		NHOPKG_ACTIVE_REPOS=$(echo "${NHOPKG_ACTIVE_REPOS}" | xargs)
-	fi
-
-	if [[ -z "${NHOPKG_ACTIVE_REPOS}" ]]; then
-		echog " * No active repositories configured (NHOPKG_ACTIVE_REPOS is empty)." >&2
-		exit 1
-	fi
-	echogn " :: Active Repositories:"
-	for repo_name in ${NHOPKG_ACTIVE_REPOS}; do echo " - ${repo_name}"; done
-
-	cleanup_tmp_dir
-	make_tmp_dir
-
-	# Find all .nho packages in the input directory
-	nhopackage_list=()
-	_cr_tmp=""
-	_cr_tmp=$(mktemp) || exit 1
-	find "${REPO_OUTPUT_ROOT}" -maxdepth 1 -name '*.nho' -print0 > "$_cr_tmp"
-	while IFS= read -r -d '' nhopackage_file; do
-		nhopackage_list+=("$nhopackage_file")
-	done < "$_cr_tmp"
-	rm -f "$_cr_tmp"
-
-	if (( ${#nhopackage_list[@]} == 0 )); then
-		echog " *** No .nho packages found in input directory: ${REPO_OUTPUT_ROOT}" >&2
-		cleanup_tmp_dir
-		exit 1
-	fi
-
-	# Determine repo for each .nho and group them
-	declare -A repo_packages
-	_nh_scan_total=${#nhopackage_list[@]}
-	_nh_scan_done=0
-	for nhopackage_path in "${nhopackage_list[@]}"; do
-		nhopackage_basename=$(basename "${nhopackage_path}")
-
-		pkg_repo=$(tar xfO "${nhopackage_path}" "nhoid" 2>/dev/null | grep "^# Repository:" | awk -F'\t' '{print $2}' | tr '[:upper:]' '[:lower:]')
-
-		if [[ -z "${pkg_repo}" ]]; then
-			pkg_repo="extra"
-		else
-			repo_found=0
-			for active_repo in ${NHOPKG_ACTIVE_REPOS}; do
-				[[ "${pkg_repo}" == "${active_repo}" ]] && { repo_found=1; break; }
-			done
-			[[ ${repo_found} -eq 0 ]] && pkg_repo="extra"
-		fi
-
-		repo_packages["${pkg_repo}"]+="${nhopackage_path} "
-		echogn " - ${nhopackage_basename}"; echo "   -> Repository: ${pkg_repo}"
-		_nh_scan_done=$((_nh_scan_done + 1))
-		nhopkg_draw_progress_bar count "${_nh_scan_done}" "${_nh_scan_total}" "scan"
-	done
-	echo >&2
-
-	# Process each active repository
-	for repo_name in ${NHOPKG_ACTIVE_REPOS}; do
-		repo_pkg_list_str="${repo_packages[${repo_name}]}"
-		[[ -z "${repo_pkg_list_str}" ]] && { echog " :: No packages for: ${repo_name}. Skipping."; continue; }
-
-		echogn " :: Processing repository: ${repo_name}"
-		repo_pkg_list=($repo_pkg_list_str)
-
-		repo_nho_dir="${REPO_OUTPUT_ROOT}/${repo_name}"
-		mkdir -p "${repo_nho_dir}"
-
-		repo_tmp_dir="${NHOPKG_TMPDIR}/${repo_name}_staging"
-		mkdir -p "${repo_tmp_dir}"
-		repo_packages_dir="${repo_tmp_dir}/packages_meta"
-		repo_files_dir="${repo_tmp_dir}/files_list"
-		repo_packages_file="${repo_tmp_dir}/repo_packages.tar"
-		repo_files_file="${repo_tmp_dir}/repo_files.tar"
-		mkdir -p "${repo_packages_dir}" "${repo_files_dir}"
-
-		_nh_pkg_total=${#repo_pkg_list[@]}
-		_nh_pkg_done=0
-		for nhopackage_path in "${repo_pkg_list[@]}"; do
-			nhopackage_basename=$(basename "${nhopackage_path}")
-			echogn " - Adding ${nhopackage_basename}..."
-
-			if ! tar xfO "${nhopackage_path}" "nhoid" 2>/dev/null > "${NHOPKG_TMPDIR}/nhoid"; then
-				echog " * Error extracting nhoid from ${nhopackage_path}" >&2
-				cleanup_tmp_dir; exit 1
-			fi
-
-			if [[ -f "${NHOPKG_TMPDIR}/nhoid" ]]; then
-				get_nhoid_data "${NHOPKG_TMPDIR}/nhoid"
-			else
-				echog " * Invalid nhoid in ${nhopackage_path}" >&2
-				cleanup_tmp_dir; exit 1
-			fi
-
-			pkg_metadata_name="${pkgname}-${pkgversion}-${pkgrevision}"
-			mv "${NHOPKG_TMPDIR}/nhoid" "${repo_packages_dir}/${pkg_metadata_name}"
-			ln -sf "${pkg_metadata_name}" "${repo_packages_dir}/${pkgname}-${pkgversion}"
-			ln -sf "${pkg_metadata_name}" "${repo_packages_dir}/${pkgname}"
-
-			pkg_files_name="${pkgname}-${pkgversion}-${pkgrevision}"
-			if tar -xf "${nhopackage_path}" --to-command='zstd -dc | tar -tf -' data.tar.zst > "${repo_tmp_dir}/${pkg_files_name}" 2>/dev/null; then
-				mv "${repo_tmp_dir}/${pkg_files_name}" "${repo_files_dir}/"
-				zstd -f --rm "${repo_files_dir}/${pkg_files_name}" 2>/dev/null
-			fi
-
-			dest_nho_path="${repo_nho_dir}/${nhopackage_basename}"
-			if [[ "${nhopackage_path}" != "${dest_nho_path}" ]]; then
-				cp "${nhopackage_path}" "${dest_nho_path}" || continue
-			fi
-			_nh_pkg_done=$((_nh_pkg_done + 1))
-			nhopkg_draw_progress_bar count "${_nh_pkg_done}" "${_nh_pkg_total}" "repo:${repo_name}"
-		done
-		echo >&2
-
-		# Compress metadata
-		if [[ -d "${repo_packages_dir}" ]] && [[ -n "$(ls -A "${repo_packages_dir}" 2>/dev/null)" ]]; then
-			tar cf "${repo_packages_file}" -C "${repo_packages_dir}" . 2>/dev/null
-			zstd -f --rm "${repo_packages_file}" 2>/dev/null || {
-				echog " *** Unable to compress packages DB for ${repo_name}." >&2
-				cleanup_tmp_dir; exit 1
-			}
-			cp "${repo_packages_file}.zst" "${repo_nho_dir}/core.packages.tar.zst" && rm -f "${repo_packages_file}.zst"
-		fi
-
-		if [[ -d "${repo_files_dir}" ]] && [[ -n "$(ls -A "${repo_files_dir}" 2>/dev/null)" ]]; then
-			tar cf "${repo_files_file}" -C "${repo_files_dir}" . 2>/dev/null
-			zstd -f --rm "${repo_files_file}" 2>/dev/null || {
-				echog " *** Unable to compress files DB for ${repo_name}." >&2
-				cleanup_tmp_dir; exit 1
-			}
-			cp "${repo_files_file}.zst" "${repo_nho_dir}/core.files.tar.zst" && rm -f "${repo_files_file}.zst"
-		fi
-
-		# Update lastsync
-		echo $(date -u +%s) > "${repo_nho_dir}/lastsync"
-
-		# Create content.db
-		cd "${repo_nho_dir}" && du *[0-9].nho > content.db && zstd -f --rm content.db && cd "${CWD}"
-
-		# Sign repo metadata (via libnhopkg_crypto)
-		crypto_sign_repo_metadata "${repo_nho_dir}" "${SIGN_KEY}"
-
-		echog " - Repository '${repo_name}' created in ${repo_nho_dir}."
-	done
-
-	cleanup_tmp_dir
-	echog " - All repository metadata created successfully."
-	exit 0
-	;;
-
-	#----------------------------------------------------------------------
-	# add-to-repo: Incrementally add packages to existing repository
+	# add-to-repo: Add packages to a repository (creates it if needed)
 	#----------------------------------------------------------------------
 	add-to-repo)
 	get_pwd_dir
@@ -725,6 +539,13 @@ case "${NHOPKG_OPTION}" in
 		get_nhoid_data "$NHOPKG_TMPDIR/nhoid"
 
 		repo="${pkgrepo:-extra}"
+		# Sanitize: lowercase only, no path components and no traversal.
+		# Repodir names feed mkdir/cp straight into the filesystem.
+		repo="${repo,,}"
+		case "${repo}" in
+			[a-z0-9]|[a-z0-9][a-z0-9._-]*[a-z0-9]) : ;;
+			*) echog " >>> Invalid repository name in nhoid: '${pkgrepo}'. Package rejected." >&2; continue ;;
+		esac
 		repodir="$REPO_ROOT/$repo"
 		mkdir -p "$repodir"
 

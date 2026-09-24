@@ -16,7 +16,7 @@
 | Изолированная сборка | `nhopkg-overlay` (оверлей каталога сборки) |
 | Унифицированные загрузки | `libnhopkg_download` / `nhoget` (GNU wget, curl, BusyBox wget, VCS) |
 | GPG-подпись и проверка | `libnhopkg_crypto`, подпись `nhopkg-repos`, `NHOPKG_REQUIRE_SIGNATURE` |
-| Автоматизация создания репозиториев | `nhopkg-repos` (`--create-repo`, `--add-to-repo`) |
+| Автоматизация создания репозиториев | `nhopkg-repos` (`--add-to-repo`) |
 | Устойчивый приватный PATH | Статический BusyBox в `lib/nhopkg/bin` с символическими ссылками через `nhopkg-bb-setup` |
 | Страницы man | `nhopkg.8`, `nhoget.8`, `nhopkg-repos.8`, `nhopkg-src.8`, `nhopkg-overlay.8`, `nhouser.8`, `nhopkg.conf.5` |
 | Чёткие группы пакетов | Мета-пакеты через `nhopkg-src --init --meta` / `get_packages_by_group_names()` |

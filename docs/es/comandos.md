@@ -153,7 +153,7 @@ sudo nhopkg -y --root /mnt/chroot
 |-------------|-----------|------------|
 | `nhoget` | Herramienta de descarga unificada (HTTP/HTTPS + VCS) para compilaciones y CLI | [`docs/es/nhoget.md`](nhoget.md) |
 | `nhopkg-src` | Asistente de creación de paquetes fuente | [`docs/es/nhopkg-src.md`](nhopkg-src.md) |
-| `nhopkg-repos` | Creación y mantenimiento de repositorios (`--create-repo`, `--add-to-repo`) | [`docs/es/repositorios.md`](repositorios.md) |
+| `nhopkg-repos` | Creación y mantenimiento de repositorios (`--add-to-repo`) | [`docs/es/repositorios.md`](repositorios.md) |
 | `nhouser` | Creación idempotente de usuarios/grupos del sistema (usado en `npostinstall()`) | [`docs/es/usuarios-servicios.md`](usuarios-servicios.md) |
 | `nhopkg-overlay` | Entorno de compilación aislado mediante overlay | [`docs/es/nhopkg-overlay.md`](nhopkg-overlay.md) |
 

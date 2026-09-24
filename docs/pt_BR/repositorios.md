@@ -24,4 +24,4 @@ Apenas repositórios listados em `NHOPKG_ACTIVE_REPOS` são pesquisados.
 Os repositórios são criados e mantidos com a ferramenta complementar `nhopkg-repos`:
 
     
-    sudo nhopkg-repos -g /path/to/packages
+    sudo nhopkg-repos -A /path/to/packages/*.nho --repo-dir /path/to/packages

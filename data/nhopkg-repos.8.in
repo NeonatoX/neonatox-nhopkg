@@ -3,9 +3,6 @@
 nhopkg-repos \- create, maintain, and sign nhopkg binary package repositories
 .SH SYNOPSIS
 .B nhopkg-repos
-\fB\-g\fR, \fB\-\-create-repo\fR \fI<dir>\fR
-.br
-.B nhopkg-repos
 \fB\-A\fR, \fB\-\-add-to-repo\fR [\fB\-\-repo\-dir\fR \fI<dir>\fR] \fI<package.nho>...\fR
 .br
 .B nhopkg-repos
@@ -55,31 +52,25 @@ nhoid metadata.
 .SH COMMANDS
 .SS Repository Management
 .TP
-.B \-g, \-\-create-repo \fI<dir>\fR
-Create a new repository structure from \fI.nho\fR packages found in \fI<dir>\fR.
+.B \-A, \-\-add-to-repo [\fB\-\-repo\-dir\fR \fI<dir>\fR] \fI<package.nho>...\fR
+Add one or more \fI.nho\fR packages to a repository, creating the repository
+structure if it does not exist yet (a fresh, empty \fB\-\-repo\-dir\fR is a
+valid target to bootstrap a repository from scratch).
 .br
-Scans the directory for .nho files, reads their nhoid metadata, and organizes
-them into subdirectories by repository type. Generates:
+Packages are organized into subdirectories by repository type (based on the
+\fB# Repository:\fR nhoid field), keeping only the latest version per package.
+Packages without a signature are signed on the fly if
+\fBNHOPKG_SIGN_PACKAGES=yes\fR. Generates:
 .RS
 .IP \(bu 4
 \fIcore.packages.tar.zst\fR, \fIcore.files.tar.zst\fR
 .IP \(bu 4
-\fIcontent.db.zst\fR
+\fIcontent.db\fR
 .IP \(bu 4
 \fIlastsync\fR (timestamp file)
-.IP \(bu 4
-\fI*.asc\fR (GPG signatures for each metadata file)
 .RE
-.P
-Requires root privileges.
-
-.TP
-.B \-A, \-\-add-to-repo [\fB\-\-repo\-dir\fR \fI<dir>\fR] \fI<package.nho>...\fR
-Incrementally add one or more \fI.nho\fR packages to an existing repository.
-.br
-Keeps only the latest version per package. Rebuilds affected metadata.
-.br
 \fB\-\-repo\-dir\fR specifies the repository root directory (required).
+Keeps only the latest version per package and rebuilds the affected metadata.
 .P
 Requires root privileges.
 

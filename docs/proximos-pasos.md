@@ -16,7 +16,7 @@ The following roadmap items are now implemented:
 | Sandboxed builds | `nhopkg-overlay` (build-directory overlay) |
 | Unified downloads | `libnhopkg_download` / `nhoget` (GNU wget, curl, BusyBox wget, VCS) |
 | GPG signing and verification | `libnhopkg_crypto`, `nhopkg-repos` signing, `NHOPKG_REQUIRE_SIGNATURE` |
-| Automate repository creation | `nhopkg-repos` (`--create-repo`, `--add-to-repo`) |
+| Automate repository creation | `nhopkg-repos` (`--add-to-repo`) |
 | Resilient private PATH | Static BusyBox in `lib/nhopkg/bin` with symlinks via `nhopkg-bb-setup` |
 | Man pages | `nhopkg.8`, `nhoget.8`, `nhopkg-repos.8`, `nhopkg-src.8`, `nhopkg-overlay.8`, `nhouser.8`, `nhopkg.conf.5` |
 | Clear package groups | Metapackages via `nhopkg-src\ \-\-init\ \-\-meta` / `get_packages_by_group_names()` |

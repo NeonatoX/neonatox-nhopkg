@@ -153,7 +153,7 @@ sudo nhopkg -y --root /mnt/chroot
 |------|---------|-----------|
 | `nhoget` | Единый инструмент загрузки (HTTP/HTTPS + VCS) для сборок и CLI | [nhoget](nhoget.md) |
 | `nhopkg-src` | Мастер создания исходных пакетов | [nhopkg-src](nhopkg-src.md) |
-| `nhopkg-repos` | Создание и обслуживание репозиториев (`--create-repo`, `--add-to-repo`) | [nhopkg-repos](repozitorii.md) |
+| `nhopkg-repos` | Создание и обслуживание репозиториев (`--add-to-repo`) | [nhopkg-repos](repozitorii.md) |
 | `nhouser` | Идемпотентное создание системных пользователей/групп (используется в `npostinstall()`) | [nhouser](polzovateli-sluzhby.md) |
 | `nhopkg-overlay` | Изолированная среда сборки на основе overlay | [nhopkg-overlay](nhopkg-overlay.md) |
 

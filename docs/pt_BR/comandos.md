@@ -152,7 +152,7 @@ sudo nhopkg -y --root /mnt/chroot
 | Ferramenta | Propósito | Referência |
 |------|---------|-----------|
 | `nhopkg-src` | Assistente de criação de pacotes fonte | [`docs/pt_BR/nhopkg-src.md`](nhopkg-src.md) |
-| `nhopkg-repos` | Criação e manutenção de repositórios (`--create-repo`, `--add-to-repo`) | [`docs/pt_BR/repositorios.md`](repositorios.md) |
+| `nhopkg-repos` | Criação e manutenção de repositórios (`--add-to-repo`) | [`docs/pt_BR/repositorios.md`](repositorios.md) |
 | `nhouser` | Criação idempotente de usuários/grupos do sistema (usado em `npostinstall()`) | [`docs/pt_BR/usuarios-servicos.md`](usuarios-servicos.md) |
 | `nhopkg-overlay` | Ambiente de construção isolado via overlay | [`docs/pt_BR/nhopkg-overlay.md`](nhopkg-overlay.md) |
 
