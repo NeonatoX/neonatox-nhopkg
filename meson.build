@@ -243,3 +243,10 @@ subdir('po')
 run_target('version-check',
   command: [find_program('bash'), meson.project_source_root() / 'scripts' / 'nhopkg-check-version.sh']
 )
+
+# === Run target: test suite ===
+# Drives the generated tools from this build directory, so it has to run after
+# the build. See tests/README.md.
+run_target('check',
+  command: [find_program('bash'), meson.project_source_root() / 'tests' / 'run-all.sh']
+)
