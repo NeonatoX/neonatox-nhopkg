@@ -39,7 +39,30 @@ fi
 commits_total="$(git rev-list --count "${RANGE}")"
 commits_fix="$(git log --format='%s' "${RANGE}" | grep -cE '^fix(:|\()' || true)"
 commits_feat="$(git log --format='%s' "${RANGE}" | grep -cE '^feat(:|\()' || true)"
-commits_breaking="$(git log --format='%s%B' "${RANGE}" | grep -cE '!(:|\s)|BREAKING CHANGE' || true)"
+
+# Breaking changes are counted per commit, and only where the convention
+# actually lives: a "!" right after the type in the subject (feat!:,
+# refactor(core)!:) or a BREAKING CHANGE footer in the body.
+#
+# Searching the whole message with grep -c counted matching *lines*, which
+# got two things wrong. Any prose that merely mentioned the convention was
+# taken for one: a commit explaining that feat!: marks a breaking change,
+# or one warning "this does not break!", was reported as breaking. And a
+# single commit mentioning it three times counted as three breaking
+# changes, inflating the number shown to the user.
+# A commit is one record: "git log -z" separates them with a NUL. Using
+# "%B%x00" instead leaves the newline that git puts between records at the
+# start of every chunk but the first, which hid the subject and made all but
+# the newest commit look like a non-breaking one.
+commits_breaking=0
+while IFS= read -r -d '' _nh_msg; do
+	_nh_subject="${_nh_msg%%$'\n'*}"
+	_nh_body="${_nh_msg#*$'\n'}"
+	if printf '%s\n' "${_nh_subject}" | grep -qE '^[A-Za-z]+(\([^)]*\))?!:' ||
+		printf '%s\n' "${_nh_body}" | grep -qE '^BREAKING[ -]CHANGE:'; then
+		commits_breaking=$((commits_breaking + 1))
+	fi
+done < <(git log -z --format='%B' "${RANGE}")
 
 days="0"
 if [ -n "${LAST_TAG_TS:-}" ]; then
