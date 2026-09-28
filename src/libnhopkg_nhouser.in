@@ -12,6 +12,8 @@
 # Backend detection
 # ---------------------------------------------------------
 _nhouser_backend=""
+_nhouser_adduser=()
+_nhouser_addgroup=()
 
 # Verify tools actually execute, not just exist.
 # Broken dynamic binaries (e.g. after musl/glibc update) still
@@ -29,6 +31,14 @@ if _nhouser_shadow_ok; then
 	_nhouser_backend="shadow"
 elif command -v adduser >/dev/null 2>&1 && command -v addgroup >/dev/null 2>&1; then
 	_nhouser_backend="busybox"
+	_nhouser_adduser=(adduser)
+	_nhouser_addgroup=(addgroup)
+elif declare -F nhopkg_bb >/dev/null && nhopkg_bb adduser --help >/dev/null 2>&1; then
+	# Private BusyBox without the private PATH (nhopkg no longer exports it):
+	# reach the applets through the resolved absolute path.
+	_nhouser_backend="busybox"
+	_nhouser_adduser=("$(nhopkg_bb_dir)/busybox" adduser)
+	_nhouser_addgroup=("$(nhopkg_bb_dir)/busybox" addgroup)
 else
 	echog " * ERROR: no user/group creation backend available"
 	echog "   Need shadow-utils (useradd/groupadd) or BusyBox (adduser/addgroup)"
@@ -40,7 +50,7 @@ _nhouser_create_group() {
 	if [ "$_nhouser_backend" = "shadow" ]; then
 		groupadd -g "$gid" "$gname"
 	else
-		addgroup -g "$gid" "$gname"
+		"${_nhouser_addgroup[@]}" -g "$gid" "$gname"
 	fi
 }
 
@@ -56,7 +66,7 @@ _nhouser_create_user() {
 			${groups:+-G "$groups"} \
 			"$user"
 	else
-		adduser -D -H \
+		"${_nhouser_adduser[@]}" -D -H \
 			-u "$uid" \
 			${comment:+-g "$comment"} \
 			${home:+-h "$home"} \

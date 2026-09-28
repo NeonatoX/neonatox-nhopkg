@@ -52,7 +52,7 @@
 | `NHOPKG_CHECKARCH` | `yes` | `yes`, `no` | Проверять совместимость архитектуры пакета |
 | `VERBOSE_MODE` | `no` | `yes`, `no` | Включить подробный вывод |
 | `STRIP_BINARIES` | `no` | `yes`, `no` | Вырезать символы из бинарных файлов и библиотек после установки (экспериментально) |
-| `NHOHOLD` | `"nhopkg glibc gcc"` | Список имён пакетов через пробел | Удерживаемые пакеты — никогда не удалять их файлы при удалении |
+| `NHOHOLD` | `"nhopkg bash glibc gcc"` | Список имён пакетов через пробел | Удерживаемые пакеты — никогда не удалять их файлы при удалении |
 | `NHOPKG_USE_BUSYBOX` | `no` | `yes`, `no` | Использовать приватный PATH статического BusyBox (см. Приватный PATH BusyBox) |
 
 ### Приватный PATH BusyBox
@@ -229,7 +229,7 @@ NHOPKG_CHECKSHA256=yes
 NHOPKG_CHECKARCH=yes
 VERBOSE_MODE=no
 STRIP_BINARIES=no
-NHOHOLD="nhopkg glibc gcc"
+NHOHOLD="nhopkg bash glibc gcc"
 NHOPKG_USE_BUSYBOX=no
 
 # --- Init System ---

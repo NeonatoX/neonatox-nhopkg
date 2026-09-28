@@ -306,7 +306,7 @@ Default config is at `/etc/nhopkg/nhopkg.conf`. Key options:
 | `NHOPKG_CHECKDEPS` | `yes` | Enable dependency resolution |
 | `NHOPKG_GETTEXT` | `yes` | Enable i18n translations |
 | `NHOPKG_USE_BUSYBOX` | `no` | Enable BusyBox private PATH (see [BusyBox Private PATH](#busybox-private-path)) |
-| `NHOHOLD` | `nhopkg glibc gcc` | Packages never deleted on uninstall (varies per `-D libc=`) |
+| `NHOHOLD` | `nhopkg bash glibc gcc` | Packages never deleted on uninstall (varies per `-D libc=`) |
 | `NHOPKG_GIT_BRANCH` | *(empty)* | Default git branch for `--super-build` |
 
 ## Contributing

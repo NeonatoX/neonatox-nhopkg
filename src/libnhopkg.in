@@ -22,16 +22,35 @@ OLDIFS="${IFS}"
 # Binary locate tool, set at build time via -D binlocate= (locate/plocate)
 export BINLOCATE="@BINLOCATE@"
 
-# BusyBox private PATH setup (self-healing)
-setup_busybox_path()
+# BusyBox private PATH (self-healing, scoped to the target chroot)
+# ----------------------------------------------------------------------------
+# The private PATH is NOT exported into nhopkg's own environment on purpose:
+# host-side tools (tar, sed, awk, sha256sum...) must keep using the host
+# implementations. Exporting it globally made BusyBox's tar shadow GNU tar and
+# abort binary package extraction ("can't create hardlink ... to '/...'").
+#
+# Instead:
+#   nhopkg_bb_dir()      -> prints the private dir if the applets are valid
+#   nhopkg_bb()          -> runs an applet from that dir by absolute path
+#   nhopkg_bb_prelude()  -> shell snippet injected into package hooks, which
+#                           run inside the target chroot where the baked
+#                           @prefix@/lib/nhopkg/bin path resolves
+NHOPKG_BB_DIR_RESOLVED=""
+
+nhopkg_bb_dir()
 {
-    [[ "${NHOPKG_USE_BUSYBOX}" != "yes" ]] && return 0
+    if [[ -n "${NHOPKG_BB_DIR_RESOLVED}" ]]; then
+        echo "${NHOPKG_BB_DIR_RESOLVED}"
+        return 0
+    fi
+    [[ "${NHOPKG_USE_BUSYBOX}" = "yes" ]] || return 1
+
     local bb_dir="${NHOPKG_BB_DIR:-@prefix@/lib/nhopkg/bin}"
     local bb_setup="${NHOPKG_BB_SETUP:-@prefix@/lib/nhopkg/nhopkg-bb-setup}"
-    [[ ! -d "$bb_dir" ]] && return 0
+    [[ -d "$bb_dir" ]] || return 1
 
     # Verificar applets clave (symlinks a busybox)
-    local sym_applets=(awk sed grep tar)
+    local sym_applets=(awk sed grep)
     local binary_applets=(zstd busybox)
     local key target bb_path_valid=1
 
@@ -63,15 +82,35 @@ setup_busybox_path()
         fi
     fi
 
-    if [[ $bb_path_valid -eq 1 ]]; then
-        export PATH="${bb_dir}:${PATH}"
-    else
+    if [[ $bb_path_valid -ne 1 ]]; then
         echo "Warning: BusyBox private PATH unavailable; using system tools" >&2
+        return 1
     fi
+
+    NHOPKG_BB_DIR_RESOLVED="$bb_dir"
+    echo "$bb_dir"
     return 0
 }
 
-setup_busybox_path
+# Run an applet from the private BusyBox (host side): nhopkg_bb find ... -newer x
+nhopkg_bb()
+{
+    local bb_dir bb_bin
+    bb_dir="$(nhopkg_bb_dir)" || return 1
+    bb_bin="${bb_dir}/busybox"
+    [[ -x "$bb_bin" ]] || return 1
+    "$bb_bin" "$@"
+}
+
+# Snippet for package hooks (executed inside the target chroot). The baked path
+# is used on purpose: it is the one that resolves inside the chroot, and the
+# -d guard makes it a no-op when BusyBox was not installed.
+nhopkg_bb_prelude()
+{
+    nhopkg_bb_dir >/dev/null || return 0
+    printf '[ -d %s ] && PATH=%s:"$PATH" && export PATH\n' \
+        "@prefix@/lib/nhopkg/bin" "@prefix@/lib/nhopkg/bin"
+}
 
 #==============================================================================
 # Section: Nhopkg colorized script.
@@ -89,12 +128,18 @@ PROGRESS_BAR_SPINNER='/-\|'
 # Section: Nhopkg progress bar (unified draw function).
 #==============================================================================
 # nhopkg_draw_progress_bar(). Draws a progress bar on stderr.
-# Usage: nhopkg_draw_progress_bar <mode> [current] [total] [label] [start_time]
-#   mode: bytes | count | indeterminate
+# Usage: nhopkg_draw_progress_bar <mode> [current] [total] [label] [start_time] [consumed_cols]
+#   mode: bytes | count | count-cont | indeterminate
 #     * bytes         -> percentage + size (kB/MB/GB) + ETA. Install and
 #                        downloads with a known Content-Length.
 #     * count         -> "N de M" items, no bytes and no ETA. remove / check /
 #                        sign-all / add-to-repo / upgrade / DB generation.
+#     * count-cont    -> same bar as count but as a CONTINUATION of a line the
+#                        caller has already started (no leading \r, which would
+#                        overwrite that line, and no label, which is already on
+#                        it). Never throttled: each call paints a NEW line
+#                        instead of redrawing the previous one. Dependency
+#                        downloads fuse it with the "Downloading from" notice.
 #     * indeterminate -> spinner, no percentage and no ETA. Downloads without
 #                        Content-Length, lastsync, phases without a total.
 # Notes:
@@ -105,6 +150,9 @@ PROGRESS_BAR_SPINNER='/-\|'
 #   - Redraws are throttled: only when the integer percentage advances.
 #   - ETA uses $EPOCHSECONDS (bash >= 5); `date` only as fallback. The clock
 #     is sampled once by the caller via _nh_now() and passed as start_time.
+#   - consumed_cols: columns already written on the current line by the caller
+#     (e.g. a "Downloading from" notice); they are subtracted from the width so
+#     the bar never wraps the terminal.
 # Returns: 0 in success.
 # ---------------------------------------------------------
 NHOPKG_PROGRESS_WIDTH=""
@@ -122,8 +170,10 @@ nhopkg_draw_progress_bar()
 	local total="${3:-0}"
 	local label="${4:-}"
 	local start_time="${5:-}"
+	local consumed="${6:-0}"
 	local percent width filled index now elapsed remain eta eta_min eta_sec
 	local size_shown eta_shown bar head tail
+	local _pad _nobar
 
 	# Cache terminal width once per process.
 	if [[ -z "${NHOPKG_PROGRESS_WIDTH}" ]]; then
@@ -132,7 +182,8 @@ nhopkg_draw_progress_bar()
 			NHOPKG_PROGRESS_WIDTH=80
 		fi
 	fi
-	width=${NHOPKG_PROGRESS_WIDTH}
+	width=$(( NHOPKG_PROGRESS_WIDTH - ${consumed:-0} ))
+	(( width < 8 )) && width=8
 
 	case "${mode}" in
 		indeterminate)
@@ -141,7 +192,7 @@ nhopkg_draw_progress_bar()
 			printf "\r %-20s %s" "${label}" "${PROGRESS_BAR_SPINNER:${index}:1}" >&2
 			return 0
 			;;
-		bytes|count)
+		bytes|count|count-cont)
 			# Sanitize current/total (never divide by zero, always clamp).
 			(( total <= 0 )) && total=1
 			(( current < 0 )) && current=0
@@ -150,8 +201,9 @@ nhopkg_draw_progress_bar()
 
 			# Throttle: only redraw when the integer percent advances (or when
 			# the phase itself changes). The state is cleared at 100% so the
-			# next bar always paints its first frame.
-			if (( percent < 100 )) && \
+			# next bar always paints its first frame. count-cont is never
+			# throttled: it always starts a new line, it never redraws one.
+			if [[ "${mode}" != "count-cont" ]] && (( percent < 100 )) && \
 				[[ "${NHOPKG_LAST_DRAWN_KEY:-}" == "${label}|${total}" ]] && \
 				[[ "${NHOPKG_LAST_DRAWN_PERCENT:-}" == "${percent}" ]]; then
 				return 0
@@ -164,27 +216,51 @@ nhopkg_draw_progress_bar()
 			fi
 
 			# Bar width: terminal minus the fixed surrounding fields.
+			_nobar=0
 			if [[ "${mode}" == "bytes" ]]; then
 				# \r + label + ": " + "%3d%% [" (7) + "]" + " %7s" (size) + ETA (11)
 				width=$(( width - ${#label} - 31 ))
+			elif [[ "${mode}" == "count-cont" ]]; then
+				# " : "(3) + len(current) + " de "(4) + len(total) + " ["(2)
+				# + "]"(1) + margin(2). No label and no \r on this mode.
+				width=$(( width - ${#current} - ${#total} - 12 ))
 			else
-				# \r + label + ": " + "N de M" (len) + " [" + "]"
-				width=$(( width - ${#label} - ${#current} - 7 ))
+				# \r(1) + " "(1) + max(5,len(label)) + ": "(2) + len(current)
+				#      + " de "(4) + len(total) + " ["(2) + "]"(1) + margin(2).
+				# The old fixed 7 ignored len(total) and the %-5s padding, so
+				# the line overflowed the terminal by len(total) + 4 columns.
+				_pad=5
+				(( _pad > ${#label} )) || _pad=${#label}
+				width=$(( width - ${#label} - ${_pad} - ${#current} - ${#total} - 13 ))
 			fi
-			(( width < 8 )) && width=8
+			if (( width < 8 )); then
+				# count-cont shares its line with the caller (see consumed_cols),
+				# so with fewer than 4 columns left the bar is dropped rather
+				# than wrapped: the counter alone is better than a broken line.
+				if [[ "${mode}" == "count-cont" ]] && (( width < 4 )); then
+					_nobar=1
+					width=0
+				else
+					width=8
+				fi
+			fi
 
-			filled=$(( width * current / total ))
-			(( filled > width )) && filled=${width}
-
-			# Build the bar in one shot (no per-character printf loop).
-			printf -v head '%*s' "${filled}" ""
-			head="${head// /${PROGRESS_BAR_BEGIN}}"
-			if (( percent < 100 )); then
-				printf -v tail '%*s' "$(( width - filled - 1 ))" ""
-				tail="${tail// /${PROGRESS_BAR_EMPTY}}"
-				bar="${head}${PROGRESS_BAR_END}${tail}"
+			if (( _nobar )); then
+				bar=""
 			else
-				bar="${head:0:${width}}"
+				filled=$(( width * current / total ))
+				(( filled > width )) && filled=${width}
+
+				# Build the bar in one shot (no per-character printf loop).
+				printf -v head '%*s' "${filled}" ""
+				head="${head// /${PROGRESS_BAR_BEGIN}}"
+				if (( percent < 100 )); then
+					printf -v tail '%*s' "$(( width - filled - 1 ))" ""
+					tail="${tail// /${PROGRESS_BAR_EMPTY}}"
+					bar="${head}${PROGRESS_BAR_END}${tail}"
+				else
+					bar="${head:0:${width}}"
+				fi
 			fi
 
 			if [[ "${mode}" == "bytes" ]]; then
@@ -214,6 +290,14 @@ nhopkg_draw_progress_bar()
 					eta_shown="--:--"
 				fi
 				printf "\r %-5s: %3d%% [%s] %7s %s ETA" "${label}" "${percent}" "${bar}" "${size_shown}" "${eta_shown}" >&2
+			elif [[ "${mode}" == "count-cont" ]]; then
+				# Continuation: no \r (it would overwrite the caller's line)
+				# and no label (the caller already printed it).
+				if (( _nobar )); then
+					printf " : %s de %s" "${current}" "${total}" >&2
+				else
+					printf " : %s de %s [%s]" "${current}" "${total}" "${bar}" >&2
+				fi
 			else
 				printf "\r %-5s: %s de %s [%s]" "${label}" "${current}" "${total}" "${bar}" >&2
 			fi
@@ -1470,8 +1554,12 @@ SHOOTER_SCRIPT
 	run_update "$GDK_PIXBUF" "$(echogn "gdk-pixbuf loaders")" --update-cache
 	
 	# 9. BusyBox private PATH
-	if [[ "${NHOPKG_USE_BUSYBOX}" = "yes" && -x "${NHOPKG_BB_SETUP:-@prefix@/lib/nhopkg/nhopkg-bb-setup}" ]]; then
-		run_update "${NHOPKG_BB_SETUP:-@prefix@/lib/nhopkg/nhopkg-bb-setup}" "$(echogn "nhopkg busybox private PATH")" --regenerate
+	if [[ "${NHOPKG_USE_BUSYBOX}" = "yes" ]]; then
+		local _bb_dir _bb_setup
+		if _bb_dir="$(nhopkg_bb_dir)"; then
+			_bb_setup="${NHOPKG_BB_SETUP:-${_bb_dir}/../nhopkg-bb-setup}"
+			[[ -x "$_bb_setup" ]] && run_update "$_bb_setup" "$(echogn "nhopkg busybox private PATH")" --regenerate
+		fi
 	fi
 
 	# Summary

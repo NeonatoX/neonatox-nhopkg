@@ -52,7 +52,7 @@ Opciones generales de comportamiento para el manejo de dependencias, verificaci�
 | `NHOPKG_CHECKARCH` | `yes` | `yes`, `no` | Verificar la compatibilidad de arquitectura de los paquetes |
 | `VERBOSE_MODE` | `no` | `yes`, `no` | Habilitar salida verbosa |
 | `STRIP_BINARIES` | `no` | `yes`, `no` | Eliminar símbolos de binarios y bibliotecas después de la instalación (experimental) |
-| `NHOHOLD` | `"nhopkg glibc gcc"` | Nombres de paquete separados por espacios | Paquetes a retener: nunca eliminar sus archivos al desinstalar |
+| `NHOHOLD` | `"nhopkg bash glibc gcc"` | Nombres de paquete separados por espacios | Paquetes a retener: nunca eliminar sus archivos al desinstalar |
 | `NHOPKG_USE_BUSYBOX` | `no` | `yes`, `no` | Usar el PATH privado de BusyBox estático (ver [PATH privado de BusyBox](#path-privado-de-busybox)) |
 
 ### PATH privado de BusyBox
@@ -229,7 +229,7 @@ NHOPKG_CHECKSHA256=yes
 NHOPKG_CHECKARCH=yes
 VERBOSE_MODE=no
 STRIP_BINARIES=no
-NHOHOLD="nhopkg glibc gcc"
+NHOHOLD="nhopkg bash glibc gcc"
 NHOPKG_USE_BUSYBOX=no
 
 # --- Sistema de init ---

@@ -570,11 +570,82 @@ _dep_provides_package() {
 }
 
 #----------------------------------------------------------
+# _dep_dl_notice() - Print the "Downloading from" notice of a queued download
+#----------------------------------------------------------
+# Usage: _dep_dl_notice <index>
+# Returns: 0 in success.
+# Notes:
+#   - Prints WITHOUT a trailing newline: _dep_dl_bar() continues the same line
+#     with the counter/bar (mode count-cont), giving one line per package.
+#   - Stores the columns already used in _NH_DL_CONSUMED so _dep_dl_bar() can
+#     shrink the bar and never wrap the terminal.
+#   - The notice is captured before printing (not hardcoded) so the column
+#     count stays exact with translated messages.
+# ---------------------------------------------------------
+_NH_DL_CONSUMED=0
+
+_dep_dl_notice() {
+	local idx="$1"
+	local text
+	text=$(echogn " --- Downloading from ")
+	printf '%s%s: %s' "${text}" "${dl_repo[$idx]}" "${dl_label[$idx]}"
+	_NH_DL_CONSUMED=$(( ${#text} + ${#dl_repo[$idx]} + 2 + ${#dl_label[$idx]} ))
+	return 0
+}
+
+#----------------------------------------------------------
+# _dep_dl_eol() - Close the current fused line, preserving the exit status
+#----------------------------------------------------------
+# Returns: the status of the previous command (so check_if_ok still works).
+# Notes:
+#   - The line is closed on stderr (same stream as the bar) when stderr is a
+#     TTY, and on stdout (same stream as the notice) when it is not, so logs get
+#     one complete plain line per package.
+#   - Used alone on failure, so the error message does not land on the same line
+#     as the notice that is still open.
+# ---------------------------------------------------------
+_dep_dl_eol() {
+	local rc=$?
+	if [[ -t 2 ]]; then
+		echo >&2
+	else
+		echo
+	fi
+	return $rc
+}
+
+#----------------------------------------------------------
+# _dep_dl_bar() - Draw the aggregate counter/bar and close the notice line
+#----------------------------------------------------------
+# Usage: _dep_dl_bar <index> <current> <total>
+# Returns: 0 in success.
+# Notes:
+#   - Mode count-cont: continues the notice line already open (no \r that would
+#     overwrite it, no label that would repeat the package name) and is never
+#     throttled, so every package paints its own line.
+#   - dl_label[] is the local array of _dep_download_all() (bash dynamic scope).
+# ---------------------------------------------------------
+_dep_dl_bar() {
+	local idx="$1" current="$2" total="$3"
+	nhopkg_draw_progress_bar count-cont "${current}" "${total}" "" "" "${_NH_DL_CONSUMED}"
+	_dep_dl_eol
+	return 0
+}
+
+#----------------------------------------------------------
 # _dep_download_all() - Download multiple packages
+#----------------------------------------------------------
+# Output: one single line per package, in completion order. Each line is the
+# " --- Downloading from <repo>: <pkgname>" notice plus, on the same line, the
+# aggregate counter/bar ("N de M"). The parent announces a job once its own
+# status file exists (i.e. right after `wait -n` returns), so the package shown
+# is always the one that really finished, and the counter is always the number
+# of finished downloads. Outside a TTY the bar is not drawn and the notice is
+# left as a single plain line per package.
 #----------------------------------------------------------
 _dep_download_all() {
 	local specs=("$@")
-	local -a dl_repo=() dl_name=() dl_url=() dl_dest=()
+	local -a dl_repo=() dl_name=() dl_label=() dl_url=() dl_dest=()
 	local i repo pkgfile nho_name repo_url
 	local jobs="${NHOPKG_DOWNLOAD_JOBS:-4}"
 	
@@ -608,44 +679,92 @@ _dep_download_all() {
 		
 		dl_repo+=("$repo")
 		dl_name+=("$nho_name")
+		dl_label+=("${pkgname}")
 		dl_url+=("${repo_url}/${nho_name}")
 		dl_dest+=("${ROOT_PKG_STATE_DIR}/cache/${nho_name}")
 	done
 	
-	# --- Sequential mode (NHOPKG_DOWNLOAD_JOBS=1): exact previous behavior -----
+	# --- Sequential mode (NHOPKG_DOWNLOAD_JOBS=1): same output as parallel ------
+	# The download runs with the notice line already open (it is the only
+	# feedback while transferring), so its output is buffered to a log and only
+	# shown on failure, instead of landing in the middle of that line.
 	if [[ $jobs -eq 1 ]]; then
 		_nh_dep_total=${#dl_url[@]}
 		for i in "${!dl_url[@]}"; do
-			echogn " --- Downloading from "
-			echo -n "${dl_repo[$i]}: "
-			echo "${dl_name[$i]}"
+			_nh_seq_log=$(mktemp) || { echog " *** Failed to create temp file." >&2; exit 1; }
+			_dep_dl_notice "$i"
 			
-			nhoget_url "${dl_url[$i]}" "${dl_dest[$i]}"
-			check_if_ok " *** Failed to download package."
-			
-			DCASEPACKAGES+=("${dl_name[$i]}")
-			nhopkg_draw_progress_bar count "$((i + 1))" "${_nh_dep_total}" "pkg"
+			nhoget_url "${dl_url[$i]}" "${dl_dest[$i]}" > "${_nh_seq_log}" 2>&1
+			_nh_seq_rc=$?
+			if (( _nh_seq_rc == 0 )); then
+				DCASEPACKAGES+=("${dl_name[$i]}")
+				_dep_dl_bar "$i" "$((i + 1))" "${_nh_dep_total}"
+				rm -f "${_nh_seq_log}"
+			else
+				_dep_dl_eol
+				echog " *** Failed to download package: ${dl_name[$i]}" >&2
+				[[ -s "${_nh_seq_log}" ]] && cat "${_nh_seq_log}" >&2
+				rm -f "${_nh_seq_log}"
+				# check_if_ok reads the status of the previous command and
+				# exits; no message because the one above already names the
+				# package.
+				( exit "${_nh_seq_rc}" )
+				check_if_ok ""
+			fi
 		done
-		echo >&2
 		return 0
 	fi
 	
-	# --- Fase A (cont.): print the download notice serialized (queue order) ----
-	for i in "${!dl_url[@]}"; do
-		echogn " --- Downloading from "
-		echo -n "${dl_repo[$i]}: "
-		echo "${dl_name[$i]}"
-	done
-	
 	# --- Fase B: concurrent downloads with a job cap (requires bash >= 4.3) ----
-	local -a dl_status=() dl_log=()
-	local st lg active=0 completed=0
+	local -a dl_status=() dl_log=() dl_announced=() dl_reported=()
+	local st lg active=0 completed=0 _nh_total=${#dl_url[@]} k
 	for i in "${!dl_url[@]}"; do
 		st=$(mktemp) || { echog " *** Failed to create temp file." >&2; exit 1; }
 		lg=$(mktemp) || { echog " *** Failed to create temp file." >&2; exit 1; }
 		dl_status+=("$st")
 		dl_log+=("$lg")
 	done
+	
+	# _dep_dl_report_failure(). Report a failed download (message + its buffered
+	# log) and flag it as reported, so the final phase never repeats it.
+	_dep_dl_report_failure() {
+		local idx="$1"
+		dl_reported[$idx]=1
+		echog " *** Failed to download package: ${dl_name[$idx]}" >&2
+		if [[ -s "${dl_log[$idx]}" ]]; then
+			cat "${dl_log[$idx]}" >&2
+		fi
+		return 0
+	}
+	
+	# _dep_dl_announce_next(). Prints the line of the next finished job and
+	# returns 0, or returns 1 when every job with a written status has been
+	# announced. The finished index is resolved by scanning the per-job status
+	# files, which each subshell writes BEFORE it exits (so at least one is
+	# always ready right after `wait -n`). No `wait -n -p` (bash >= 5.1), no lock
+	# and no shared write are needed. A failed job gets its notice line closed
+	# without a bar plus its own error report: the counter always counts
+	# successful downloads, so it never reaches the total when one fails.
+	# Defined here (not at top level) to use this function's local arrays.
+	_dep_dl_announce_next() {
+		local _dl_ann_rc
+		for k in "${!dl_status[@]}"; do
+			[[ -n "${dl_announced[$k]:-}" ]] && continue
+			[[ -s "${dl_status[$k]}" ]] || continue
+			dl_announced[$k]=1
+			_dl_ann_rc=$(cat "${dl_status[$k]}")
+			_dep_dl_notice "$k"
+			if [[ "${_dl_ann_rc}" == "0" ]]; then
+				((completed++))
+				_dep_dl_bar "$k" "${completed}" "${_nh_total}"
+			else
+				_dep_dl_eol
+				_dep_dl_report_failure "$k"
+			fi
+			return 0
+		done
+		return 1
+	}
 	
 	for i in "${!dl_url[@]}"; do
 		(
@@ -658,17 +777,17 @@ _dep_download_all() {
 		if (( active >= jobs )); then
 			wait -n
 			((active--))
-			((completed++))
-			nhopkg_draw_progress_bar count "${completed}" "${#dl_url[@]}" "pkg"
+			_dep_dl_announce_next
 		fi
 	done
 	wait
-	((completed += active))
-	nhopkg_draw_progress_bar count "${completed}" "${#dl_url[@]}" "pkg"
-	echo >&2
+	while _dep_dl_announce_next; do :; done
 	
 	# --- Fase C: fill DCASEPACKAGES with successes and report failures ---------
-	local -a dl_failed=() dl_failed_logs=()
+	# Failures already reported while announcing (dl_reported) are not repeated
+	# here; this phase only catches the ones that never got announced (a job
+	# killed without writing its status) and cleans up the buffered logs.
+	local -a dl_failed_logs=()
 	local _dl_rc
 	for i in "${!dl_url[@]}"; do
 		_dl_rc=1
@@ -678,17 +797,13 @@ _dep_download_all() {
 			DCASEPACKAGES+=("${dl_name[$i]}")
 			rm -f "${dl_log[$i]}"
 		else
-			dl_failed+=("${dl_name[$i]}")
+			[[ -n "${dl_reported[$i]:-}" ]] || _dep_dl_report_failure "$i"
 			dl_failed_logs+=("${dl_log[$i]}")
 		fi
 	done
 	
-	if [[ ${#dl_failed[@]} -gt 0 ]]; then
-		for i in "${!dl_failed[@]}"; do
-			echog " *** Failed to download package: ${dl_failed[$i]}" >&2
-			if [[ -s "${dl_failed_logs[$i]}" ]]; then
-				cat "${dl_failed_logs[$i]}" >&2
-			fi
+	if [[ ${#dl_failed_logs[@]} -gt 0 ]]; then
+		for i in "${!dl_failed_logs[@]}"; do
 			rm -f "${dl_failed_logs[$i]}"
 		done
 		exit 1

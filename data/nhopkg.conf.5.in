@@ -135,7 +135,7 @@ Values:
 .B NHOHOLD
 Space-separated list of packages whose files are never deleted on uninstall.
 Default:
-.I "nhopkg glibc gcc"
+.I "nhopkg bash glibc gcc"
 .SS "3. Init system"
 .TP
 .B INITSYSTEM
@@ -367,7 +367,7 @@ NHOPKG_CHECKSHA256=yes
 NHOPKG_CHECKARCH=yes
 VERBOSE_MODE=no
 STRIP_BINARIES=no
-NHOHOLD="nhopkg glibc gcc"
+NHOHOLD="nhopkg bash glibc gcc"
 
 # --- Init system ---
 INITSYSTEM=systemd

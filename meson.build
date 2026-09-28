@@ -163,11 +163,11 @@ endif
 
 # === Configuración específica según libc (glibc / musl) ===
 if libc_variant == 'musl'
-  nhohold = 'nhopkg musl gcc'
+  nhohold = 'nhopkg bash musl gcc'
   active_repos = 'core extra'
   # multilib no aplica para musl
 else
-  nhohold = 'nhopkg glibc gcc'
+  nhohold = 'nhopkg bash glibc gcc'
   active_repos = 'core extra multilib'
 endif
 

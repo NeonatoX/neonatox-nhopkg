@@ -896,6 +896,10 @@ bin_install_setting_up()
 		_ns_hook="$(mktemp /tmp/_nh_hook.XXXXXX)"
 		cat > "$_ns_hook" << HOOK_SCRIPT
 #!/bin/sh
+# Host-side NHOPKG_* overrides (--root style paths) do not exist inside the
+# target: drop them so in-target tools fall back to their baked defaults.
+unset NHOPKG_CONF NHOPKG_LIB NHOPKG_UDEP_LIB NHOPKG_DOWNLOAD_LIB NHOPKG_CRYPTO_LIB NHOPKG_BB_DIR NHOPKG_BB_SETUP
+$(nhopkg_bb_prelude)
 source ${_nh_path}
 npostinstall
 HOOK_SCRIPT
@@ -1233,6 +1237,10 @@ remove_package_all()
 			_ns_hook="$(mktemp /tmp/_nh_hook.XXXXXX)"
 			cat > "$_ns_hook" << HOOK_SCRIPT
 #!/bin/sh
+# Host-side NHOPKG_* overrides (--root style paths) do not exist inside the
+# target: drop them so in-target tools fall back to their baked defaults.
+unset NHOPKG_CONF NHOPKG_LIB NHOPKG_UDEP_LIB NHOPKG_DOWNLOAD_LIB NHOPKG_CRYPTO_LIB NHOPKG_BB_DIR NHOPKG_BB_SETUP
+$(nhopkg_bb_prelude)
 source ${_nh_path}
 npostremove
 HOOK_SCRIPT
@@ -1731,8 +1739,8 @@ build_search_for_files()
 		_staging_find="$(mktemp -t nhopkg.XXXXXX 2>/dev/null || echo "/tmp/nhopkg.${$}")"
 		if command -v find &>/dev/null && find --version 2>&1 | grep -qi gnu; then
 			find -- "${NHOPACKAGING}" \( -type f -o -type l \) -cnewer "$ref" > "$_staging_find" 2>&1 || true
-		elif command -v busybox &>/dev/null; then
-			busybox find "${NHOPACKAGING}" \( -type f -o -type l \) -exec sh -c '
+		elif nhopkg_bb true &>/dev/null; then
+			PATH="$(nhopkg_bb_dir):$PATH" nhopkg_bb find "${NHOPACKAGING}" \( -type f -o -type l \) -exec sh -c '
 				t=$(busybox stat -c %Z "$1" 2>/dev/null); shift; for f; do [ "$(busybox stat -c %Z "$f" 2>/dev/null)" -gt "$t" ] && echo "$f"; done
 			' _ "$ref" {} + > "$_staging_find" 2>&1 || true
 		else
@@ -1765,8 +1773,8 @@ build_search_for_files()
 
 				if command -v find &>/dev/null && find --version 2>&1 | grep -qi gnu; then
 					find -- "${searchdir}" \( -type f -o -type l \) -cnewer "$ref" >> "$log" 2>&1
-				elif command -v busybox &>/dev/null; then
-					busybox find "${searchdir}" \( -type f -o -type l \) -exec sh -c '
+				elif nhopkg_bb true &>/dev/null; then
+					PATH="$(nhopkg_bb_dir):$PATH" nhopkg_bb find "${searchdir}" \( -type f -o -type l \) -exec sh -c '
 						t=$(busybox stat -c %Z "$1" 2>/dev/null); shift; for f; do [ "$(busybox stat -c %Z "$f" 2>/dev/null)" -gt "$t" ] && echo "$f"; done
 					' _ "$ref" {} + >> "$log" 2>&1
 				else

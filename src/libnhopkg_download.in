@@ -68,6 +68,9 @@ nhoget_detect_backend() {
 		fi
 	elif command -v curl &>/dev/null; then
 		echo "curl"
+	elif nhopkg_bb true &>/dev/null; then
+		# Private BusyBox is not in PATH: reachable as "busybox wget"
+		echo "wget-bb"
 	else
 		echo "none"
 		return 1
@@ -116,14 +119,19 @@ nhoget_url_wget_bb() {
 	[[ -n "$NHOGET_USER_AGENT" ]] && wget_opts="$wget_opts -U $NHOGET_USER_AGENT"
 	# BusyBox wget lacks TLS validation; suppress warning and attempt anyway
 	[[ "$url" =~ ^https:// ]] && wget_opts="$wget_opts --no-check-certificate"
+	# The private BusyBox is not in PATH anymore: call it by absolute path
+	local _bb_wget=""
+	if nhopkg_bb true &>/dev/null; then
+		_bb_wget="$(nhopkg_bb_dir)/busybox wget"
+	fi
 	while (( attempt < NHOGET_RETRIES )); do
 		attempt=$((attempt + 1))
-		if wget $wget_opts "$url" 2>/dev/null; then
+		if [[ -n "$_bb_wget" ]]; then
+			$_bb_wget $wget_opts "$url" 2>/dev/null && return 0
+		elif wget $wget_opts "$url" 2>/dev/null; then
 			return 0
 		fi
-		if (( attempt < NHOGET_RETRIES )); then
-			sleep 2
-		fi
+		sleep 2
 	done
 	return 1
 }
@@ -145,12 +153,19 @@ nhoget_verify_hash() {
 		*)	nhoget_msg err "Unknown hash type: $hash_type"; return 2 ;;
 	esac
 
-	if ! command -v "$hash_cmd" &>/dev/null; then
+	# Prefer the host tool; fall back to the private BusyBox applet (the
+	# private PATH is not exported anymore, so it needs an absolute path).
+	local _hash_cmd=()
+	if command -v "$hash_cmd" &>/dev/null; then
+		_hash_cmd=("$hash_cmd")
+	elif nhopkg_bb "$hash_cmd" --help &>/dev/null; then
+		_hash_cmd=("$(nhopkg_bb_dir)/busybox" "$hash_cmd")
+	else
 		nhoget_msg err "Hash tool not available: $hash_cmd"
 		return 2
 	fi
 
-	computed_hash=$($hash_cmd "$file" 2>/dev/null | awk '{print $1}')
+	computed_hash=$("${_hash_cmd[@]}" "$file" 2>/dev/null | awk '{print $1}')
 	[[ -z "$computed_hash" ]] && { nhoget_msg err "Failed to compute $hash_type hash"; return 1; }
 
 	expected_hash=$(echo "$expected_hash" | tr '[:upper:]' '[:lower:]')
