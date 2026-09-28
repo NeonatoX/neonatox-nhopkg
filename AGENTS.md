@@ -38,6 +38,12 @@ meson setup builddir --reconfigure
 
 # Rebuild after changes
 ninja -C builddir
+
+# Test suite
+meson compile -C builddir check
+
+# Versioning cadence reminder
+meson compile -C builddir version-check
 ```
 
 ## Required Tools
@@ -82,9 +88,31 @@ source for current behavior or documentation updates.
 Translations in `po/*.po`. After adding new strings, regenerate with Meson build
 (`meson compile -C builddir update-translations`).
 
-## No Test Suite
+## Test Suite
 
-This project has no automated tests. Verify manually with installed binary.
+Tests live in `tests/` and run against the **real generated tools** from the
+build directory, with only the root check and GPG stubbed out.
+
+```bash
+tests/run-all.sh                        # everything
+tests/run-all.sh check-add-to-repo.sh   # one file
+meson compile -C builddir check         # the same, through meson
+```
+
+`tests/README.md` documents what each test covers, what is **not** covered
+(the client, the other tools, the chroot hooks), and how to add one. Read it
+before adding or changing a test.
+
+Test files are named `check-*.sh`, not `test-*.sh`: `.gitignore` has a `test-*`
+rule that would swallow them.
+
+**Trap:** meson generates the scripts with `configure_file()`, which runs at
+configure time, so `ninja` alone does not pick up an edit to a `.in` file and a
+test run would judge a stale binary. `tests/lib.sh` handles this by comparing
+timestamps and reconfiguring; don't bypass it with a bare `ninja`.
+
+Coverage is partial and growing. `nhopkg-repos -A` is covered; the client and
+the rest of the tools are not.
 
 ## PLAN / PROPOSAL Requests
 
