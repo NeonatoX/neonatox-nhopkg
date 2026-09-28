@@ -526,6 +526,7 @@ case "${NHOPKG_OPTION}" in
 	_nh_skipped=0
 	_nh_failed=0
 	_nh_integrity_errors=0
+	_nh_stale=0
 	declare -a _NH_SKIPPED=()
 	_nh_repo_skip()
 	{
@@ -868,13 +869,22 @@ case "${NHOPKG_OPTION}" in
 		_nh_chk_dir="${NHOPKG_TMPDIR}/$reponame/.check.$$"
 		rm -rf "${_nh_chk_dir}"
 		mkdir -p "${_nh_chk_dir}"
+		# Only regular entries take part in the reverse audit below: the
+		# "<name>" and "<name>-<version>" entries are symlinks and have no
+		# .nho of their own by design. Plain "tar tf" does not reveal the
+		# link, so the long listing is used and the ones whose mode starts
+		# with "l" are dropped. Index ids are validated as [A-Za-z0-9._+~-]
+		# on the way in, so the last field of a regular entry is its name.
 		zstd -dc "$repodir/core.packages.tar.zst" 2>/dev/null | \
-			tar tf - 2>/dev/null | sed -e 's@^\./@@' | grep -v '^$' | sort -u \
+			tar tvf - 2>/dev/null | awk '$1 !~ /^l/ { n=$NF; sub(/^\.\//, "", n); print n }' | \
+			grep -v '^$' | sort -u \
 			> "${_nh_chk_dir}/packages"
 		zstd -dc "$repodir/core.files.tar.zst" 2>/dev/null | \
-			tar tf - 2>/dev/null | sed -e 's@^\./@@' | grep -v '^$' | sort -u \
+			tar tvf - 2>/dev/null | awk '$1 !~ /^l/ { n=$NF; sub(/^\.\//, "", n); print n }' | \
+			grep -v '^$' | sort -u \
 			> "${_nh_chk_dir}/files"
 		_nh_chk_total=0
+		: > "${_nh_chk_dir}/live"
 		for _nh_chk_f in "$repodir"/*.nho; do
 			[ -f "${_nh_chk_f}" ] || continue
 			_nh_chk_total=$((_nh_chk_total + 1))
@@ -885,6 +895,7 @@ case "${NHOPKG_OPTION}" in
 				_nh_integrity_errors=$((_nh_integrity_errors + 1))
 				continue
 			fi
+			printf '%s\n' "${_nh_chk_id}" >> "${_nh_chk_dir}/live"
 			grep -qxF "${_nh_chk_id}" "${_nh_chk_dir}/packages" || {
 				echog " *** $(basename "${_nh_chk_f}"): ${_nh_chk_id} is not in core.packages.tar.zst." >&2
 				_nh_integrity_errors=$((_nh_integrity_errors + 1))
@@ -898,6 +909,26 @@ case "${NHOPKG_OPTION}" in
 				}
 			fi
 		done
+
+		# Reverse audit: entries in the index with no .nho behind them. The
+		# direction above (disk -> index) is an error, because the package is
+		# there and cannot be reached. This one is only a warning: it is what
+		# a repository published by an older nhopkg-repos looks like, and
+		# failing on it would break every such repository with no way out,
+		# since repairing it is an explicit operation (--prune-orphans, not
+		# part of this release). It is also what a run interrupted between
+		# removing a .nho and rewriting the index leaves behind.
+		sort -u "${_nh_chk_dir}/live" -o "${_nh_chk_dir}/live" 2>/dev/null
+		for _nh_chk_idx in packages files; do
+			_nh_chk_stale=$(comm -23 "${_nh_chk_dir}/${_nh_chk_idx}" \
+				"${_nh_chk_dir}/live" 2>/dev/null)
+			[ -n "${_nh_chk_stale}" ] || continue
+			while IFS= read -r _nh_chk_sid; do
+				[ -n "$_nh_chk_sid" ] || continue
+				echog " ! core.${_nh_chk_idx}: '${_nh_chk_sid}' is indexed but no .nho is in the repository (stale entry)." >&2
+				_nh_stale=$((_nh_stale + 1))
+			done <<< "$_nh_chk_stale"
+		done
 		rm -rf "${_nh_chk_dir}"
 		if [[ ${_nh_integrity_errors} -eq 0 ]]; then
 			echog " - Integrity check passed (${_nh_chk_total} package(s) indexed)."
@@ -909,6 +940,11 @@ case "${NHOPKG_OPTION}" in
 	cleanup_tmp_dir
 
 	echog " --- ${_nh_added} added, ${_nh_skipped} skipped, ${_nh_failed} failed."
+	if [[ ${_nh_stale} -gt 0 ]]; then
+		echog " ! ${_nh_stale} stale index entr(y/ies) with no .nho behind them." >&2
+		echog "   They advertise packages that cannot be downloaded. Re-adding the" >&2
+		echog "   matching .nho, or removing the entries by hand, fixes it." >&2
+	fi
 	if [[ ${#_NH_SKIPPED[@]} -gt 0 ]]; then
 		echog " --- Packages not added to the repository:"
 		for _nh_entry in "${_NH_SKIPPED[@]}"; do

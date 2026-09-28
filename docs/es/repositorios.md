@@ -81,6 +81,12 @@ Cuando una versión se retira del repositorio, su metadata se retira con ella: e
 índice deja de anunciar una versión cuyo archivo ya no está. Antes el `.nho` se
 borraba pero su entrada se quedaba, y el índice prometía una descarga imposible.
 
+También se audita el sentido contrario: entradas del índice sin archivo `.nho`
+detrás. Es lo que queda en los repositorios publicados por versiones anteriores,
+y se avisa de cada una nombrando el identificador exacto. Son un **aviso**, no un
+error: no las produce esta versión y repararlas es una operación explícita, así
+que no rompen el código de salida.
+
 El comando termina con un resumen (`added, skipped, failed`) y devuelve código de
 salida 1 si algún paquete fue rechazado o si la comprobación de integridad
 detecta una inconsistencia, por lo que es seguro usarlo desde scripts y

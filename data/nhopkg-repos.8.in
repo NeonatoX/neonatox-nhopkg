@@ -86,6 +86,12 @@ repository is checked against \fBcore.packages.tar.zst\fR and, when it ships
 files, \fBcore.files.tar.zst\fR, so a package can no longer stay on disk
 unindexed.
 .P
+The opposite direction is also audited: index entries with no archive behind
+them, which is what a repository published by an older release looks like, are
+listed as stale entries. They are reported as a warning and do not change the
+exit status, since they are not produced by this release and repairing them is
+an explicit operation.
+.P
 The command ends with a summary of the added, skipped and failed packages, and
 exits with status 1 if any package was rejected or if the integrity check found
 an inconsistency, making it safe to use from scripts and CI pipelines.
