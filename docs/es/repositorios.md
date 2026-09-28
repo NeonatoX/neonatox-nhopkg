@@ -77,6 +77,10 @@ repositorio contra `core.packages.tar.zst` y, si contiene archivos, contra
 `core.files.tar.zst`. Así un paquete ya no puede quedarse en el disco sin quedar
 indexado, que era la causa de los "paquetes ausentes" que reportaba nhopkg.
 
+Cuando una versión se retira del repositorio, su metadata se retira con ella: el
+índice deja de anunciar una versión cuyo archivo ya no está. Antes el `.nho` se
+borraba pero su entrada se quedaba, y el índice prometía una descarga imposible.
+
 El comando termina con un resumen (`added, skipped, failed`) y devuelve código de
 salida 1 si algún paquete fue rechazado o si la comprobación de integridad
 detecta una inconsistencia, por lo que es seguro usarlo desde scripts y

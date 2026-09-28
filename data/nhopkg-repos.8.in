@@ -71,6 +71,8 @@ Packages without a signature are signed on the fly if
 .RE
 \fB\-\-repo\-dir\fR specifies the repository root directory (required).
 Keeps only the latest version per package and rebuilds the affected metadata.
+The metadata of a retired version is removed with the package itself, so the
+index never advertises a version whose archive is gone.
 .P
 Every incoming package is validated before it is copied: it must exist, be a
 readable \fI.nho\fR archive, carry a complete and well formed nhoid, and use the

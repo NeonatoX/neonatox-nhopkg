@@ -625,13 +625,39 @@ case "${NHOPKG_OPTION}" in
 		repodir="$REPO_ROOT/$repo"
 		mkdir -p "$repodir"
 
+		# The staging structure is prepared before the retirement pass below,
+		# which needs it to drop the metadata of the versions it removes.
+		mkdir -p "$NHOPKG_TMPDIR/$repo/packages" "$NHOPKG_TMPDIR/$repo/files"
+
 		# Remove older versions. The name is matched against the nhoid of
 		# each candidate, so a package whose name merely starts with this
 		# one is never removed.
+		#
+		# The metadata of a retired version has to go with it. The published
+		# index is unpacked into this same staging area further down, so
+		# deleting the .nho while leaving its entry behind made the repository
+		# advertise a package that could not be downloaded ("lasted version
+		# available" pointing at nothing). That metadata lives in two places:
+		# the staging area, for a version staged earlier in this very run, and
+		# the published index, for one retired by an earlier run. Both are
+		# handled here: the first is deleted, the second is recorded in
+		# "retired" and purged before the index is rebuilt.
 		for old in "$repodir"/"${pkgname}"-*.nho; do
 			[ -f "$old" ] || continue
-			old_name=$(tar xfO "$old" nhoid 2>/dev/null | grep "^# Name:" | awk -F'\t' '{print $2}')
-			[ "$old_name" = "$pkgname" ] && rm -f "$old"
+			old_nhoid=$(tar xfO "$old" nhoid 2>/dev/null)
+			old_name=$(printf '%s' "$old_nhoid" | grep "^# Name:" | awk -F'\t' '{print $2}')
+			[ "$old_name" = "$pkgname" ] || continue
+			rm -f "$old"
+			old_version=$(printf '%s' "$old_nhoid" | grep "^# Version:" | awk -F'\t' '{print $2}')
+			old_release=$(printf '%s' "$old_nhoid" | grep "^# Release:" | awk -F'\t' '{print $2}')
+			# Without a full id there is nothing to purge by name. The entry
+			# is then reported by the reverse audit instead of silently kept.
+			[[ -n "$old_version" && -n "$old_release" ]] || continue
+			old_full="${old_name}-${old_version}-${old_release}"
+			rm -f "$NHOPKG_TMPDIR/$repo/packages/$old_full" \
+				  "$NHOPKG_TMPDIR/$repo/files/$old_full"
+			printf '%s\t%s\t%s\n' "$old_name" "$old_version" "$old_release" \
+				>> "$NHOPKG_TMPDIR/$repo/retired"
 		done
 
 		# A package without data.tar.zst (a metapackage, or a build whose
@@ -677,9 +703,8 @@ case "${NHOPKG_OPTION}" in
 			continue
 		fi
 
-		# Prepare repo staging structure
-		mkdir -p "$NHOPKG_TMPDIR/$repo/packages" "$NHOPKG_TMPDIR/$repo/files"
-
+		# The staging structure (packages/, files/) was created before the
+		# retirement pass at the top of the loop, which writes into it.
 		cp "$NHOPKG_TMPDIR/nhoid" "$NHOPKG_TMPDIR/$repo/packages/$meta_name"
 
 		# Extract file list into a per-package directory: extracting
@@ -732,6 +757,21 @@ case "${NHOPKG_OPTION}" in
 			tar xf - -C "$tmpbuild" 2>/dev/null
 		fi
 
+		# Drop the metadata of the versions retired during this run, before
+		# the index is rebuilt: the published one was just unpacked above, and
+		# the staging area was already cleaned by the retirement pass itself.
+		# Purging first and dumping after means that an id retired and
+		# re-added in the same call (the same .nho passed twice) ends up
+		# published once, which is the intent.
+		if [ -f "$repo/retired" ]; then
+			while IFS=$'\t' read -r _nh_ret_name _nh_ret_ver _nh_ret_rel; do
+				[[ -n "$_nh_ret_name" && -n "$_nh_ret_ver" && -n "$_nh_ret_rel" ]] || continue
+				rm -f "$tmpbuild/${_nh_ret_name}-${_nh_ret_ver}-${_nh_ret_rel}" \
+					  "$tmpbuild/${_nh_ret_name}-${_nh_ret_ver}" \
+					  "$tmpbuild/${_nh_ret_name}"
+			done < "$repo/retired"
+		fi
+
 		_nh_meta_total=0
 		for _nh_meta_c in "$repo/packages/"*; do
 			[ -f "$_nh_meta_c" ] || continue
@@ -767,6 +807,15 @@ case "${NHOPKG_OPTION}" in
 		if [ -f "$repodir/core.files.tar.zst" ]; then
 			zstd -dc "$repodir/core.files.tar.zst" 2>/dev/null | \
 			tar xf - -C "$tmpfiles" 2>/dev/null
+		fi
+
+		# Same purge as in core.packages: a retired version must not leave its
+		# file list behind either.
+		if [ -f "$repo/retired" ]; then
+			while IFS=$'\t' read -r _nh_ret_name _nh_ret_ver _nh_ret_rel; do
+				[[ -n "$_nh_ret_name" && -n "$_nh_ret_ver" && -n "$_nh_ret_rel" ]] || continue
+				rm -f "$tmpfiles/${_nh_ret_name}-${_nh_ret_ver}-${_nh_ret_rel}"
+			done < "$repo/retired"
 		fi
 
 		_nh_file_total=0
