@@ -88,11 +88,14 @@ against a stale binary reports a working fix as a broken one. `ensure_build` in
 ## What is not covered
 
 - **The client.** Everything here drives `nhopkg-repos`. `nhopkg` itself
-  (`nhopkg -S <pkg>`) needs real root, and the client reads the repository from
-  a different path than the publisher writes it: `nhopkg-repos` writes
-  `repo/<repo>/packages/`, the search and `-t` read the flat `repo/packages/`.
-  Two layouts coexist; resolving that is a prerequisite for testing the client
-  at all.
+  (`nhopkg -S <pkg>`) needs real root, and that is the only reason it is not
+  covered: the rest of the path is the same code under a different entry point.
+  The layout is not a problem, by the way, and it is worth writing down so
+  nobody wastes time on it: the publisher copies the `.nho` flat into
+  `$REPO_ROOT/<repo>/` (`nhopkg-repos.in:701`) and the client builds exactly
+  that remote filename from the `# OS:`/`# Arch:` fields in the index
+  (`libnhopkg_udepsys.in:674`). The `repo/<repo>/packages/` directory the
+  client uses holds the *unpacked* index, the plain nhoid files, not payloads.
 - **`nhopkg`, `nhouser`, `nhopicker`, `nhoget`, `nhopkg-src`** and the overlay
   tool: no tests yet.
 - **Package hooks inside a chroot.** The prelude that gives `npostinstall` and
