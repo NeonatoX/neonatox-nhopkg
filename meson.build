@@ -1,5 +1,5 @@
 project('nhopkg', 'c',
-  version: '1.1',
+  version: '2.0',
   license: 'GPL3+',
   default_options: [
     'prefix=/usr',

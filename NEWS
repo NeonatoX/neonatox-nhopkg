@@ -1,3 +1,24 @@
+2.0 (2026-09-28)
+--------------------------------
+* BREAKING: nhopkg-repos drops create-repo; add-to-repo bootstraps a repository from scratch
+* BREAKING: nhopkg-repos -A exits 1 if a package was rejected or the index integrity check fails
+* fix(nhopkg-repos): stop silently dropping packages in add-to-repo (index purged by "name-*" prefix, nhoid aborting the batch, unquoted $CASEPACKAGES, unsanitised pkgname, silent "continue", always exit 0)
+* feat(nhopkg-repos): verify every .nho against core.packages/core.files after the update, and end with an "added, skipped, failed" summary listing each rejected package and why
+* feat(nhopkg-repos): progress bars in create, sign-all and add-to-repo
+* refactor(nhopkg): unify repository sync across all update paths
+* feat(libnhopkg): unified progress bar with bytes/count/spinner modes, plus progress for repo.db and installed.db generation
+* feat(nhopkg): unified progress bar for install and remove, download counter for dependencies, single decompress in check and upgrade
+* feat(nhopkg): --packaging builds into a temporary DESTDIR
+* feat(nhopkg): --arch / NHOPKG_TARGET_ARCH to re-label packaging builds
+* feat(nhopkg): env overrides for library paths, BusyBox path and the gettext toggle
+* refactor(libnhopkg): scope the BusyBox private PATH behind helper functions
+* fix(nhopkg): create the lockfile directory before writing the lock
+* fix(nhopkg-bb-setup): dedupe repeated applets and add env/printenv
+* fix(nhopkg-repos): drop invalid local declaration outside functions
+* fix(build): force the musl toolchain in static busybox/zstd builds and verify prebuilt checksums
+* chore(build): refresh prebuilt busybox/zstd archive checksums
+* docs: document --packaging, --arch, and add-to-repo validation, integrity check and exit status
+
 1.1 (2026-09-16)
 --------------------------------
 * feat(build): BusyBox + zstd providers auto/download/build/no and self-healing PATH
