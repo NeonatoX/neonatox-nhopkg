@@ -232,7 +232,9 @@ while [[ "${1}" != "--" ]]; do
 	esac
 done
 
-CASEPACKAGES="$@"
+# Packages to operate on, as an array. Iterating a quoted string used to
+# word-split it, so "my package.nho" became two bogus entries.
+CASEPACKAGES=("$@")
 
 [[ -z "${NHOPKG_OPTION}" ]] && {
 	echog " * No operation specified. Use --help." >&2
@@ -488,9 +490,20 @@ case "${NHOPKG_OPTION}" in
 	get_pwd_dir
 	check_if_root_uid
 
-	[ -z "$CASEPACKAGES" ] && { echog " * Must specify .nho packages." >&2; exit 1; }
 	[ -z "$REPO_ROOT" ] && { echog " * Must specify --repo-dir." >&2; exit 1; }
 	[ ! -d "$REPO_ROOT" ] && { echog " * Repository root does not exist." >&2; exit 1; }
+
+	# The getopt sentinel is still in "$@" (the parse loop stops on it without
+	# consuming it), so count the real package arguments instead of using the
+	# array length.
+	_nh_in_total=0
+	for _nh_in_p in "${CASEPACKAGES[@]}"; do
+		case "$_nh_in_p" in
+			--*) continue ;;
+		esac
+		_nh_in_total=$((_nh_in_total + 1))
+	done
+	[ ${_nh_in_total} -eq 0 ] && { echog " * Must specify .nho packages." >&2; exit 1; }
 
 	# --verify-incoming: check NHOPKG_VERIFY_INCOMING from config too
 	[[ "${NHOPKG_VERIFY_INCOMING}" == "yes" ]] && VERIFY_INCOMING=1
@@ -504,22 +517,45 @@ case "${NHOPKG_OPTION}" in
 	make_tmp_dir
 
 	#-----------------------------------------------------------
+	# 0. Counters and skip reporting
+	#-----------------------------------------------------------
+	# Every rejection goes through _nh_repo_skip() so that no package can be
+	# dropped without a reason, the progress bar always reaches 100%, and the
+	# run can finish with a status that reflects what really happened.
+	_nh_added=0
+	_nh_skipped=0
+	_nh_failed=0
+	_nh_integrity_errors=0
+	declare -a _NH_SKIPPED=()
+	_nh_repo_skip()
+	{
+		# $1: package path, $2: reason. $3: "skip" (default) or "fail".
+		_NH_SKIPPED+=("${1}"$'\t'"${2}")
+		if [[ "${3:-skip}" == "fail" ]]; then
+			_nh_failed=$((_nh_failed + 1))
+		else
+			_nh_skipped=$((_nh_skipped + 1))
+		fi
+		_nh_in_done=$((_nh_in_done + 1))
+		nhopkg_draw_progress_bar count "${_nh_in_done}" "${_nh_in_total}" "pkg"
+	}
+
+	#-----------------------------------------------------------
 	# 1. Process incoming packages
 	#-----------------------------------------------------------
-	_nh_in_total=0
-	for _nh_in_p in $CASEPACKAGES; do
-		case "$_nh_in_p" in
-			--*) continue ;;
-		esac
-		_nh_in_total=$((_nh_in_total + 1))
-	done
+	# _nh_in_total was already computed above, next to the "no packages"
+	# guard, so the progress bar below has a denominator to divide by.
 	_nh_in_done=0
-	for pkgpath in $CASEPACKAGES; do
+	for pkgpath in "${CASEPACKAGES[@]}"; do
 		case "$pkgpath" in
 			--*) continue ;;
 		esac
 
-		[ ! -f "$pkgpath" ] && { echog " * Package not found: $pkgpath"; continue; }
+		[ ! -f "$pkgpath" ] && {
+			echog " * Package not found: $pkgpath"
+			_nh_repo_skip "$pkgpath" "file not found"
+			continue
+		}
 
 		echogn " :: Adding package: $(basename "$pkgpath")"
 
@@ -527,16 +563,55 @@ case "${NHOPKG_OPTION}" in
 		if [[ ${VERIFY_INCOMING} -eq 1 ]]; then
 			if ! crypto_verify_incoming "$pkgpath"; then
 				echog " *** REJECTED: package signature not trusted." >&2
+				_nh_repo_skip "$pkgpath" "signature not trusted"
 				continue
 			fi
 		fi
 
 		# Extract nhoid
 		tar xfO "$pkgpath" nhoid > "$NHOPKG_TMPDIR/nhoid" 2>/dev/null || {
-			echog " * Invalid package."; continue
+			echog " * Invalid package." >&2
+			_nh_repo_skip "$pkgpath" "unreadable or invalid tar archive"
+			continue
 		}
 
+		# nhoid compatibility gate. get_nhoid_data() reacts to a missing or
+		# foreign nhoid by calling exit 1, which kills the whole run: one
+		# stale package silently dropped every package queued after it.
+		# Checking the marker first keeps the failure local to this package.
+		_nh_pkg_nhoid=$(grep "^#%NHO-" "$NHOPKG_TMPDIR/nhoid" 2> /dev/null | sed -e 's@^#%NHO-@@')
+		if [[ -z "${_nh_pkg_nhoid}" ]]; then
+			echog " * Not a nhopkg package: no nhoid marker." >&2
+			_nh_repo_skip "$pkgpath" "no nhoid marker"
+			continue
+		elif [[ "${_nh_pkg_nhoid}" != "${NHOID_VERSION}" ]]; then
+			echog " * Package uses nhoid ${_nh_pkg_nhoid}, this nhopkg uses ${NHOID_VERSION}." >&2
+			_nh_repo_skip "$pkgpath" "nhoid ${_nh_pkg_nhoid} != ${NHOID_VERSION}"
+			continue
+		fi
+
 		get_nhoid_data "$NHOPKG_TMPDIR/nhoid"
+
+		# Sanitize package identity. meta_name becomes a file name in the
+		# staging dir and in core.packages/core.files, and pkgname is also
+		# used as a glob, so a hostile nhoid could otherwise walk out of the
+		# staging dir or delete unrelated entries. Repository names are
+		# already checked right below for the very same reason.
+		if [[ -z "${pkgname}" || -z "${pkgversion}" || -z "${pkgrevision}" ]]; then
+			echog " * Incomplete package metadata (name, version or release missing)." >&2
+			_nh_repo_skip "$pkgpath" "incomplete nhoid metadata"
+			continue
+		fi
+		meta_name="$pkgname-$pkgversion-$pkgrevision"
+		case "${pkgname}" in
+			[A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9._+-]*) : ;;
+			*) echog " >>> Invalid package name in nhoid: '${pkgname}'. Package rejected." >&2
+			   _nh_repo_skip "$pkgpath" "invalid package name"; continue ;;
+		esac
+		case "${meta_name}" in
+			*[!A-Za-z0-9._+~-]*) echog " >>> Invalid version or release in nhoid: '${pkgversion}-${pkgrevision}'. Package rejected." >&2
+			   _nh_repo_skip "$pkgpath" "invalid version/release"; continue ;;
+		esac
 
 		repo="${pkgrepo:-extra}"
 		# Sanitize: lowercase only, no path components and no traversal.
@@ -544,25 +619,44 @@ case "${NHOPKG_OPTION}" in
 		repo="${repo,,}"
 		case "${repo}" in
 			[a-z0-9]|[a-z0-9][a-z0-9._-]*[a-z0-9]) : ;;
-			*) echog " >>> Invalid repository name in nhoid: '${pkgrepo}'. Package rejected." >&2; continue ;;
+			*) echog " >>> Invalid repository name in nhoid: '${pkgrepo}'. Package rejected." >&2
+			   _nh_repo_skip "$pkgpath" "invalid repository name"; continue ;;
 		esac
 		repodir="$REPO_ROOT/$repo"
 		mkdir -p "$repodir"
 
-		# Remove older versions
+		# Remove older versions. The name is matched against the nhoid of
+		# each candidate, so a package whose name merely starts with this
+		# one is never removed.
 		for old in "$repodir"/"${pkgname}"-*.nho; do
 			[ -f "$old" ] || continue
 			old_name=$(tar xfO "$old" nhoid 2>/dev/null | grep "^# Name:" | awk -F'\t' '{print $2}')
 			[ "$old_name" = "$pkgname" ] && rm -f "$old"
 		done
 
+		# A package without data.tar.zst (a metapackage, or a build whose
+		# file list came out empty) is valid: it has no files to sign and no
+		# file list to publish. Treating it as an error used to drop it from
+		# the repository without printing a word.
+		pkg_has_data=0
+		tar tf "$pkgpath" 2>/dev/null | grep -qx "data.tar.zst" && pkg_has_data=1
+
 		# Sign package if it has no signature and signing is enabled
-		if [[ "${NHOPKG_SIGN_PACKAGES}" == "yes" ]]; then
+		if [[ "${NHOPKG_SIGN_PACKAGES}" == "yes" && ${pkg_has_data} -eq 1 ]]; then
 			has_sig=0
-			pkg_tmp=$(mktemp -d) || continue
-			tar xf "$pkgpath" -C "$pkg_tmp" data.tar.zst 2>/dev/null || { rm -rf "$pkg_tmp"; continue; }
+			if ! pkg_tmp=$(mktemp -d); then
+				echog " * Unable to create a temporary directory to sign the package." >&2
+				_nh_repo_skip "$pkgpath" "mktemp failed" "fail"
+				continue
+			fi
+			if ! tar xf "$pkgpath" -C "$pkg_tmp" data.tar.zst 2>/dev/null; then
+				rm -rf "$pkg_tmp"
+				echog " * Unable to read data.tar.zst from the package." >&2
+				_nh_repo_skip "$pkgpath" "unreadable data.tar.zst" "fail"
+				continue
+			fi
 			for sig in "$pkg_tmp"/signature*.gpg; do
-				[[ -f "$sig" ]] && { has_sig=1; break; }
+				[[ -f "${sig}" ]] && { has_sig=1; break; }
 			done
 
 			if [[ ${has_sig} -eq 0 ]]; then
@@ -573,23 +667,46 @@ case "${NHOPKG_OPTION}" in
 				fi
 			fi
 			rm -rf "$pkg_tmp"
+		elif [[ ${pkg_has_data} -eq 0 ]]; then
+			echog "   - No data.tar.zst: adding it with an empty file list."
 		fi
 
-		cp "$pkgpath" "$repodir/"
+		if ! cp "$pkgpath" "$repodir/"; then
+			echog " * Unable to copy the package into ${repo}." >&2
+			_nh_repo_skip "$pkgpath" "copy to ${repo} failed" "fail"
+			continue
+		fi
 
 		# Prepare repo staging structure
 		mkdir -p "$NHOPKG_TMPDIR/$repo/packages" "$NHOPKG_TMPDIR/$repo/files"
 
-		meta_name="$pkgname-$pkgversion-$pkgrevision"
 		cp "$NHOPKG_TMPDIR/nhoid" "$NHOPKG_TMPDIR/$repo/packages/$meta_name"
 
-		# Extract file list
-		tar xf "$pkgpath" -C "$NHOPKG_TMPDIR" data.tar.zst 2>/dev/null
-		if [ -f "$NHOPKG_TMPDIR/data.tar.zst" ]; then
-			zstd -dc "$NHOPKG_TMPDIR/data.tar.zst" 2>/dev/null | \
-			tar -tf - 2>/dev/null > "$NHOPKG_TMPDIR/$repo/files/$meta_name"
-			rm -f "$NHOPKG_TMPDIR/data.tar.zst"
+		# Extract file list into a per-package directory: extracting
+		# data.tar.zst at the root of the shared temp dir let a leftover file
+		# from a previous package leak into this one.
+		if [[ ${pkg_has_data} -eq 1 ]]; then
+			_nh_datadir="${NHOPKG_TMPDIR}/.data.$$"
+			rm -rf "${_nh_datadir}"
+			mkdir -p "${_nh_datadir}"
+			if tar xf "$pkgpath" -C "$_nh_datadir" data.tar.zst 2>/dev/null && \
+				zstd -dc "$_nh_datadir/data.tar.zst" 2>/dev/null | \
+				tar -tf - 2>/dev/null > "$NHOPKG_TMPDIR/$repo/files/$meta_name"; then
+				_nh_file_ok=1
+			else
+				_nh_file_ok=0
+				rm -f "$NHOPKG_TMPDIR/$repo/files/$meta_name"
+			fi
+			rm -rf "${_nh_datadir}"
+			# An indexed package with no file list is broken for the client:
+			# report it instead of publishing a half-updated repository.
+			if [[ ${_nh_file_ok} -eq 0 ]]; then
+				echog " * Unable to read the file list of ${meta_name}." >&2
+				_nh_repo_skip "$pkgpath" "unreadable data.tar.zst payload" "fail"
+				continue
+			fi
 		fi
+		_nh_added=$((_nh_added + 1))
 		_nh_in_done=$((_nh_in_done + 1))
 		nhopkg_draw_progress_bar count "${_nh_in_done}" "${_nh_in_total}" "pkg"
 	done
@@ -625,7 +742,11 @@ case "${NHOPKG_OPTION}" in
 			[ -f "$newmeta" ] || continue
 			get_basic_data "$newmeta"
 			full="$pkgname-$pkgversion-$pkgrevision"
-			rm -f "$tmpbuild/$pkgname"-* "$tmpbuild/$pkgname"
+			# Purge ONLY this package's own entries. A "name-*" glob would
+			# also wipe packages whose name merely starts with "name-"
+			# (adding "alpha" used to unindex "alpha-devel" for good).
+			rm -f "$tmpbuild/$full" "$tmpbuild/$pkgname-$pkgversion" \
+				"$tmpbuild/$pkgname"
 			cp "$newmeta" "$tmpbuild/$full"
 			ln -sf "$full" "$tmpbuild/$pkgname-$pkgversion"
 			ln -sf "$full" "$tmpbuild/$pkgname"
@@ -656,9 +777,10 @@ case "${NHOPKG_OPTION}" in
 		_nh_file_done=0
 		for newfile in "$repo/files/"*; do
 			[ -f "$newfile" ] || continue
-			name=$(basename "$newfile")
-			pkgbase=$(echo "$name" | sed 's/-[^-]*-[^-]*$//')
-			rm -f "$tmpfiles/$pkgbase"-*
+			# The staging file name already IS pkgname-pkgversion-pkgrevision
+			# (see meta_name in the package loop), so purging it by exact
+			# name needs no prefix guess and no version splitting.
+			rm -f "$tmpfiles/$(basename "$newfile")"
 			cp "$newfile" "$tmpfiles/"
 			_nh_file_done=$((_nh_file_done + 1))
 			nhopkg_draw_progress_bar count "${_nh_file_done}" "${_nh_file_total}" "${reponame}:files"
@@ -686,10 +808,74 @@ case "${NHOPKG_OPTION}" in
 		# Sign repo metadata
 		crypto_sign_repo_metadata "${repodir}" "${SIGN_KEY}"
 
+		# ---------- integrity check ----------
+		# A repository is only usable if every .nho sitting in it is
+		# reachable through the published index. Rebuilding the index used
+		# to purge entries with a "name-*" glob, which silently unindexed
+		# any package whose name merely started with the one being added:
+		# the .nho stayed on disk and nhopkg reported it as missing. Check
+		# the metadata that was just written against the packages that are
+		# actually there, instead of trusting the variables of this run.
+		_nh_chk_dir="${NHOPKG_TMPDIR}/$reponame/.check.$$"
+		rm -rf "${_nh_chk_dir}"
+		mkdir -p "${_nh_chk_dir}"
+		zstd -dc "$repodir/core.packages.tar.zst" 2>/dev/null | \
+			tar tf - 2>/dev/null | sed -e 's@^\./@@' | grep -v '^$' | sort -u \
+			> "${_nh_chk_dir}/packages"
+		zstd -dc "$repodir/core.files.tar.zst" 2>/dev/null | \
+			tar tf - 2>/dev/null | sed -e 's@^\./@@' | grep -v '^$' | sort -u \
+			> "${_nh_chk_dir}/files"
+		_nh_chk_total=0
+		for _nh_chk_f in "$repodir"/*.nho; do
+			[ -f "${_nh_chk_f}" ] || continue
+			_nh_chk_total=$((_nh_chk_total + 1))
+			_nh_chk_id=$(tar xfO "${_nh_chk_f}" nhoid 2>/dev/null | \
+				awk -F'\t' '/^# Name:/{n=$2} /^# Version:/{v=$2} /^# Release:/{r=$2} END{print n"-"v"-"r}')
+			if [[ -z "${_nh_chk_id}" || "${_nh_chk_id}" == "-" ]]; then
+				echog " *** $(basename "${_nh_chk_f}"): unreadable nhoid, cannot be indexed." >&2
+				_nh_integrity_errors=$((_nh_integrity_errors + 1))
+				continue
+			fi
+			grep -qxF "${_nh_chk_id}" "${_nh_chk_dir}/packages" || {
+				echog " *** $(basename "${_nh_chk_f}"): ${_nh_chk_id} is not in core.packages.tar.zst." >&2
+				_nh_integrity_errors=$((_nh_integrity_errors + 1))
+			}
+			# A package with no data.tar.zst (a metapackage) has no file
+			# list by design; only packages that ship files need one.
+			if tar tf "${_nh_chk_f}" 2>/dev/null | grep -qx "data.tar.zst"; then
+				grep -qxF "${_nh_chk_id}" "${_nh_chk_dir}/files" || {
+					echog " *** $(basename "${_nh_chk_f}"): ${_nh_chk_id} has no file list in core.files.tar.zst." >&2
+					_nh_integrity_errors=$((_nh_integrity_errors + 1))
+				}
+			fi
+		done
+		rm -rf "${_nh_chk_dir}"
+		if [[ ${_nh_integrity_errors} -eq 0 ]]; then
+			echog " - Integrity check passed (${_nh_chk_total} package(s) indexed)."
+		fi
+
 		echog " - Repository $reponame updated."
 	done
 
 	cleanup_tmp_dir
+
+	echog " --- ${_nh_added} added, ${_nh_skipped} skipped, ${_nh_failed} failed."
+	if [[ ${#_NH_SKIPPED[@]} -gt 0 ]]; then
+		echog " --- Packages not added to the repository:"
+		for _nh_entry in "${_NH_SKIPPED[@]}"; do
+			_nh_p=${_nh_entry%%$'\t'*}
+			_nh_r=${_nh_entry#*$'\t'}
+			echog "   - $(basename "${_nh_p}"): ${_nh_r}"
+		done
+	fi
+	if [[ ${_nh_integrity_errors} -gt 0 ]]; then
+		echog " *** Repository integrity check FAILED: ${_nh_integrity_errors} problem(s)." >&2
+		exit 1
+	fi
+	if [[ ${_nh_skipped} -gt 0 || ${_nh_failed} -gt 0 ]]; then
+		echog " *** Not every requested package made it into the repository." >&2
+		exit 1
+	fi
 	echog " - Incremental repository update completed."
 	exit 0
 	;;
