@@ -15,6 +15,7 @@
 * fix(nhopkg): create the lockfile directory before writing the lock
 * fix(nhopkg-bb-setup): dedupe repeated applets and add env/printenv
 * fix(nhopkg-repos): drop invalid local declaration outside functions
+* fix(nhopkg): load the target's conf and libnhopkg in chroot package hooks, so npostinstall/npostremove find noemptyfuncs and the ninstall/nhouser helpers
 * fix(build): force the musl toolchain in static busybox/zstd builds and verify prebuilt checksums
 * chore(build): refresh prebuilt busybox/zstd archive checksums
 * docs: document --packaging, --arch, and add-to-repo validation, integrity check and exit status
