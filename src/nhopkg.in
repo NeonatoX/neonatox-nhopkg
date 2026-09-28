@@ -897,9 +897,10 @@ bin_install_setting_up()
 		cat > "$_ns_hook" << HOOK_SCRIPT
 #!/bin/sh
 # Host-side NHOPKG_* overrides (--root style paths) do not exist inside the
-# target: drop them so in-target tools fall back to their baked defaults.
+# target: drop them so in-target tools fall back to their baked defaults, then
+# load the target's conf + libnhopkg (noemptyfuncs and package helpers).
 unset NHOPKG_CONF NHOPKG_LIB NHOPKG_UDEP_LIB NHOPKG_DOWNLOAD_LIB NHOPKG_CRYPTO_LIB NHOPKG_BB_DIR NHOPKG_BB_SETUP
-$(nhopkg_bb_prelude)
+$(nhopkg_chroot_prelude)
 source ${_nh_path}
 npostinstall
 HOOK_SCRIPT
@@ -1238,9 +1239,10 @@ remove_package_all()
 			cat > "$_ns_hook" << HOOK_SCRIPT
 #!/bin/sh
 # Host-side NHOPKG_* overrides (--root style paths) do not exist inside the
-# target: drop them so in-target tools fall back to their baked defaults.
+# target: drop them so in-target tools fall back to their baked defaults, then
+# load the target's conf + libnhopkg (noemptyfuncs and package helpers).
 unset NHOPKG_CONF NHOPKG_LIB NHOPKG_UDEP_LIB NHOPKG_DOWNLOAD_LIB NHOPKG_CRYPTO_LIB NHOPKG_BB_DIR NHOPKG_BB_SETUP
-$(nhopkg_bb_prelude)
+$(nhopkg_chroot_prelude)
 source ${_nh_path}
 npostremove
 HOOK_SCRIPT

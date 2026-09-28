@@ -112,6 +112,26 @@ nhopkg_bb_prelude()
         "@prefix@/lib/nhopkg/bin" "@prefix@/lib/nhopkg/bin"
 }
 
+# Prelude for package hooks, which run inside the target chroot via
+# ns_exec_in() and source the nhoid directly. It reproduces nhopkg's own
+# startup sequence with the baked (in-target) paths:
+#   1. load the target's nhopkg.conf, so NHOPKG_* dirs/flags are in-target
+#   2. load the target's libnhopkg: package npostinstall/npostremove bodies
+#      rely on it (noemptyfuncs and the ninstall/nhouser helpers)
+#   3. prepend the private BusyBox dir
+# The conf and the library are bash-only, so both are guarded and silenced:
+# with a POSIX /bin/sh (busybox ash) they degrade to the previous behaviour
+# instead of spamming syntax errors, and nhouser keeps working because it is a
+# separate tool that resolves its own library.
+nhopkg_chroot_prelude()
+{
+    local _conf="@sysconfdir@/nhopkg/nhopkg.conf"
+    local _lib="@prefix@/lib/nhopkg/libnhopkg"
+    printf '[ -f %s ] && . %s 2>/dev/null\n' "$_conf" "$_conf"
+    printf '[ -f %s ] && . %s 2>/dev/null\n' "$_lib" "$_lib"
+    nhopkg_bb_prelude
+}
+
 #==============================================================================
 # Section: Nhopkg colorized script.
 #==============================================================================
