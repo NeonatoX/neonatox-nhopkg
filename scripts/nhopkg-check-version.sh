@@ -64,17 +64,17 @@ if [ "${commits_total}" -ge "${MINOR_COMMITS_LIMIT}" ] || [ "${days}" -ge "${MIN
 fi
 
 if [ "${due}" -eq 1 ]; then
-	[ "${1:-}" = "--quiet" ] || {
-		echo "Nhopkg versioning reminder"
-		echo "  Range:          ${RANGE}"
-		echo "  Commits:        ${commits_total} (fixes: ${commits_fix}, features: ${commits_feat}, breaking: ${commits_breaking})"
-		echo "  Days since tag: ${days}"
-		echo
-		echo "  >>> ${verdict} <<<"
-		echo "  Run the Release Workflow: bump meson.build version, update NEWS,"
-		echo "  write changelog-<version>.md, commit and create the annotated tag."
-		echo "  (limits: ${notes})"
-	}
+	# --quiet silences the "nothing due" report, not this one: a bump being
+	# due is the only thing the post-commit hook exists to say out loud.
+	echo "Nhopkg versioning reminder"
+	echo "  Range:          ${RANGE}"
+	echo "  Commits:        ${commits_total} (fixes: ${commits_fix}, features: ${commits_feat}, breaking: ${commits_breaking})"
+	echo "  Days since tag: ${days}"
+	echo
+	echo "  >>> ${verdict} <<<"
+	echo "  Run the Release Workflow: bump meson.build version, update NEWS,"
+	echo "  write changelog-<version>.md, commit and create the annotated tag."
+	echo "  (limits: ${notes})"
 	exit 0
 fi
 
