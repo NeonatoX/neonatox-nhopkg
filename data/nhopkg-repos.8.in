@@ -72,6 +72,22 @@ Packages without a signature are signed on the fly if
 \fB\-\-repo\-dir\fR specifies the repository root directory (required).
 Keeps only the latest version per package and rebuilds the affected metadata.
 .P
+Every incoming package is validated before it is copied: it must exist, be a
+readable \fI.nho\fR archive, carry a complete and well formed nhoid, and use the
+same nhoid version as this nhopkg. Packages that do not meet those requirements
+are rejected with a reason and counted, and the remaining packages are still
+processed. Packages without a \fBdata.tar.zst\fR member (metapackages) are added
+with an empty file list instead of being dropped.
+.P
+After the repository metadata has been written, every \fI.nho\fR stored in the
+repository is checked against \fBcore.packages.tar.zst\fR and, when it ships
+files, \fBcore.files.tar.zst\fR, so a package can no longer stay on disk
+unindexed.
+.P
+The command ends with a summary of the added, skipped and failed packages, and
+exits with status 1 if any package was rejected or if the integrity check found
+an inconsistency, making it safe to use from scripts and CI pipelines.
+.P
 Requires root privileges.
 
 .TP

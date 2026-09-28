@@ -62,6 +62,26 @@ Los repositorios se crean y mantienen con la herramienta complementaria `nhopkg-
   4. Genera metadatos (`core.packages.tar.zst`, `core.files.tar.zst`, `lastsync`) **por repositorio**.
   5. Copia los archivos `.nho` a sus respectivos subdirectorios.
 
+### Validación e integridad
+
+Antes de copiar cada paquete se comprueba que exista, que sea un archivo `.nho`
+legible, que su `nhoid` esté completo y bien formado (nombre, versión y revisión
+sin separadores ni rutas) y que use la misma versión de `nhoid` que este nhopkg.
+Un paquete que no cumpla esas condiciones se rechaza indicando el motivo y se
+cuenta en el resumen final, sin interrumpir el resto del lote. Los paquetes sin
+`data.tar.zst` (metapaquetes) se añaden con la lista de archivos vacía en lugar de
+descartarse.
+
+Una vez escritos los metadatos, se verifica cada `.nho` almacenado en el
+repositorio contra `core.packages.tar.zst` y, si contiene archivos, contra
+`core.files.tar.zst`. Así un paquete ya no puede quedarse en el disco sin quedar
+indexado, que era la causa de los "paquetes ausentes" que reportaba nhopkg.
+
+El comando termina con un resumen (`added, skipped, failed`) y devuelve código de
+salida 1 si algún paquete fue rechazado o si la comprobación de integridad
+detecta una inconsistencia, por lo que es seguro usarlo desde scripts y
+automatizaciones.
+
 
 
 Por ejemplo, si ejecutas:
