@@ -2051,10 +2051,27 @@ build_make_binary_package()
 		fi
 	# Package and compress files.
 	echog " --- Compressing package."
+		# The options must be explicit ("-c -p"). The old-style "cp" bundling is
+		# only parsed when the first argument is not an option, so
+		# "tar -C dir cp --files-from=..." was read as "no operation letter" by
+		# both GNU tar and BusyBox tar: tar failed, the pipeline still exited 0
+		# (that is zstd), and the build shipped an empty but valid data.tar.zst.
+		local _pkg_file_list="${NHOPKG_TMPDIR}/.${PKG_DISPLAY_NAME}-${pkgversion}-${pkgrevision}-installed.log"
+		local _pkg_data="${NHOPKG_TMPDIR}/data.tar.zst"
+		local _tar_status
 		if [[ "${NHOPKG_PACKAGING}" = "yes" ]]; then
-			tar -C "${NHOPACKAGING}" cp --files-from="${NHOPKG_TMPDIR}/.${PKG_DISPLAY_NAME}-${pkgversion}-${pkgrevision}-installed.log" 2>/dev/null | zstd > "${NHOPKG_TMPDIR}/data.tar.zst" 2>/dev/null
+			tar -C "${NHOPACKAGING}" -c -p --files-from="${_pkg_file_list}" 2>/dev/null | zstd > "${_pkg_data}" 2>/dev/null
 		else
-			tar cp --files-from="${NHOPKG_TMPDIR}/.${PKG_DISPLAY_NAME}-${pkgversion}-${pkgrevision}-installed.log" 2>/dev/null | zstd > "${NHOPKG_TMPDIR}/data.tar.zst" 2>/dev/null
+			tar -c -p --files-from="${_pkg_file_list}" 2>/dev/null | zstd > "${_pkg_data}" 2>/dev/null
+		fi
+		# ${PIPESTATUS[0]} is tar, not zstd. Read it before anything else runs.
+		_tar_status=${PIPESTATUS[0]}
+		if (( _tar_status != 0 )) || [[ ! -s "${_pkg_data}" ]]; then
+			echog " *** Unable to compress the package files (tar exit ${_tar_status})." >&2
+			echog " *** Refusing to build an empty package." >&2
+			rm -f "${_pkg_data}"
+			cleanup_tmp_dir
+			exit 1
 		fi
 		# Sign data.tar.zst if enabled (via libnhopkg_crypto)
 		crypto_sign_package
