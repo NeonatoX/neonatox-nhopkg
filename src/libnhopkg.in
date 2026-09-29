@@ -71,6 +71,13 @@ nhopkg_bb_dir()
             [[ -x "${bb_dir}/${key}" ]] || { bb_path_valid=0; break; }
         done
     fi
+    # Un symlink 'tar' heredado de una versión anterior (que sí lo enlazaba)
+    # rompe la extracción de paquetes binarios al ocupar el PATH privado que
+    # se antepone al del host: cuenta como inválido para forzar la limpieza.
+    if [[ $bb_path_valid -eq 1 && -L "${bb_dir}/tar" ]] \
+    && [[ "$(readlink "${bb_dir}/tar" 2>/dev/null)" == "busybox" ]]; then
+        bb_path_valid=0
+    fi
 
     # Self-heal: intentar regenerar si hubo corrupción
     if [[ $bb_path_valid -eq 0 && -x "$bb_setup" ]]; then

@@ -76,6 +76,23 @@ applet_ok() {
 
 mkdir -p "$NHOPKG_BB_DIR"
 
+# find_strays: symlinks a busybox en el PATH privado que ya no están en la
+# lista de applets (p.ej. 'tar', que se retiró porque su comportamiento con
+# hardlinks absolutos rompía la extracción de paquetes binarios). Como el
+# PATH privado se antepone al del host, un symlink colgado se cuela de nuevo
+# en cada llamada a tar: hay que borrarlo, no ignorarlo.
+find_strays()
+{
+    local f name
+    for f in "${NHOPKG_BB_DIR}"/*; do
+        [[ -L "$f" ]] || continue
+        [[ "$(readlink "$f")" == "busybox" ]] || continue
+        name="$(basename "$f")"
+        [[ -n "${_seen[$name]:-}" ]] && continue
+        echo "$name"
+    done
+}
+
 if [[ "$MODE" == "check" ]]; then
     _broken=0
     for _a in "${NHOPKG_BB_APPLETS[@]}"; do
@@ -86,6 +103,11 @@ if [[ "$MODE" == "check" ]]; then
             ((_broken++))
         fi
     done
+    while read -r _stray; do
+        [[ -n "$_stray" ]] || continue
+        echo "STRAY: $_stray (not in the applet list)"
+        ((_broken++))
+    done < <(find_strays)
     if [[ $_broken -eq 0 ]]; then
         echo "OK: ${#NHOPKG_BB_APPLETS[@]} applets valid in $NHOPKG_BB_DIR"
         exit 0
@@ -95,7 +117,7 @@ if [[ "$MODE" == "check" ]]; then
 fi
 
 # --- regenerate ---
-_created=0 _replaced=0
+_created=0 _replaced=0 _swept=0
 for _a in "${NHOPKG_BB_APPLETS[@]}"; do
     # nombres fijos de la lista: defensa contra rutas no deseadas
     [[ "$_a" == */* ]] && continue
@@ -114,4 +136,12 @@ for _a in "${NHOPKG_BB_APPLETS[@]}"; do
     fi
 done
 
-echo "Regenerated: ${_created} created, ${_replaced} replaced (${#NHOPKG_BB_APPLETS[@]} applets total)"
+# Retirados de la lista: fuera, antes de que el PATH privado los use.
+while read -r _stray; do
+    [[ -n "$_stray" ]] || continue
+    rm -f -- "${NHOPKG_BB_DIR}/${_stray}"
+    ((_swept++))
+done < <(find_strays)
+
+echo "Regenerated: ${_created} created, ${_replaced} replaced, ${_swept} retired (${#NHOPKG_BB_APPLETS[@]} applets total)"
+
