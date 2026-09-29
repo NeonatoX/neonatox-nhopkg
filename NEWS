@@ -1,3 +1,12 @@
+2.0.1 (2026-09-29)
+--------------------------------
+* fix(nhopkg): the private BusyBox PATH is exported again, so awk/sed/grep resolve on systems without coreutils ("awk: command not found")
+* fix(nhopkg): applets dropped from the private PATH are really removed, and nhopkg-bb-setup --check reports a leftover symlink as STRAY instead of leaving it to shadow the host tool
+* fix(nhopkg): --packaging no longer publishes a package with no files. "tar -C dir cp --files-from" was read as "no operation letter" by GNU tar and BusyBox tar, the error was discarded and the pipeline reported zstd's status, so an empty but valid data.tar.zst was signed and shipped. The options are explicit now, tar's own status is read, and an empty archive aborts the build
+* fix(scripts): the version reminder counts breaking commits instead of matching lines, and --quiet only speaks when a bump is due
+* test: a suite for nhopkg-repos add-to-repo and index consistency, with mutants for the two index defects it was written for
+* docs: correct the claim about the client repository layout, and drop the "no test suite" note from AGENTS.md
+
 2.0 (2026-09-28)
 --------------------------------
 * BREAKING: nhopkg-repos drops create-repo; add-to-repo bootstraps a repository from scratch
