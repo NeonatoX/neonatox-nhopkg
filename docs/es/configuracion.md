@@ -69,7 +69,7 @@ enlazados estáticamente, nhopkg sigue funcionando incluso tras una actualizaci�
 de la biblioteca C (musl/glibc) que de otro modo rompería todos los binarios
 dinámicos. Los applets provisionados son: `awk`, `sed`, `grep`, `sort`, `cut`,
 `tr`, `head`, `tail`, `wc`, `xargs`, `mkdir`, `cp`, `mv`, `rm`, `ln`, `ls`,
-`du`, `stat`, `basename`, `dirname`, `mktemp`, `chmod`, `chown`, `tar`, `gzip`,
+`du`, `stat`, `basename`, `dirname`, `mktemp`, `chmod`, `chown`, `gzip`,
 `gunzip`, `md5sum`, `sha1sum`, `sha256sum`, `sha512sum`, `wget`, `id`, `date`,
 `sleep`, `cat`, `nproc`, `unshare`, `od`, `realpath`, `chroot`, `adduser`,
 `addgroup` y `passwd`.

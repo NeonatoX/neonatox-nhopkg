@@ -69,7 +69,7 @@
 (musl/glibc), которое иначе сломало бы каждый динамический бинарный файл.
 Подготавливаемые апплеты: `awk`, `sed`, `grep`, `sort`, `cut`, `tr`, `head`,
 `tail`, `wc`, `xargs`, `mkdir`, `cp`, `mv`, `rm`, `ln`, `ls`, `du`, `stat`,
-`basename`, `dirname`, `mktemp`, `chmod`, `chown`, `tar`, `gzip`, `gunzip`,
+`basename`, `dirname`, `mktemp`, `chmod`, `chown`, `gzip`, `gunzip`,
 `md5sum`, `sha1sum`, `sha256sum`, `sha512sum`, `wget`, `id`, `date`, `sleep`,
 `cat`, `nproc`, `unshare`, `od`, `realpath`, `chroot`, `adduser`, `addgroup`
 и `passwd`.

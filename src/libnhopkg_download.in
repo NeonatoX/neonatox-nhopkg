@@ -69,7 +69,7 @@ nhoget_detect_backend() {
 	elif command -v curl &>/dev/null; then
 		echo "curl"
 	elif nhopkg_bb true &>/dev/null; then
-		# Private BusyBox is not in PATH: reachable as "busybox wget"
+		# No host downloader: fall back to the private BusyBox applet
 		echo "wget-bb"
 	else
 		echo "none"
@@ -119,7 +119,9 @@ nhoget_url_wget_bb() {
 	[[ -n "$NHOGET_USER_AGENT" ]] && wget_opts="$wget_opts -U $NHOGET_USER_AGENT"
 	# BusyBox wget lacks TLS validation; suppress warning and attempt anyway
 	[[ "$url" =~ ^https:// ]] && wget_opts="$wget_opts --no-check-certificate"
-	# The private BusyBox is not in PATH anymore: call it by absolute path
+	# Prefer the private BusyBox by absolute path: this backend may also be
+	# selected when a BusyBox wget is the one in PATH, and the host may have
+	# no wget at all.
 	local _bb_wget=""
 	if nhopkg_bb true &>/dev/null; then
 		_bb_wget="$(nhopkg_bb_dir)/busybox wget"
@@ -153,8 +155,8 @@ nhoget_verify_hash() {
 		*)	nhoget_msg err "Unknown hash type: $hash_type"; return 2 ;;
 	esac
 
-	# Prefer the host tool; fall back to the private BusyBox applet (the
-	# private PATH is not exported anymore, so it needs an absolute path).
+	# Prefer the host tool; fall back to the private BusyBox applet, which is
+	# what provides it on a host with no coreutils.
 	local _hash_cmd=()
 	if command -v "$hash_cmd" &>/dev/null; then
 		_hash_cmd=("$hash_cmd")

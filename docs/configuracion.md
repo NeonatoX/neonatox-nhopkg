@@ -70,7 +70,7 @@ linked, nhopkg keeps working even across a C library (musl/glibc) update that
 would otherwise break every dynamic binary. The applets provisioned are:
 `awk`, `sed`, `grep`, `sort`, `cut`, `tr`, `head`, `tail`, `wc`, `xargs`,
 `mkdir`, `cp`, `mv`, `rm`, `ln`, `ls`, `du`, `stat`, `basename`, `dirname`,
-`mktemp`, `chmod`, `chown`, `tar`, `gzip`, `gunzip`, `md5sum`, `sha1sum`,
+`mktemp`, `chmod`, `chown`, `gzip`, `gunzip`, `md5sum`, `sha1sum`,
 `sha256sum`, `sha512sum`, `wget`, `id`, `date`, `sleep`, `cat`, `nproc`,
 `unshare`, `od`, `realpath`, `chroot`, `adduser`, `addgroup` and `passwd`.
 

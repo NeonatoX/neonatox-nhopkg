@@ -22,20 +22,25 @@ OLDIFS="${IFS}"
 # Binary locate tool, set at build time via -D binlocate= (locate/plocate)
 export BINLOCATE="@BINLOCATE@"
 
-# BusyBox private PATH (self-healing, scoped to the target chroot)
+# BusyBox private PATH (self-healing)
 # ----------------------------------------------------------------------------
-# The private PATH is NOT exported into nhopkg's own environment on purpose:
-# host-side tools (tar, sed, awk, sha256sum...) must keep using the host
-# implementations. Exporting it globally made BusyBox's tar shadow GNU tar and
-# abort binary package extraction ("can't create hardlink ... to '/...'").
+# The private dir IS prepended to nhopkg's own PATH: its applets are
+# statically linked, so they keep working across a C library (musl/glibc)
+# update that breaks every dynamic binary, and they are the only awk/sed/grep
+# available on a target without coreutils. The bare tool calls all over this
+# library (awk, sed, grep, sha256sum...) depend on that, so it must stay
+# global. 'tar' is deliberately NOT linked (see nhopkg-bb-setup): BusyBox tar
+# rejects hard links with absolute targets and aborted binary package
+# extraction when it shadowed GNU tar.
 #
-# Instead:
+# The helpers give explicit access to the same dir:
 #   nhopkg_bb_dir()      -> prints the private dir if the applets are valid
 #   nhopkg_bb()          -> runs an applet from that dir by absolute path
 #   nhopkg_bb_prelude()  -> shell snippet injected into package hooks, which
 #                           run inside the target chroot where the baked
 #                           @prefix@/lib/nhopkg/bin path resolves
 NHOPKG_BB_DIR_RESOLVED=""
+NHOPKG_BB_DIR_FAILED=""
 
 nhopkg_bb_dir()
 {
@@ -43,11 +48,13 @@ nhopkg_bb_dir()
         echo "${NHOPKG_BB_DIR_RESOLVED}"
         return 0
     fi
+    # Already validated (and found unusable): don't re-validate, don't warn again
+    [[ -n "${NHOPKG_BB_DIR_FAILED}" ]] && return 1
     [[ "${NHOPKG_USE_BUSYBOX}" = "yes" ]] || return 1
 
     local bb_dir="${NHOPKG_BB_DIR:-@prefix@/lib/nhopkg/bin}"
     local bb_setup="${NHOPKG_BB_SETUP:-@prefix@/lib/nhopkg/nhopkg-bb-setup}"
-    [[ -d "$bb_dir" ]] || return 1
+    [[ -d "$bb_dir" ]] || { NHOPKG_BB_DIR_FAILED=1; return 1; }
 
     # Verificar applets clave (symlinks a busybox)
     local sym_applets=(awk sed grep)
@@ -84,6 +91,7 @@ nhopkg_bb_dir()
 
     if [[ $bb_path_valid -ne 1 ]]; then
         echo "Warning: BusyBox private PATH unavailable; using system tools" >&2
+        NHOPKG_BB_DIR_FAILED=1
         return 1
     fi
 
@@ -101,6 +109,23 @@ nhopkg_bb()
     [[ -x "$bb_bin" ]] || return 1
     "$bb_bin" "$@"
 }
+
+# Prepend the private dir to nhopkg's own PATH. Called once at source time (not
+# from a subshell) so the bare tool calls in this library resolve to the static
+# applets when the host has no such binaries. Idempotent: sourcing libnhopkg
+# again, or a tool that already had it in PATH, does not duplicate the entry.
+setup_busybox_path()
+{
+    local bb_dir
+    bb_dir="$(nhopkg_bb_dir)" || return 0
+    case ":${PATH}:" in
+        *":${bb_dir}:"*) ;;
+        *) export PATH="${bb_dir}:${PATH}" ;;
+    esac
+    return 0
+}
+
+setup_busybox_path
 
 # Snippet for package hooks (executed inside the target chroot). The baked path
 # is used on purpose: it is the one that resolves inside the chroot, and the

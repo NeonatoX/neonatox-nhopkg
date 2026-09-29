@@ -34,8 +34,8 @@ elif command -v adduser >/dev/null 2>&1 && command -v addgroup >/dev/null 2>&1; 
 	_nhouser_adduser=(adduser)
 	_nhouser_addgroup=(addgroup)
 elif declare -F nhopkg_bb >/dev/null && nhopkg_bb adduser --help >/dev/null 2>&1; then
-	# Private BusyBox without the private PATH (nhopkg no longer exports it):
-	# reach the applets through the resolved absolute path.
+	# Private BusyBox applet, reached by absolute path: the host may have
+	# neither shadow-utils nor a system BusyBox in PATH.
 	_nhouser_backend="busybox"
 	_nhouser_adduser=("$(nhopkg_bb_dir)/busybox" adduser)
 	_nhouser_addgroup=("$(nhopkg_bb_dir)/busybox" addgroup)

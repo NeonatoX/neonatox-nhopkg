@@ -77,10 +77,11 @@ When enabled, nhopkg prepends `/usr/lib/nhopkg/bin/` to `PATH` at runtime. This 
 ├── grep → busybox
 ├── sort → busybox
 ├── cp → busybox
-├── tar → busybox
 ├── wget → busybox
-└── ... (37 applets total)
+└── ... (applet symlinks)
 ```
+
+`tar` is deliberately not linked: BusyBox tar rejects hard links with absolute targets and aborted binary package extraction when it shadowed GNU tar. Package scripts use the target's own `tar`.
 
 ### Why?
 
@@ -125,7 +126,7 @@ nhopkg uses these BusyBox applets (all from the private PATH when enabled):
 |----------|---------|
 | Text processing | `awk`, `sed`, `grep`, `sort`, `cut`, `tr`, `head`, `tail`, `wc`, `xargs` |
 | File management | `mkdir`, `cp`, `mv`, `rm`, `ln`, `ls`, `du`, `stat`, `basename`, `dirname`, `mktemp` |
-| Archive | `tar`, `gzip`, `gunzip` |
+| Archive | `gzip`, `gunzip` |
 | Crypto | `md5sum`, `sha1sum`, `sha256sum`, `sha512sum` |
 | Network | `wget` |
 | System | `id`, `date`, `sleep`, `cat`, `nproc`, `unshare`, `od`, `realpath`, `chroot` |
