@@ -78,6 +78,8 @@ Each split part has its own set of metadata fields using the `_<part>` suffix:
 ```nhoid
 # Description_dev:	Development headers
 # Description_lib:	Shared libraries
+# License_docs:	CC-BY-SA-4.0
+# Repository_docs:	doc
 # Provides_dev:	libfoo-dev
 # Conflicts_lib32:	lib32-libfoo
 # Group_docs:	doc
@@ -87,6 +89,35 @@ Each split part has its own set of metadata fields using the `_<part>` suffix:
 ```
 
 Split-specific `# Backup_<part>:` fields work like the main `# Backup:` field: the sub-package's files are preserved before extraction and restored afterward. `# Group_<part>:`, `# Repository_<part>:` and `# Provides_<part>:` / `# Conflicts_<part>:` override the corresponding main fields for the sub-package.
+
+`# License_<part>:` sets the license of one sub-package, which is what a `docs`
+split usually needs. It is the one field where **not** having one of your own
+is not the same as having none: a sub-package with no `# License_<part>:` inherits
+the package's license, because a package cannot be published without a license.
+
+`# Repository_<part>:` is the other field with a default, and the default is a
+literal rather than an inheritance: a sub-package with no `# Repository_<part>:`
+lands in `extra`, it does **not** take the base package's repository. `lib32` is
+still forced to `multilib` and the base package still copies its own
+`# Repository:`.
+
+#### Naming a split part
+
+A part is not a free-form token: it becomes part of a field name
+(`# Group_dev:`), of a shell function name (`ninstall_dev()`) and of a file name
+(`foo-dev.conf`). `nhopkg-src --validate` therefore only accepts:
+
+```
+[A-Za-z0-9][A-Za-z0-9._+-]*
+```
+
+Letters, digits, `.`, `_`, `+` and `-`, starting with a letter or a digit. A
+part may not repeat, and may not be the package name itself. `docs`, `lib32`,
+`python3.12` and `foo-devel` are all fine; a part holding a `/`, a space or a
+leading `-` is refused.
+
+`docs` and `doc` are built with `Arch: any`, which `--validate` points out as a
+notice rather than an error.
 
 ### Provides and Conflicts
 
