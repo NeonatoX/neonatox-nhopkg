@@ -1860,7 +1860,7 @@ build_nhoid_to_bin()
 		grpval=$(grep '^# Group:' "${NHOPKG_TMPDIR}/.nhoid" | sed 's/^# Group:\t//')
 		[ -n "$grpval" ] && printf "# Group:\tlib32-%s\n" "$grpval" >> "${NHOPKG_TMPDIR}/nhoid" 2>/dev/null || true
 	elif [ -n "$part" ] && [ "$part" != "lib32" ]; then
-		grep "^# Group${part:+_${part}}:" "${NHOPKG_TMPDIR}/.nhoid" | sed "s/^# Group${part:+_${part}}:/# Group:/" >> "${NHOPKG_TMPDIR}/nhoid" 2>/dev/null || true
+		nhoid_copy_split_field "Group" "" "${part}" "${NHOPKG_TMPDIR}/.nhoid" >> "${NHOPKG_TMPDIR}/nhoid" 2>/dev/null || true
 	else
 		grep '^# Group:' "${NHOPKG_TMPDIR}/.nhoid" >> "${NHOPKG_TMPDIR}/nhoid" 2>/dev/null || true
 	fi
@@ -1898,9 +1898,9 @@ build_nhoid_to_bin()
 	grep '^# Url:' "${NHOPKG_TMPDIR}/.nhoid" >> "${NHOPKG_TMPDIR}/nhoid"
 	# Use specific subpackage description if it exists, otherwise use generic + note
 	if [[ -n "${part}" ]]; then
-	# Try to get a variable like pkgdescription_dev, pkgdescription_docs, etc.
-		local specific_desc
-		specific_desc=$(eval echo \$"pkgdescription_${part}")
+	# The per-part description stashed by get_nhoid_data(), looked up by name
+		# instead of through an eval.
+		local specific_desc="${nhoid_description_by_part[${part}]:-}"
 			if [[ -n "${specific_desc}" ]]; then
 				echo -e "# Description:\t${specific_desc}" >> "${NHOPKG_TMPDIR}/nhoid"
 			else
@@ -1916,9 +1916,9 @@ build_nhoid_to_bin()
 	if [[ -n "${part}" ]]; then
 		# Subpackage: look for Replaces_$part, Provides_$part and Conflicts_$part
 		echo >> "${NHOPKG_TMPDIR}/nhoid"
-		grep -h "^# Replaces_${part}:" "${NHOPKG_TMPDIR}/.nhoid" | sed "s/^# Replaces_${part}:/# Replaces:/" >> "${NHOPKG_TMPDIR}/nhoid" 2>/dev/null || true
-		grep -h "^# Provides_${part}:" "${NHOPKG_TMPDIR}/.nhoid" | sed "s/^# Provides_${part}:/# Provides:/" >> "${NHOPKG_TMPDIR}/nhoid" 2>/dev/null || true
-		grep -h "^# Conflicts_${part}:" "${NHOPKG_TMPDIR}/.nhoid" | sed "s/^# Conflicts_${part}:/# Conflicts:/" >> "${NHOPKG_TMPDIR}/nhoid" 2>/dev/null || true
+		nhoid_copy_split_field "Replaces" "" "${part}" "${NHOPKG_TMPDIR}/.nhoid" >> "${NHOPKG_TMPDIR}/nhoid" 2>/dev/null || true
+		nhoid_copy_split_field "Provides" "" "${part}" "${NHOPKG_TMPDIR}/.nhoid" >> "${NHOPKG_TMPDIR}/nhoid" 2>/dev/null || true
+		nhoid_copy_split_field "Conflicts" "" "${part}" "${NHOPKG_TMPDIR}/.nhoid" >> "${NHOPKG_TMPDIR}/nhoid" 2>/dev/null || true
 	else
 		# Main package: use base Replaces, Provides and Conflicts
 		echo >> "${NHOPKG_TMPDIR}/nhoid"
@@ -1930,34 +1930,32 @@ build_nhoid_to_bin()
 	
 	# Add Backup (support split packages)  
 	if [[ -n "${part}" ]]; then  
-		# Subpackage: look for Backup_$part  
-		grep -h "^# Backup_${part}:" "${NHOPKG_TMPDIR}/.nhoid" | sed "s/^# Backup_${part}:/# Backup:/" >> "${NHOPKG_TMPDIR}/nhoid" 2>/dev/null || true  
-	else  
-		# Main package: use base Backup  
-		grep -h "^# Backup:" "${NHOPKG_TMPDIR}/.nhoid" >> "${NHOPKG_TMPDIR}/nhoid" 2>/dev/null || true  
+		# Subpackage: look for Backup_$part
+		nhoid_copy_split_field "Backup" "" "${part}" "${NHOPKG_TMPDIR}/.nhoid" >> "${NHOPKG_TMPDIR}/nhoid" 2>/dev/null || true
+	else
+		# Main package: use base Backup
+		grep -h "^# Backup:" "${NHOPKG_TMPDIR}/.nhoid" >> "${NHOPKG_TMPDIR}/nhoid" 2>/dev/null || true
 	fi
-	
+
 	echo >> "${NHOPKG_TMPDIR}/nhoid"
 	# Add dependencies.
 	# === Add dependencies: one line per Dep(post):, preserving both fields ===
-	local dep_pattern="^# Dep${part:+_${part}}(post):"
-	local opt_dep_pattern="^# OptionalDep${part:+_${part}}(post):"
 	# Process required dependencies: one line per dependency
-	grep -h "$dep_pattern" "${NHOPKG_TMPDIR}/.nhoid" | \
-		while IFS= read -r line; do
-			local dep_data=$(echo "$line" | sed 's/^#[^:]*:\s*//')
-			if [[ -n "$dep_data" ]]; then
-				echo -e "# Dep(post):\t$dep_data" >> "${NHOPKG_TMPDIR}/nhoid"
-			fi
-		done
+	while IFS= read -r dep_data; do
+		dep_data="${dep_data#\# Dep(post):}"
+		dep_data="${dep_data#"${dep_data%%[![:space:]]*}"}"
+		if [[ -n "${dep_data}" ]]; then
+			echo -e "# Dep(post):\t${dep_data}" >> "${NHOPKG_TMPDIR}/nhoid"
+		fi
+	done < <(nhoid_copy_split_field "Dep" "(post)" "${part}" "${NHOPKG_TMPDIR}/.nhoid")
 	# Process optional dependencies: one line per dependency
-	grep -h "$opt_dep_pattern" "${NHOPKG_TMPDIR}/.nhoid" | \
-		while IFS= read -r line; do
-			local opt_dep_data=$(echo "$line" | sed 's/^#[^:]*:\s*//')
-			if [[ -n "$opt_dep_data" ]]; then
-				echo -e "# OptionalDep(post):\t$opt_dep_data" >> "${NHOPKG_TMPDIR}/nhoid"
-			fi
-		done
+	while IFS= read -r opt_dep_data; do
+		opt_dep_data="${opt_dep_data#\# OptionalDep(post):}"
+		opt_dep_data="${opt_dep_data#"${opt_dep_data%%[![:space:]]*}"}"
+		if [[ -n "${opt_dep_data}" ]]; then
+			echo -e "# OptionalDep(post):\t${opt_dep_data}" >> "${NHOPKG_TMPDIR}/nhoid"
+		fi
+	done < <(nhoid_copy_split_field "OptionalDep" "(post)" "${part}" "${NHOPKG_TMPDIR}/.nhoid")
 	
    	# Add npostinstall() and npostremove() to nhoid.
 	echo >> "${NHOPKG_TMPDIR}/nhoid"
@@ -1970,11 +1968,11 @@ INSTALL_SPECIFIC="npostinstall${part:+_}${part}"
 REMOVE_SPECIFIC="npostremove${part:+_}${part}"
 
 # === npostinstall logic for splitpackages ===
-if grep -q "^${INSTALL_SPECIFIC}() {" "${NHOPKG_TMPDIR}/.nhoid"; then
-	sed -n "/^${INSTALL_SPECIFIC}() {/,/^}/p" "${NHOPKG_TMPDIR}/.nhoid" | sed  "s|_${part}||g" >> "${NHOPKG_TMPDIR}/nhoid"
+if nhoid_has_function "${INSTALL_SPECIFIC}" "${NHOPKG_TMPDIR}/.nhoid"; then
+	nhoid_extract_function "${INSTALL_SPECIFIC}" "npostinstall" "${NHOPKG_TMPDIR}/.nhoid" >> "${NHOPKG_TMPDIR}/nhoid"
 	echogn "\t** Using for post-install: " && echo "${INSTALL_SPECIFIC}()"
-elif grep -q "^${INSTALL_GENERIC}() {" "${NHOPKG_TMPDIR}/.nhoid"; then
-	sed -n "/^${INSTALL_GENERIC}() {/,/^}/p" "${NHOPKG_TMPDIR}/.nhoid" >> "${NHOPKG_TMPDIR}/nhoid"
+elif nhoid_has_function "${INSTALL_GENERIC}" "${NHOPKG_TMPDIR}/.nhoid"; then
+	nhoid_extract_function "${INSTALL_GENERIC}" "npostinstall" "${NHOPKG_TMPDIR}/.nhoid" >> "${NHOPKG_TMPDIR}/nhoid"
 	echogn "\t** Using as fallback for post-install: " && echo "${INSTALL_GENERIC}()"
 else
 	echo 'npostinstall() {' >> "${NHOPKG_TMPDIR}/nhoid"
@@ -1984,11 +1982,11 @@ else
 fi
 
 # === npostremove logic  for splitpackages ===
-if grep -q "^${REMOVE_SPECIFIC}() {" "${NHOPKG_TMPDIR}/.nhoid"; then
-	sed -n "/^${REMOVE_SPECIFIC}() {/,/^}/p" "${NHOPKG_TMPDIR}/.nhoid" | sed  "s|_${part}||g" >> "${NHOPKG_TMPDIR}/nhoid"
+if nhoid_has_function "${REMOVE_SPECIFIC}" "${NHOPKG_TMPDIR}/.nhoid"; then
+	nhoid_extract_function "${REMOVE_SPECIFIC}" "npostremove" "${NHOPKG_TMPDIR}/.nhoid" >> "${NHOPKG_TMPDIR}/nhoid"
 	echogn "\t** Using for post-remove: " && echo "${REMOVE_SPECIFIC}()"
-elif grep -q "^${REMOVE_GENERIC}() {" "${NHOPKG_TMPDIR}/.nhoid"; then
-	sed -n "/^${REMOVE_GENERIC}() {/,/^}/p" "${NHOPKG_TMPDIR}/.nhoid" >> "${NHOPKG_TMPDIR}/nhoid"
+elif nhoid_has_function "${REMOVE_GENERIC}" "${NHOPKG_TMPDIR}/.nhoid"; then
+	nhoid_extract_function "${REMOVE_GENERIC}" "npostremove" "${NHOPKG_TMPDIR}/.nhoid" >> "${NHOPKG_TMPDIR}/nhoid"
 	echogn "\t** Using as fallback for post-remove: " && echo "${REMOVE_GENERIC}()"
 else
 	echo 'npostremove() {' >> "${NHOPKG_TMPDIR}/nhoid"

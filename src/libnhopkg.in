@@ -711,6 +711,54 @@ cleanup_build_dir()
 #==============================================================================
 # Section: General functions for packages (main nhopkg and tools)
 #==============================================================================
+## Filled by get_nhoid_data(): split part -> its own description.
+# An associative array rather than "eval pkgdescription_${part}=...", so a part
+# holding anything but a letter, a digit or an underscore is still just a key.
+declare -A nhoid_description_by_part=()
+
+## nhoid_has_function(). Tells whether a nhoid defines a function.
+# Usage: nhoid_has_function <name> [nhoid_file]
+# Gives: exit status 0 if "name() {" is defined, 1 otherwise.
+# The name is compared literally. It reaches awk through the environment because
+# "awk -v" processes escape sequences and would corrupt names holding a backslash.
+nhoid_has_function()
+{
+	NH_FUNC_NAME="${1}" awk '
+		BEGIN { want = ENVIRON["NH_FUNC_NAME"] "() {" }
+		$0 == want { found = 1; exit }
+		END { exit found ? 0 : 1 }
+	' "${2}"
+}
+## nhoid_extract_function(). Extracts a function block from a nhoid under a new name.
+# Usage: nhoid_extract_function <old_name> <new_name> [nhoid_file]
+# Gives: the block on stdout, verbatim except for the header line.
+# Matching is literal, so only the header is rewritten and the body is never
+# touched: a body mentioning "foo_dev" must survive a "npostinstall_dev" block.
+nhoid_extract_function()
+{
+	NH_FUNC_FROM="${1}() {" NH_FUNC_TO="${2}() {" awk '
+		BEGIN { from = ENVIRON["NH_FUNC_FROM"]; to = ENVIRON["NH_FUNC_TO"] }
+		$0 == from { inside = 1; print to; next }
+		inside && $0 == "}" { inside = 0; print; next }
+		inside { print }
+	' "${3}"
+}
+## nhoid_copy_split_field(). Copies a "<Field>_<part><suffix>:" line as "<Field><suffix>:".
+# Usage: nhoid_copy_split_field <field> <suffix> <part> [nhoid_file]
+# Gives: one "# <field><suffix>:<value>" line per match, on stdout.
+# An empty part copies the base field as is, which is what the base package needs.
+# The part name is matched with index(), a literal comparison: a part holding a
+# regex metacharacter must not turn into a wildcard and pick a foreign field.
+# substr() keeps the original separator and value untouched.
+nhoid_copy_split_field()
+{
+	local field_key="# ${1}${2}:"
+	[[ -n "${3}" ]] && field_key="# ${1}_${3}${2}:"
+	NH_SPLIT_KEY="${field_key}" NH_SPLIT_OUT="# ${1}${2}:" awk '
+		BEGIN { key = ENVIRON["NH_SPLIT_KEY"]; out = ENVIRON["NH_SPLIT_OUT"] }
+		index($0, key) == 1 { print out substr($0, length(key) + 1) }
+	' "${4}"
+}
 ## get_basic_data(). Get basic data from package and checks it.
 # Usage: get_basic_data package_info_file
 # Gives: pkgname, pkgversion and pkgrevision variables.
@@ -764,14 +812,19 @@ get_nhoid_data()
 	# If there are subpackages, look for specific descriptions
 	if [[ -n "$SPLITPACKAGE" ]]; then
 		for part in $SPLITPACKAGE; do
-			local desc_key="^# Description_${part}:"
-			local part_desc=$(grep "$desc_key" "$1" | awk -F'\t' '{print $2}')
+			local part_desc=$(nhoid_copy_split_field "Description" "" "${part}" "$1" | head -n 1)
+		# Drop the "# Description:" header and the separator, keeping only the value.
+			part_desc="${part_desc#\# Description:}"
+			part_desc="${part_desc#"${part_desc%%[![:space:]]*}"}"
 	# If you don't have a specific description, use the general + note
 			if [[ -z "$part_desc" ]]; then
 				part_desc="${pkgdescription} (${part} files.)"
 			fi
-	# Create dynamic variable: ex. pkgdescription_dev, pkgdescription_docs, etc.
-			eval "pkgdescription_${part}=\"\$part_desc\""
+	# Stashed in an associative array, keyed by the part name. The old code
+		# did "eval pkgdescription_${part}=...", which ran the part as shell
+		# and only worked for names that are valid identifiers, so a part
+		# holding a '.' or a '+' either failed or was executed.
+			nhoid_description_by_part["${part}"]="${part_desc}"
 		done
 	fi
 	# Checks that is a correct package.
