@@ -3714,8 +3714,15 @@ case "${NHOPKG_OPTION}" in
 					pkg_base_name="${ORIGINAL_PKGNAME}"
 					git_url="${NHOPKG_GIT_SOURCES}/${pkg_base_name}.git"
 
-					build_clone_dir="${NHOPKG_TMPDIR}/.gitclone"
-			NHOGET_REF="${NHOPKG_GIT_BRANCH:-}" nhoget_vcs git "${git_url}" "${build_clone_dir}" || {
+					# The clone has to outlive ${NHOPKG_TMPDIR}, which
+					# cleanup_tmp_dir() wipes at the top of every part. Under it
+					# the cache branch of nhoget_vcs_git() could never fire, so a
+					# build of N parts cloned the whole history N times. It lives
+					# next to the build tree because that is where fetch_vcs_source()
+					# already keeps the clone build_prepare() uses, and that one
+					# was already reused across parts.
+					build_clone_dir="${NHOPKG_BUILDIR}/.gitclone-${pkg_base_name}"
+					NHOGET_REF="${NHOPKG_GIT_BRANCH:-}" nhoget_vcs git "${git_url}" "${build_clone_dir}" || {
 						echog " * Failed to clone ${git_url}" >&2
 						cleanup_tmp_dir
 						exit 1
@@ -3727,17 +3734,19 @@ case "${NHOPKG_OPTION}" in
 						exit 1
 					fi
 
-					mv "${build_clone_dir}/nhoid" "${NHOPKG_TMPDIR}/"
+					# Copied, not moved: the clone is reused by the next part,
+					# and nhoget_vcs_git() only restores a tracked file that was
+					# moved away as a side effect of its reset --hard.
+					cp "${build_clone_dir}/nhoid" "${NHOPKG_TMPDIR}/" 2>/dev/null || true
 					if [[ -d "${build_clone_dir}/others" ]]; then
 						cp -r "${build_clone_dir}/others"/* "${NHOPKG_TMPDIR}/" 2>/dev/null || true
 					fi
 					if [[ -d "${build_clone_dir}/patches" ]]; then
 						cp -r "${build_clone_dir}/patches"/* "${NHOPKG_TMPDIR}/" 2>/dev/null || true
 					fi
-					# Return to a safe directory before removing the clone dir
-					# (nhoget_vcs_git cd's into the dest after clone)
+					# Return to a safe directory: nhoget_vcs_git cd's into the
+					# dest, and from here on the build runs from ${CWD}.
 					cd / || true
-					rm -rf "${build_clone_dir}"
 
 					# Retrieve data from the main package
 					get_basic_data "${NHOPKG_TMPDIR}/nhoid"
