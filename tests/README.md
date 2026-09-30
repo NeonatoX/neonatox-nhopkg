@@ -25,6 +25,7 @@ Logs of the tool's own output are written to `builddir/tests-tmp/logs/`.
 | `check-retired-metadata.sh` | Retiring a version must not leave its entry behind. |
 | `check-package-compress.sh` | The client's packaging step: the installed file list has to reach `data.tar.zst` whole. |
 | `check-splits-scale.sh` | Split packages: a hook body has to survive, and a per-part field has to be found literally. |
+| `check-split-git-clone.sh` | Split packages from a git source: N parts must clone once, not N times. |
 | `run-all.sh` | Runs every `check-*.sh` and summarises. |
 
 Naming matters: the files are `check-*.sh`, not `test-*.sh`, because
@@ -137,6 +138,31 @@ the generated `builddir/src/libnhopkg`. If any of them move, the test dies with 
 message instead of passing quietly. The validation half runs `nhopkg-src
 --validate` for real, against the generated tool.
 
+## What `check-split-git-clone.sh` covers
+
+- **The clone outlives the per-part cleanup.** The split loop keeps its clone
+  outside `${NHOPKG_TMPDIR}`, which `cleanup_tmp_dir()` wipes at the top of
+  every part. This is asserted on the generated client, because the failure is
+  that the destination *looks* fine and the cache branch is simply never
+  reached.
+- **The loop does not delete the clone it just made**, and copies the nhoid out
+  instead of moving it. Both used to be harmless because the clone was thrown
+  away afterwards; once it is reused, a tracked file taken out of it has to
+  leave a clone the next part can still read.
+- **`nhoget_vcs_git()` really does reuse a destination that already holds a
+  clone.** One local repository asked for three times into one destination: one
+  `git clone`, two `Repository already exists. Updating...`. `git` is shimmed
+  through `PATH` to count the clones, because that function prints "Cloning Git
+  repository" on every call, reuse included, so its log line cannot tell the two
+  apart. The repository is a local path, so the test needs no network.
+
+Reverting the fix makes four of its assertions fail, one per changed line.
+
+This is a pure performance fix, so there is no mutant here and there is nothing
+to compare byte for byte: the same `.nho` comes out either way, only the number
+of clones differs. What is asserted is the invariant that makes the fix
+possible -- a clone that survives to the next part.
+
 ## Mutants
 
 Some tests run the tool against a deliberately broken copy, to prove the test
@@ -182,9 +208,13 @@ against a stale binary reports a working fix as a broken one. `ensure_build` in
   client uses holds the *unpacked* index, the plain nhoid files, not payloads.
 - **`nhouser`, `nhopicker`, `nhoget`** and the overlay tool: no tests yet.
 - **The client's build and install path**, beyond the packaging step of
-  `check-package-compress.sh` and the split hooks of `check-splits-scale.sh`.
-  Those two take the step they check out of the generated tool and run it in a
-  sandbox; the rest of a build, and the install itself, still needs root.
+  `check-package-compress.sh`, the split hooks of `check-splits-scale.sh` and
+  the clone destination of `check-split-git-clone.sh`. Those three take the
+  step they check out of the generated tool and run it in a sandbox; the rest of
+  a build, and the install itself, still needs root. In particular, no test
+  builds a whole `.nho` from a split, so "the same package builds the same
+  bytes before and after a performance fix" is asserted by reading the code, not
+  by running it.
 - **`nhopkg-src`**, beyond `--validate`'s split handling.
 - **Package hooks inside a chroot.** The prelude that gives `npostinstall` and
   `npostremove` the target's config and `libnhopkg` is only verified statically
