@@ -119,8 +119,8 @@ neuter_root_check() {
 }
 
 # Mutants let a test reproduce a defect that is already fixed, to prove the
-# test would catch it. Each one edits the generated tool in place, so the
-# markers are the exact lines of src/nhopkg-repos.in.
+# test would catch it. Each one edits a copy of a generated tool in place, so
+# the markers are the exact lines of the source being mutated.
 #
 #   pre-fase1   restore the "name-*" purge globs, which unindexed every
 #               package whose name merely started with the one being added
@@ -129,6 +129,15 @@ neuter_root_check() {
 apply_mutant() {
 	local mutant="$1" tool="${TOOLDIR}/nhopkg-repos"
 	[[ -f "${tool}" ]] || die "call setup_tool's neuter step first"
+	apply_mutant_to "${tool}" "${mutant}"
+}
+
+# apply_mutant_to <file> <mutant>
+# The file has to be a copy under builddir/tests-tmp/, never a source file and
+# never the generated tool inside the build directory.
+apply_mutant_to() { # <file> <mutant>
+	local tool="$1" mutant="$2"
+	[[ -f "${tool}" ]] || die "not found: ${tool}"
 	python3 - "${tool}" "${mutant}" <<'PY'
 import io, sys
 
@@ -148,6 +157,32 @@ MUTANTS = {
     "pre-fase2a": [
         ('>> "$NHOPKG_TMPDIR/$repo/retired"',
          '> /dev/null  # mutant: retirement leaves the metadata behind'),
+    ],
+    # The ones below are in src/nhopkg.in, the client's build path.
+    #
+    # "tar -C dir cp --files-from=..." relies on the old-style bundling of -c
+    # and -p, which is only parsed when the first argument is not an option.
+    # With -C in front, GNU tar and BusyBox tar read it as "no operation
+    # letter" and fail, and the pipeline still exits 0 because that is zstd,
+    # so the build shipped a data.tar.zst that was valid and empty.
+    "pre-explicit-tar-opts": [
+        ('tar -C "${NHOPACKAGING}" -c -p --files-from=',
+         'tar -C "${NHOPACKAGING}" cp --files-from='),
+        ('tar -c -p --files-from=',
+         'tar cp --files-from='),
+    ],
+    # The guard that came with the fix above: read tar's own exit status and
+    # refuse to keep an empty archive, so this cannot fail silently again.
+    "pre-compress-guard": [
+        ('\t\t_tar_status=${PIPESTATUS[0]}\n'
+         '\t\tif (( _tar_status != 0 )) || [[ ! -s "${_pkg_data}" ]]; then\n'
+         '\t\t\techog " *** Unable to compress the package files (tar exit ${_tar_status})." >&2\n'
+         '\t\t\techog " *** Refusing to build an empty package." >&2\n'
+         '\t\t\trm -f "${_pkg_data}"\n'
+         '\t\t\tcleanup_tmp_dir\n'
+         '\t\t\texit 1\n'
+         '\t\tfi\n',
+         '\t\t:  # mutant: no guard, an empty archive goes unnoticed\n'),
     ],
 }
 
