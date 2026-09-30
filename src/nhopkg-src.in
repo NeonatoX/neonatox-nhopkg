@@ -599,12 +599,35 @@ cmd_validate() {
 	# Splitpackage checks
 	local split=$(grep "^# Splitpackage:" "$nhoid_file" 2>/dev/null | awk -F'\t' '{print $2}')
 	if [[ -n "$split" ]]; then
-		for part in $split; do
-			if ! grep -q "ninstall_${part}()" "$nhoid_file" 2>/dev/null; then
-				echog " *** Missing function: ninstall_${part}()" >&2
+		# A split name becomes a shell function suffix (ninstall_<part>) and
+		# part of the binary file name (<pkg>-<part>-...). Restrict it to what
+		# is safe in both, so a name can never act as a path, a glob or a regex.
+		local seen_parts=""
+	for part in $split; do
+		if [[ ! "$part" =~ ^[A-Za-z0-9][A-Za-z0-9._+-]*$ ]]; then
+			echog " *** Invalid split name: '${part}' (allowed: letters, digits, '.', '_', '+', '-'; must start with a letter or digit)" >&2
+			((errors++))
+			continue
+		fi
+		if [[ "$part" == "$name" ]]; then
+			echog " *** Split name '${part}' collides with the base package name" >&2
+			((errors++))
+		fi
+		case " ${seen_parts} " in
+			*" ${part} "*)
+				echog " *** Duplicate split name: '${part}'" >&2
 				((errors++))
-			fi
-		done
+				;;
+		esac
+		seen_parts="${seen_parts} ${part}"
+		if [[ "$part" == "doc" || "$part" == "docs" ]]; then
+			echog " ** Warning: split '${part}' is built with Arch: any" >&2
+		fi
+		if ! grep -qF "ninstall_${part}()" "$nhoid_file" 2>/dev/null; then
+			echog " *** Missing function: ninstall_${part}()" >&2
+			((errors++))
+		fi
+	done
 	fi
 
 	# nbuild() must exist; real content not required for metapackages (always noemptyfuncs)
@@ -635,7 +658,7 @@ cmd_validate() {
 
 	# npostinstall() and npostremove() just need to exist
 	for fn in npostinstall npostremove; do
-		if ! grep -q "^${fn}() {" "$nhoid_file" 2>/dev/null; then
+		if ! grep -qF "${fn}() {" "$nhoid_file" 2>/dev/null; then
 			echog " *** Missing function: ${fn}()" >&2
 			((errors++))
 		fi
@@ -650,9 +673,16 @@ cmd_validate() {
 	fi
 
 	for fn in "${check_funcs[@]}"; do
-		if grep -q "^${fn}() {" "$nhoid_file" 2>/dev/null; then
-			local fn_body
-			fn_body=$(sed -n "/^${fn}() {/,/^}/p" "$nhoid_file" | sed '1d;$d')
+		if grep -qF "${fn}() {" "$nhoid_file" 2>/dev/null; then
+				local fn_body
+			# The name reaches awk through the environment and is compared
+			# literally: a part holding a "/" or a "[" must not break the range.
+			fn_body=$(NH_FUNC_NAME="${fn}" awk '
+				BEGIN { want = ENVIRON["NH_FUNC_NAME"] "() {" }
+				$0 == want { inside = 1; next }
+				inside && $0 == "}" { inside = 0; next }
+				inside { print }
+			' "$nhoid_file")
 			local single_quotes double_quotes
 			single_quotes=$(echo "$fn_body" | sed "s/\\\\'/ /g" | tr -cd "'" | wc -c)
 			double_quotes=$(echo "$fn_body" | sed 's/\\"/ /g' | tr -cd '"' | wc -c)
