@@ -33,13 +33,23 @@ mkdir -p "${TOOLDIR}"
 
 TOOL_SRC="${BUILDDIR}/src/nhopkg"
 DLIB_SRC="${BUILDDIR}/src/libnhopkg_download"
-for f in "${TOOL_SRC}" "${DLIB_SRC}"; do
+LIB_SRC="${BUILDDIR}/src/libnhopkg"
+for f in "${TOOL_SRC}" "${DLIB_SRC}" "${LIB_SRC}"; do
 	[[ -f "${f}" ]] || die "not found: ${f} (run meson setup first)"
 done
 
 # ---------------------------------------------------------------------------
 # Taking the pieces apart
 # ---------------------------------------------------------------------------
+
+# cleanup_build_dir(), verbatim.
+cleanup_build_dir_fn() { # <file>
+	awk '
+		/^cleanup_build_dir\(\)/ { grab = 1 }
+		grab { print }
+		grab && /^}$/ { exit }
+	' "$1"
+}
 
 # nhoget_vcs() and the two dispatch targets it reaches, verbatim.
 vcs_git_fn() { # <file>
@@ -126,7 +136,39 @@ if (
 	ok "a local repository with an nhoid, patches/ and others/"
 else
 	bad "could not build the local repository"
-	exit "$(t_summary)"
+	# ---------------------------------------------------------------------------
+# 3. That the clone does not outlive the build tree
+# ---------------------------------------------------------------------------
+
+# The clone is a cache, not a work product, but it has to survive between parts,
+# so it cannot live under ${NHOPKG_TMPDIR} either. That leaves the build tree as
+# the only thing with a lifetime attached to it, so the clone is cleaned with
+# the tree and with the same answer. Without this it is a full clone of the
+# upstream left on disk with nothing able to remove it.
+CLEAN_FN="$(cleanup_build_dir_fn "${LIB_SRC}")"
+assert_contains "${CLEAN_FN}" '.gitclone-' "cleanup_build_dir knows about the clone"
+assert_contains "${CLEAN_FN}" 'dirs+=' "and collects it with the build tree"
+assert_missing "${CLEAN_FN}" 'rm -rf "${build_clone_dir}"' \
+	"it does not go back to deleting the per-part clone"
+
+# One prompt for both, not one each: the loop that calls this runs once per part
+# and a second question would be a new interruption in a build.
+assert_eq "1" "$(grep -c 'nhopkg_ask_follow' <<<"${CLEAN_FN}")" \
+	"one question covers the build tree and the clone"
+
+# With nothing to remove it must say nothing at all.
+(
+	echog() { echo "$*" >> "${GIT_SB}/spoken"; }
+	nhopkg_ask_follow() { echo "should not appear" >> "${GIT_SB}/spoken"; }
+	eval "${CLEAN_FN}"
+	NHOPKG_BUILDIR="${GIT_SB}/empty"
+	pkgname=demo
+	pkgversion=1.0
+	cleanup_build_dir
+) >/dev/null 2>&1
+assert_no_file "${GIT_SB}/spoken" "nothing is asked when there is nothing to remove"
+
+exit "$(t_summary)"
 fi
 
 # git is resolved through PATH and shimmed, so the clones are counted where
@@ -163,5 +205,37 @@ assert_eq "2" "${updates}" "and the other two take the reuse branch"
 assert_file "${DEST}/nhoid" "the reused clone still holds the nhoid"
 assert_file "${DEST}/others/note" "and others/"
 assert_file "${DEST}/patches/fix.patch" "and patches/"
+
+# ---------------------------------------------------------------------------
+# 3. That the clone does not outlive the build tree
+# ---------------------------------------------------------------------------
+
+# The clone is a cache, not a work product, but it has to survive between parts,
+# so it cannot live under ${NHOPKG_TMPDIR} either. That leaves the build tree as
+# the only thing with a lifetime attached to it, so the clone is cleaned with
+# the tree and with the same answer. Without this it is a full clone of the
+# upstream left on disk with nothing able to remove it.
+CLEAN_FN="$(cleanup_build_dir_fn "${LIB_SRC}")"
+assert_contains "${CLEAN_FN}" '.gitclone-' "cleanup_build_dir knows about the clone"
+assert_contains "${CLEAN_FN}" 'dirs+=' "and collects it with the build tree"
+assert_missing "${CLEAN_FN}" 'rm -rf "${build_clone_dir}"' \
+	"it does not go back to deleting the per-part clone"
+
+# One prompt for both, not one each: the loop that calls this runs once per part
+# and a second question would be a new interruption in a build.
+assert_eq "1" "$(grep -c 'nhopkg_ask_follow' <<<"${CLEAN_FN}")" \
+	"one question covers the build tree and the clone"
+
+# With nothing to remove it must say nothing at all.
+(
+	echog() { echo "$*" >> "${GIT_SB}/spoken"; }
+	nhopkg_ask_follow() { echo "should not appear" >> "${GIT_SB}/spoken"; }
+	eval "${CLEAN_FN}"
+	NHOPKG_BUILDIR="${GIT_SB}/empty"
+	pkgname=demo
+	pkgversion=1.0
+	cleanup_build_dir
+) >/dev/null 2>&1
+assert_no_file "${GIT_SB}/spoken" "nothing is asked when there is nothing to remove"
 
 exit "$(t_summary)"

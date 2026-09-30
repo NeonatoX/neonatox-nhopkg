@@ -691,21 +691,37 @@ cleanup_all()
 # Usage: cleanup_build_dir (without arguments)
 cleanup_build_dir()
 {
+	# The git clone that build_prepare() and the split loop share. It sits next
+	# to the build tree, not inside it, so that it survives the per-part
+	# cleanup_tmp_dir() and can be reused by the next part. That is also why
+	# nothing else would ever remove it, so its lifetime is tied to the build
+	# tree's: the user is asked once, about both.
+	local dirs=()
 	if [[ -d "${NHOPKG_BUILDIR}/${pkgname}-${pkgversion}" ]]; then
-		echog "Compilation directory will be removed from your system."
-		nhopkg_ask_follow
-		case "${?}" in
-			0)
-				echogn " --- Deleting"
-				echo " ${NHOPKG_BUILDIR}/${pkgname}-${pkgversion}."
-				rm -Rf "${NHOPKG_BUILDIR}/${pkgname}-${pkgversion}"
-			;;
-			1)
-				echo -n " --- ${NHOPKG_BUILDIR}/${pkgname}-${pkgversion} "
-				echog "will not be deleted."
-			;;
-		esac
+		dirs+=("${NHOPKG_BUILDIR}/${pkgname}-${pkgversion}")
 	fi
+	if [[ -d "${NHOPKG_BUILDIR}/.gitclone-${ORIGINAL_PKGNAME:-${pkgname}}" ]]; then
+		dirs+=("${NHOPKG_BUILDIR}/.gitclone-${ORIGINAL_PKGNAME:-${pkgname}}")
+	fi
+	((${#dirs[@]})) || return 0
+
+	echog "Compilation directory will be removed from your system."
+	nhopkg_ask_follow
+	case "${?}" in
+		0)
+			echogn " --- Deleting"
+			for dir in "${dirs[@]}"; do
+				echo " ${dir}."
+				rm -Rf "${dir}"
+			done
+		;;
+		1)
+			for dir in "${dirs[@]}"; do
+				echo -n " --- ${dir} "
+				echog "will not be deleted."
+			done
+		;;
+	esac
 }
 
 #==============================================================================

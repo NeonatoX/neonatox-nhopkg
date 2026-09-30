@@ -156,7 +156,14 @@ message instead of passing quietly. The validation half runs `nhopkg-src
   repository" on every call, reuse included, so its log line cannot tell the two
   apart. The repository is a local path, so the test needs no network.
 
-Reverting the fix makes four of its assertions fail, one per changed line.
+- **The clone is cleaned with the build tree.** It has to survive
+  `${NHOPKG_TMPDIR}` to be reused, so its lifetime is tied to the build tree's:
+  `cleanup_build_dir()` collects both and asks once about both. Without that it
+  would be a full clone of the upstream left on disk with nothing able to remove
+  it. The test also checks that nothing is asked when there is nothing to remove,
+  since that function runs once per part.
+
+Reverting the clone fix makes four of its assertions fail, one per changed line.
 
 This is a pure performance fix, so there is no mutant here and there is nothing
 to compare byte for byte: the same `.nho` comes out either way, only the number
