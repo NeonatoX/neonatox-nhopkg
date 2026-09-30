@@ -158,7 +158,7 @@ MUTANTS = {
         ('>> "$NHOPKG_TMPDIR/$repo/retired"',
          '> /dev/null  # mutant: retirement leaves the metadata behind'),
     ],
-    # The ones below are in src/nhopkg.in, the client's build path.
+    # The three below are in src/nhopkg.in, the client's build path.
     #
     # "tar -C dir cp --files-from=..." relies on the old-style bundling of -c
     # and -p, which is only parsed when the first argument is not an option.
@@ -170,6 +170,26 @@ MUTANTS = {
          'tar -C "${NHOPACKAGING}" cp --files-from='),
         ('tar -c -p --files-from=',
          'tar cp --files-from='),
+    ],
+    # The two defects of the split packages, both in src/nhopkg.in.
+    #
+    # The hook was extracted with "sed -n '/^npostinstall_dev() {/,/^}/p'" piped
+    # into an unanchored global "s|_dev||g", whose purpose was to rename the
+    # header. It renamed the body as well, so a hook that installed
+    # "foo_dev.conf" shipped a hook that installed "foo.conf": the package
+    # built, signed and published, and broke on install.
+    "pre-split-hook-mangling": [
+        ('\tnhoid_extract_function "${INSTALL_SPECIFIC}" "npostinstall" "${NHOPKG_TMPDIR}/.nhoid" >> "${NHOPKG_TMPDIR}/nhoid"',
+         '\tsed -n "/^${INSTALL_SPECIFIC}() {/,/^}/p" "${NHOPKG_TMPDIR}/.nhoid" | sed "s|_${part}||g" >> "${NHOPKG_TMPDIR}/nhoid"'),
+    ],
+    # Every per-part field was found with a grep whose pattern interpolated the
+    # part name raw, so a part holding a regex metacharacter matched foreign
+    # fields. "Group_foo.bar:" also matches "Group_fooXbar:", and the match
+    # that comes first in the nhoid wins, so the split shipped with the wrong
+    # group without a word of warning.
+    "pre-split-field-regex": [
+        ('\tnhoid_copy_split_field "Group" "" "${part}" "${NHOPKG_TMPDIR}/.nhoid" >> "${NHOPKG_TMPDIR}/nhoid" 2>/dev/null || true',
+         '\tgrep "^# Group${part:+_${part}}:" "${NHOPKG_TMPDIR}/.nhoid" | sed "s/^# Group${part:+_${part}}:# Group:/" >> "${NHOPKG_TMPDIR}/nhoid" 2>/dev/null || true'),
     ],
     # The guard that came with the fix above: read tar's own exit status and
     # refuse to keep an empty archive, so this cannot fail silently again.

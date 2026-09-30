@@ -23,6 +23,8 @@ Logs of the tool's own output are written to `builddir/tests-tmp/logs/`.
 | `make-packages.sh` | Generates the `.nho` packages. Run on its own to look at them. |
 | `check-add-to-repo.sh` | Validation, rejection, and index consistency. |
 | `check-retired-metadata.sh` | Retiring a version must not leave its entry behind. |
+| `check-package-compress.sh` | The client's packaging step: the installed file list has to reach `data.tar.zst` whole. |
+| `check-splits-scale.sh` | Split packages: a hook body has to survive, and a per-part field has to be found literally. |
 | `run-all.sh` | Runs every `check-*.sh` and summarises. |
 
 Naming matters: the files are `check-*.sh`, not `test-*.sh`, because
@@ -59,6 +61,82 @@ Publishing `zeta 1.0-rc1` and then adding `zeta 1.0` retires the prerelease.
   retiring, and the retired `.nho` is long gone, so nothing triggers it. Stated
   as a test so it stays a known limitation rather than a surprise.
 
+## What `check-package-compress.sh` covers
+
+The last step of a build: the list of installed files becomes `data.tar.zst`.
+
+`tar -C dir cp --files-from=list` is a trap. The `cp` is GNU tar's old-style
+bundling of `-c` and `-p`, and it is only parsed when the first argument is not
+an option. With `-C` in front, GNU tar and BusyBox tar both read the line as "no
+operation letter", write nothing and exit non-zero. The error went to
+`/dev/null` and the status a pipeline returns is `zstd`'s, not `tar`'s, so the
+build carried on and published an archive that was valid and completely empty: a
+package that installs and brings nothing.
+
+- **Both branches of the step run whole.** `--packaging` (file list relative to
+  DESTDIR, `tar -C`) and a live install (absolute paths, no `-C`). The archive
+  holds both files, the mode survives, and the hardlink between them survives.
+  This is checked with GNU tar and, when `builddir/.nhopkg-tools/busybox` is
+  there, with the BusyBox applet as well.
+- **The status is not lost again.** `tar`'s own exit status is read through
+  `PIPESTATUS[0]`, and an empty `data.tar.zst` is refused: the mutants below
+  show the guard aborting the build instead of shipping the empty archive.
+- **The defect itself is written down as a test.** With both changes reverted,
+  the step is asserted to exit 0 and leave a 0-byte payload. That is the bug,
+  kept visible so it is not forgotten rather than so it is tolerated.
+
+The client needs root, so the tool is not run as a program. The step is
+*extracted* from the generated `builddir/src/nhopkg` and run verbatim in a
+sandbox, against the same file list the build writes. If the step in
+`src/nhopkg.in` moves or is renamed, `compress_step()` stops finding it and the
+test dies with a message instead of passing quietly.
+
+## What `check-splits-scale.sh` covers
+
+A split part is not an opaque token: it is part of a field name
+(`# Group_dev:`), of a function name (`npostinstall_dev()`) and of a file name
+(`foo-dev.conf`). Two places interpolated it straight into a pattern, and both
+failed silently -- the package built, was signed, was published, and only
+broke later.
+
+- **A hook body survives its own name.** The hook was taken with
+  `sed -n '/^npostinstall_dev() {/,/^}/p' | sed "s|_dev||g"`, the substitution
+  being meant to rename the header. It is global and unanchored, so it rewrote
+  the body too: a hook installing `foo_dev.conf` shipped a hook installing
+  `foo.conf`. The body, the braces and the `$` in it are now checked to arrive
+  untouched, and the base package still falls back to the generic hook.
+- **A per-part field is found literally.** `grep "^# Group_${part}:"` took the
+  part raw. `Group_foo.bar:` also matches `Group_fooXbar:`, the first match wins,
+  and the split shipped with the wrong group. Both the literal lookup and the
+  repeated/suffixed forms (`Dep_dev(post)` twice becoming two `Dep(post)`) are
+  checked, with a decoy field in the fixture.
+- **A split lands in `extra` unless it asks for another repository.** The
+  fallback used to be a `|| echo` after a pipeline, which never fired: without
+  `pipefail` a pipeline returns its last command's status and `sed` exits 0 even
+  when `grep` matched nothing. A split with no `Repository_<part>:` was published
+  with no `Repository` field at all. The test pins the difference between the
+  harness, which runs with `pipefail`, and `src/nhopkg.in`, which does not.
+- **A split takes its own license, or inherits the package's.** `License` is not
+  optional, so this is the one field where having none of your own is not the same
+  as having none. A `docs` split under `CC-BY-SA-4.0` is the case that motivates
+  it.
+- **Split names are validated.** A part with a `/`, a part not starting
+  alphanumeric and a duplicated part are refused, and a part named like the
+  package is reported as a collision. `docs`, `python3.12`, `foo+bar` and `a-b`
+  are accepted, and `docs` gets its `Arch: any` notice instead of an error.
+- **150 splits are not truncated.** A 150-part nhoid validates, and removing
+  three `ninstall_<part>()` out of the 150 yields exactly three errors -- if the
+  loop stopped early or walked off, the count would not be three.
+- **The defects are written down as tests.** The mutants below put both
+  interpolations back and are asserted to reproduce the damage.
+
+The client needs root, so the hook block is *extracted* from the generated
+`builddir/src/nhopkg` and run verbatim in a sandbox, the way
+`check-package-compress.sh` does; the three `nhoid_*` helpers are extracted from
+the generated `builddir/src/libnhopkg`. If any of them move, the test dies with a
+message instead of passing quietly. The validation half runs `nhopkg-src
+--validate` for real, against the generated tool.
+
 ## Mutants
 
 Some tests run the tool against a deliberately broken copy, to prove the test
@@ -69,11 +147,17 @@ would fail if the fix were reverted. The mutant is applied to the copy in
 |---|---|---|
 | `pre-fase1` | the `name-*` purge globs | `check-add-to-repo.sh` |
 | `pre-fase2a` | retiring a version without purging its index metadata | `check-retired-metadata.sh` |
+| `pre-explicit-tar-opts` | the old-style `cp` bundling after `-C` | `check-package-compress.sh` |
+| `pre-compress-guard` | no `PIPESTATUS` check, no refusal of an empty archive | `check-package-compress.sh` |
+| `pre-split-hook-mangling` | the `s|_${part}||g` header rewrite in the split hooks | `check-splits-scale.sh` |
+| `pre-split-field-regex` | the `grep "^# Group_${part}:"` per-part field lookup | `check-splits-scale.sh` |
 
-`setup_tool <mutant>` in `lib.sh` holds the markers. They are exact lines of
-`src/nhopkg-repos.in`, so **reformatting those lines breaks the mutants**: the
-harness stops with a message naming the marker instead of failing the test for
-an unrelated reason. If that happens, update the marker in `lib.sh`.
+`setup_tool <mutant>` in `lib.sh` applies a mutant to `nhopkg-repos`;
+`apply_mutant_to <file> <mutant>` applies one to any other copy, which is what
+the client's mutants use. Their markers are exact lines of the source, so
+**reformatting those lines breaks the mutants**: the harness stops with a
+message naming the marker instead of failing the test for an unrelated reason.
+If that happens, update the marker in `lib.sh`.
 
 The same applies to the two root checks that `lib.sh` neutralises.
 
@@ -96,8 +180,12 @@ against a stale binary reports a working fix as a broken one. `ensure_build` in
   that remote filename from the `# OS:`/`# Arch:` fields in the index
   (`libnhopkg_udepsys.in:674`). The `repo/<repo>/packages/` directory the
   client uses holds the *unpacked* index, the plain nhoid files, not payloads.
-- **`nhopkg`, `nhouser`, `nhopicker`, `nhoget`, `nhopkg-src`** and the overlay
-  tool: no tests yet.
+- **`nhouser`, `nhopicker`, `nhoget`** and the overlay tool: no tests yet.
+- **The client's build and install path**, beyond the packaging step of
+  `check-package-compress.sh` and the split hooks of `check-splits-scale.sh`.
+  Those two take the step they check out of the generated tool and run it in a
+  sandbox; the rest of a build, and the install itself, still needs root.
+- **`nhopkg-src`**, beyond `--validate`'s split handling.
 - **Package hooks inside a chroot.** The prelude that gives `npostinstall` and
   `npostremove` the target's config and `libnhopkg` is only verified statically
   (syntax, `@prefix@` substitution, invocation from both hooks). Running it
