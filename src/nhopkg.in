@@ -1362,6 +1362,25 @@ fetch_tarball_source() {
 	local tarball_file="${NHOPKG_TMPDIR}/$(basename "${tarball_url}")"
 	local build_dir="${NHOPKG_BUILDIR}/${pkgname}-${pkgversion}"
 	
+	# The split loop calls build_prepare() once per part. When the compilation
+	# directory survives between parts, that is the same tarball downloaded and
+	# decompressed once per part, which is the most expensive step of a build
+	# with many parts.
+	#
+	# Only the tree says whether the source is already there. An empty directory
+	# does not: build_prepare() creates it before it knows if the unpack will
+	# succeed, so its presence on its own proves nothing, and skipping on it
+	# would turn a failed download into a silent empty build.
+	#
+	# This is safe to skip because the tree is not what gets packaged. The .nho
+	# is assembled from ${NHOPACKAGING} with the per-part file list, so this
+	# only avoids rebuilding the same input.
+	if [[ -d "${build_dir}" ]] && compgen -G "${build_dir}/*" > /dev/null; then
+		echog " - Source already in ${build_dir}, keeping it."
+		set_files_and_patches
+		return 0
+	fi
+
 	# Download with hash verification (supports MD5, SHA256, SHA512, BSUM)
 	# Reuses cached file if hash matches, re-downloads on mismatch
 	if ! download_with_hash_check "${tarball_url}" "${tarball_file}" "${NHOPKG_TMPDIR}/.nhoid"; then
@@ -1467,6 +1486,15 @@ build_prepare() {
 		local srcfile="${NHOPKG_TMPDIR}/${pkgname}-${pkgversion}.tar.${ext}"
 		
 		if [[ -e "${srcfile}" ]]; then
+			# Same reuse as fetch_tarball_source(): a non-empty tree means this
+			# tarball was already unpacked for an earlier part. An empty one does
+			# not, see the note there.
+			if [[ -d "${NHOPKG_BUILDIR}/${pkgname}-${pkgversion}" ]] \
+				&& compgen -G "${NHOPKG_BUILDIR}/${pkgname}-${pkgversion}/*" > /dev/null; then
+				echog " - Source already in ${NHOPKG_BUILDIR}/${pkgname}-${pkgversion}, keeping it."
+				srcfile_found=true
+				break
+			fi
 			# === VERIFY HASH BEFORE EXTRACTING ===
 			if ! verify_local_tarball_hash "${srcfile}" "${NHOPKG_TMPDIR}/.nhoid"; then
 				echog " * Hash verification failed, aborting build." >&2

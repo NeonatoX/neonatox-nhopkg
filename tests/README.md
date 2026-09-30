@@ -26,6 +26,7 @@ Logs of the tool's own output are written to `builddir/tests-tmp/logs/`.
 | `check-package-compress.sh` | The client's packaging step: the installed file list has to reach `data.tar.zst` whole. |
 | `check-splits-scale.sh` | Split packages: a hook body has to survive, and a per-part field has to be found literally. |
 | `check-split-git-clone.sh` | Split packages from a git source: N parts must clone once, not N times. |
+| `check-split-source-reuse.sh` | Split packages from a tarball: N parts must not decompress it once each. |
 | `run-all.sh` | Runs every `check-*.sh` and summarises. |
 
 Naming matters: the files are `check-*.sh`, not `test-*.sh`, because
@@ -169,6 +170,27 @@ This is a pure performance fix, so there is no mutant here and there is nothing
 to compare byte for byte: the same `.nho` comes out either way, only the number
 of clones differs. What is asserted is the invariant that makes the fix
 possible -- a clone that survives to the next part.
+
+## What `check-split-source-reuse.sh` covers
+
+- **A tree with the source in it is kept.** `fetch_tarball_source()` returns
+  without reaching `download_with_hash_check()`, which is asserted by making
+  the download fail: a run that skips it succeeds, a run that attempts it does
+  not. The URL is unresolvable, so the test needs no network.
+- **An empty directory is not a tree.** `build_prepare()` creates the directory
+  before it knows whether the unpack will succeed, so skipping on its presence
+  would turn a failed download into a silent build against nothing. With no tree
+  and with an empty one, the download is attempted and its failure is reported.
+- **The VCS path is not caught by it.** `fetch_vcs_source()` runs `git clean
+  -fd` on the tree when it updates, so a guard in front of it would change what
+  each part gets. The test asserts the reuse check stays below the VCS dispatch.
+
+Removing the guard fails two assertions; restoring it makes them pass again.
+
+What this is not: it does not unpack once per build. `cleanup_build_dir()` runs
+at the end of every part and deletes the tree under `-R`, so in recursive mode
+the work is still repeated. The win is there only when the tree is kept between
+parts.
 
 ## Mutants
 
