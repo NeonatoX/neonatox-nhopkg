@@ -1853,7 +1853,16 @@ build_nhoid_to_bin()
 	echo -e "# Name:\t${PKG_DISPLAY_NAME}" >> "${NHOPKG_TMPDIR}/nhoid"
 	grep '^# Version:' "${NHOPKG_TMPDIR}/.nhoid" >> "${NHOPKG_TMPDIR}/nhoid"
 	grep '^# Release:' "${NHOPKG_TMPDIR}/.nhoid" >> "${NHOPKG_TMPDIR}/nhoid"
-	grep '^# License:' "${NHOPKG_TMPDIR}/.nhoid" >> "${NHOPKG_TMPDIR}/nhoid"
+	# Per-split License_<part>, otherwise the base one. Unlike Group or
+	# Repository, License is not optional: a split with no license of its own
+	# inherits the package's rather than ending up with no license at all.
+	local split_license=""
+	[ -n "${part}" ] && split_license=$(nhoid_copy_split_field "License" "" "${part}" "${NHOPKG_TMPDIR}/.nhoid" 2> /dev/null | head -n 1)
+	if [ -n "${split_license}" ]; then
+		printf '%s\n' "${split_license}" >> "${NHOPKG_TMPDIR}/nhoid"
+	else
+		grep '^# License:' "${NHOPKG_TMPDIR}/.nhoid" >> "${NHOPKG_TMPDIR}/nhoid"
+	fi
 	grep '^# Metapackage:' "${NHOPKG_TMPDIR}/.nhoid" >> "${NHOPKG_TMPDIR}/nhoid" 2>/dev/null || true
 	# lib32- prefix for lib32 packages with defined groups, also correct groups according to the split package in the binary nhoid
 	if [ "$part" = "lib32" ] && grep -q '^# Group:' "${NHOPKG_TMPDIR}/.nhoid"; then
@@ -1867,10 +1876,22 @@ build_nhoid_to_bin()
 	# Force "multilib" as repo in lib32 packages
 	if [ "$part" = "lib32" ]; then
 	echo -e "# Repository:\tmultilib" >> "${NHOPKG_TMPDIR}/nhoid"
-	# Allow set repositories on split packages, default to extra
+# Allow set repositories on split packages, default to extra
 	elif [ -n "$part" ] && [ "$part" != "lib32" ]; then
-		grep "^# Repository${part:+_${part}}:" "${NHOPKG_TMPDIR}/.nhoid" | sed "s/^# Repository${part:+_${part}}:/# Repository:/" >> "${NHOPKG_TMPDIR}/nhoid" 2>/dev/null \
-			|| echo -e "# Repository:\textra" >> "${NHOPKG_TMPDIR}/nhoid"
+	# Repository_<part> if there is one, extra otherwise. Note the default is
+	# a literal, not the base package's repository: a split that does not ask
+	# for a repository goes to extra, it does not inherit one. The old code
+	# wrote "|| echo -e '# Repository:\textra'" after a pipeline, which never
+	# fired: without pipefail a pipeline returns its last command's status and
+	# sed exits 0 even when grep matched nothing. A split with no
+	# Repository_<part> was therefore published with no Repository field at all.
+		local split_repo=""
+		split_repo=$(nhoid_copy_split_field "Repository" "" "${part}" "${NHOPKG_TMPDIR}/.nhoid" 2> /dev/null | head -n 1)
+		if [ -n "${split_repo}" ]; then
+			printf '%s\n' "${split_repo}" >> "${NHOPKG_TMPDIR}/nhoid"
+		else
+			echo -e "# Repository:\textra" >> "${NHOPKG_TMPDIR}/nhoid"
+		fi
 	else
 	# Copy the Repository field if it exists
 	grep '^# Repository:' "${NHOPKG_TMPDIR}/.nhoid" >> "${NHOPKG_TMPDIR}/nhoid" 2>/dev/null || true
