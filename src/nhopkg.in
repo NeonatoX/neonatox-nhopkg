@@ -3529,10 +3529,12 @@ case "${NHOPKG_OPTION}" in
 					# Installs package for this part
 					build_package_install "${part}"
 
-					# Search files for this part
-					build_search_for_files "${part}"
-
-					# Create the binary package for this part
+					# Create the binary package for this part.
+					# This searches the installed files for this part itself:
+					# calling build_search_for_files here too would append a
+					# second copy of every path to installed.log (it opens it
+					# with >>), duplicating the entries in data.tar.zst and
+					# doubling the Installed-Size of every split.
 					build_make_binary_package "${part}"
 
 					# Configure post-installation
@@ -3808,11 +3810,13 @@ case "${NHOPKG_OPTION}" in
 
 					# Installs package for this part
 					build_package_install "${part}"
-
-					# Search files for this part
-					build_search_for_files "${part}"
 					
-					# Create the binary package for this part
+					# Create the binary package for this part.
+					# This searches the installed files for this part itself:
+					# calling build_search_for_files here too would append a
+					# second copy of every path to installed.log (it opens it
+					# with >>), duplicating the entries in data.tar.zst and
+					# doubling the Installed-Size of every split.
 					build_make_binary_package "${part}"
 
 					# Configure post-installation
