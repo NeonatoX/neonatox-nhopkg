@@ -23,7 +23,7 @@ Logs of the tool's own output are written to `builddir/tests-tmp/logs/`.
 | `make-packages.sh` | Generates the `.nho` packages. Run on its own to look at them. |
 | `check-add-to-repo.sh` | Validation, rejection, and index consistency. |
 | `check-retired-metadata.sh` | Retiring a version must not leave its entry behind. |
-| `check-package-compress.sh` | The client's packaging step: the installed file list has to reach `data.tar.zst` whole. |
+| `check-package-compress.sh` | The client's packaging step: the installed file list has to reach `data.tar.zst` whole, and a split must search it once. |
 | `check-splits-scale.sh` | Split packages: a hook body has to survive, and a per-part field has to be found literally. |
 | `check-split-git-clone.sh` | Split packages from a git source: N parts must clone once, not N times. |
 | `check-split-source-reuse.sh` | Split packages from a tarball: N parts must not decompress it once each. |
@@ -86,6 +86,15 @@ package that installs and brings nothing.
 - **The defect itself is written down as a test.** With both changes reverted,
   the step is asserted to exit 0 and leave a 0-byte payload. That is the bug,
   kept visible so it is not forgotten rather than so it is tolerated.
+- **A split searches the files once.** `build_make_binary_package()` has always
+  done the search itself. The split loops used to do it as well, right before
+  calling it, and `installed.log` is opened with `>>`: every path went in twice,
+  so each split shipped duplicate members in `data.tar.zst` and an
+  `Installed-Size` summed over the doubled list. Both split loops are asserted
+  to have no extra search, and the mutation is demonstrated by appending the
+  same path twice and watching the archive grow a second member. This was not a
+  `--packaging` defect: it hit every split, packaging or not, because the
+  packaging guard plays no part in it.
 
 The client needs root, so the tool is not run as a program. The step is
 *extracted* from the generated `builddir/src/nhopkg` and run verbatim in a
@@ -204,6 +213,7 @@ would fail if the fix were reverted. The mutant is applied to the copy in
 | `pre-fase2a` | retiring a version without purging its index metadata | `check-retired-metadata.sh` |
 | `pre-explicit-tar-opts` | the old-style `cp` bundling after `-C` | `check-package-compress.sh` |
 | `pre-compress-guard` | no `PIPESTATUS` check, no refusal of an empty archive | `check-package-compress.sh` |
+| `pre-split-double-search` | the extra `build_search_for_files` in both split loops | `check-package-compress.sh` |
 | `pre-split-hook-mangling` | the `s|_${part}||g` header rewrite in the split hooks | `check-splits-scale.sh` |
 | `pre-split-field-regex` | the `grep "^# Group_${part}:"` per-part field lookup | `check-splits-scale.sh` |
 

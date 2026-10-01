@@ -204,6 +204,24 @@ MUTANTS = {
          '\t\tfi\n',
          '\t\t:  # mutant: no guard, an empty archive goes unnoticed\n'),
     ],
+    # The split flows in src/nhopkg.in searched the files themselves and then
+    # called build_make_binary_package(), which searches again. installed.log
+    # is opened with >>, so every path landed in it twice: duplicate members
+    # in data.tar.zst and an Installed-Size counted double. It showed up in
+    # every split, packaging or not.
+    "pre-split-double-search": [
+        ('\t\t\t\t\t# Create the binary package for this part.\n'
+         '\t\t\t\t\t# This searches the installed files for this part itself:\n'
+         '\t\t\t\t\t# calling build_search_for_files here too would append a\n'
+         '\t\t\t\t\t# second copy of every path to installed.log (it opens it\n'
+         '\t\t\t\t\t# with >>), duplicating the entries in data.tar.zst and\n'
+         '\t\t\t\t\t# doubling the Installed-Size of every split.\n'
+         '\t\t\t\t\tbuild_make_binary_package "${part}"',
+         '\t\t\t\t\t# Search files for this part\n'
+         '\t\t\t\t\tbuild_search_for_files "${part}"\n\n'
+         '\t\t\t\t\t# Create the binary package for this part\n'
+         '\t\t\t\t\tbuild_make_binary_package "${part}"'),
+    ],
 }
 
 for marker in MUTANTS.get(mutant, []):

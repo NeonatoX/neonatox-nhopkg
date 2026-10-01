@@ -55,6 +55,18 @@ compress_guard() { # <file>
 	' "$1"
 }
 
+# Whether a split flow searches the files before building the package, on top
+# of the search build_make_binary_package() already does. Empty when the split
+# loops no longer call it, which is what the pre-split-double-search mutant is
+# for. The argument picks which loop: the build one or the super-build one.
+split_searches_twice() { # <file> <build|super-build>
+	awk -v which="$2" '
+		$0 == "\t" which ")" { loop = 1; next }
+		loop && $0 == "\t;;" { exit }
+		loop && /build_search_for_files "\$\{part\}"/ { print FNR ": " $0 }
+	' "$1"
+}
+
 # ---------------------------------------------------------------------------
 # Running it
 # ---------------------------------------------------------------------------
@@ -136,6 +148,24 @@ check_hardlink() { # <data.tar.zst>
 	zstd -dc "$1" 2>/dev/null | tar xf - -C "${out}" 2>/dev/null
 	[[ -e "${out}/usr/bin/alias" ]] && [[ "${out}/usr/bin/alias" -ef "${out}/usr/bin/prog" ]]
 }
+# Run the packaging step over an already written installed.log, so the archive
+# can be inspected without a build. Only the step is run: the point is the file
+# list it is handed, not the guard, which the runs above cover.
+compress_once() { # <sandbox>
+	(
+		cd "$1" || exit 1
+		NHOPKG_TMPDIR="$1/tmpdir"
+		NHOPACKAGING="$1/staging"
+		NHOPKG_PACKAGING=yes
+		PKG_DISPLAY_NAME=demo_dev
+		pkgversion=1.0
+		pkgrevision=1
+		echog() { :; }
+		cleanup_tmp_dir() { :; }
+		eval "${STEP}"
+	) > /dev/null 2>&1
+	return 0
+}
 
 # ---------------------------------------------------------------------------
 # The step as it is written now
@@ -213,7 +243,54 @@ assert_file "${DATA}" "pre-fix, a data.tar.zst was still written"
 assert_eq "0" "$(data_size "${DATA}")" "pre-fix, and it was empty (this is the bug)"
 
 # ---------------------------------------------------------------------------
-# The two things that must not come back
+# A split must not search the files twice
+# ---------------------------------------------------------------------------
+#
+# build_make_binary_package() has always searched the installed files itself.
+# The split loops used to search them as well, right before calling it, and
+# installed.log is opened with ">>", so every path went in twice: duplicate
+# members in data.tar.zst, and an Installed-Size summed over the doubled list.
+# It hit every split, with or without --packaging, because neither the search
+# nor the packaging guard was involved.
+
+head1 "a split searches the files once, not twice"
+assert_eq "" "$(split_searches_twice "${TOOL_SRC}" build)" \
+	"the build split loop does not search before packaging"
+assert_eq "" "$(split_searches_twice "${TOOL_SRC}" super-build)" \
+	"the super-build split loop does not search before packaging"
+
+head1 "mutant: the double search"
+cp "${TOOL_SRC}" "${MUT}"
+apply_mutant_to "${MUT}" pre-split-double-search
+[[ "$(split_searches_twice "${MUT}" build)" == "$(split_searches_twice "${MUT}" super-build)" ]] &&
+	bad "the mutant did not change both loops" ||
+	ok "the mutant puts the search back in both split loops"
+assert_eq "1" "$(split_searches_twice "${MUT}" build | wc -l | tr -d ' ')" \
+	"the build loop searches once more (this is the bug)"
+assert_eq "1" "$(split_searches_twice "${MUT}" super-build | wc -l | tr -d ' ')" \
+	"the super-build loop searches once more (this is the bug)"
+
+# What the duplication did to the archive, stated as a test. The search is
+# reproduced with the same ">>" append the real one uses, over the same staging
+# layout a split builds into.
+head1 "what the duplicate search did to the archive"
+DUP_SB="$(mktemp -d "${WORK}/dup.XXXXXX")"
+mkdir -p "${DUP_SB}/staging/usr/include" "${DUP_SB}/tmpdir"
+printf 'header\n' > "${DUP_SB}/staging/usr/include/demo.h"
+DUP_LOG="${DUP_SB}/tmpdir/.demo_dev-1.0-1-installed.log"
+# once, the way the code does it now
+printf 'usr/include/demo.h\n' >> "${DUP_LOG}"
+compress_once "${DUP_SB}"
+assert_eq "usr/include/demo.h" "$(members "${DUP_SB}/tmpdir/${DATA_NAME}")" \
+	"one search: one member"
+# twice, the way the split loops used to
+printf 'usr/include/demo.h\n' >> "${DUP_LOG}"
+compress_once "${DUP_SB}"
+assert_eq "2" "$(members "${DUP_SB}/tmpdir/${DATA_NAME}" | wc -w | tr -d ' ')" \
+	"two searches: the member is in the archive twice (this is the bug)"
+
+# ---------------------------------------------------------------------------
+# The things that must not come back
 # ---------------------------------------------------------------------------
 
 head1 "the generated tool itself"
