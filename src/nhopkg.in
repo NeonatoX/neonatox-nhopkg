@@ -1837,6 +1837,15 @@ build_search_for_files()
 	local __np_tmp
 	__np_tmp="$(mktemp -t nhopkg.XXXXXX 2>/dev/null || echo "/tmp/nhopkg.${$}")"
 	grep -v '^#' "${NHOPKG_TMPDIR}/.${PKG_DISPLAY_NAME}-${pkgversion}-${pkgrevision}-installed.log" > "$__np_tmp" || true
+	# The same path can be listed more than once, so the sum below would count it
+	# more than once and the package would declare more than it installs. Take
+	# each path once. Deduplicating the temporary copy and not the log keeps the
+	# log exactly as the packaging step expects to see it.
+	#
+	# In place with -o, and not a pipe: the loop below assigns PACKAGE_SIZE, and
+	# a pipe would run it in a subshell where the assignment is thrown away. Both
+	# GNU and BusyBox sort take -u with -o FILE.
+	sort -u -o "$__np_tmp" "$__np_tmp" 2> /dev/null || true
 	while IFS= read -r casefile; do
 		[[ -n "${casefile}" ]] || continue
 		if [[ ! -e "${_srch_prefix}${casefile}" ]]; then

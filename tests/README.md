@@ -27,6 +27,7 @@ Logs of the tool's own output are written to `builddir/tests-tmp/logs/`.
 | `check-splits-scale.sh` | Split packages: a hook body has to survive, and a per-part field has to be found literally. |
 | `check-split-git-clone.sh` | Split packages from a git source: N parts must clone once, not N times. |
 | `check-split-source-reuse.sh` | Split packages from a tarball: N parts must not decompress it once each. |
+| `check-installed-size.sh` | `Installed-Size` must count each installed path once, however often the list names it. |
 | `run-all.sh` | Runs every `check-*.sh` and summarises. |
 
 Naming matters: the files are `check-*.sh`, not `test-*.sh`, because
@@ -200,6 +201,26 @@ What this is not: it does not unpack once per build. `cleanup_build_dir()` runs
 at the end of every part and deletes the tree under `-R`, so in recursive mode
 the work is still repeated. The win is there only when the tree is kept between
 parts.
+
+## What `check-installed-size.sh` covers
+
+- **A path listed more than once is counted once.** The per-part file list can
+  name the same path several times, and the loop summing a `du` per line used to
+  add it every time, so a split package declared about twice its real size. On
+  linux-firmware that was 3248 KB declared against 1617 KB of files, 2.01x. The
+  test covers the same path listed twice, five times, and a single large file
+  listed four times, and pins the answer to the real on-disk total.
+- **A listed path that no longer exists is skipped** without failing the block.
+- **The log keeps its duplicates.** The block deduplicates the temporary copy it
+  reads, on purpose: the packaging step reads the log and must keep seeing what
+  it always saw. If that ever changes, the tar file list changes with it.
+- **The dedup is in place, and not a pipe.** The loop assigns `PACKAGE_SIZE`, so
+  piping the sorted output into it would run the loop in a subshell and the
+  assignment would be lost, leaving `Installed-Size` at 0. The test fails if a
+  pipe appears between the `sort` and the loop.
+
+Removing the `sort -u` fails five assertions. `sort -u` with `-o FILE` works in
+both GNU and BusyBox, and the codebase already uses it elsewhere.
 
 ## Mutants
 
