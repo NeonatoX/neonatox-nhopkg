@@ -901,6 +901,9 @@ bin_install_setting_up()
 # load the target's conf + libnhopkg (noemptyfuncs and package helpers).
 unset NHOPKG_CONF NHOPKG_LIB NHOPKG_UDEP_LIB NHOPKG_DOWNLOAD_LIB NHOPKG_CRYPTO_LIB NHOPKG_BB_DIR NHOPKG_BB_SETUP
 $(nhopkg_chroot_prelude)
+# get info like name version, etc.
+get_basic_data ${_nh_path}
+# Set nhoid funcs
 source ${_nh_path}
 npostinstall
 HOOK_SCRIPT
