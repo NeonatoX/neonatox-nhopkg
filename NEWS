@@ -1,3 +1,17 @@
+2.1.0 (2026-10-02)
+--------------------------------
+* feat(nhopkg): License_<part> overrides the base license of a split, and a split with no Repository_<part> falls back to extra instead of being published with no Repository field at all
+* feat(nhopkg-src): --validate rejects split part names outside [A-Za-z0-9][A-Za-z0-9._+-]*, and a name that collides with the base package
+* fix(nhopkg): per-split nhoid fields and hook bodies are read literally, so a part name with a metacharacter no longer picks up a foreign Group/field or rewrites a hook body
+* fix(nhopkg): a split searches the installed files once, so data.tar.zst, Installed-Size and the files/ registry no longer carry every path twice (GNU tar was even leaving nlink=2 on installed files)
+* fix(nhopkg): Installed-Size counts each installed path once; a split declared roughly twice its real size (3248 KB for 1617 KB measured)
+* fix(nhopkg): the cached git clone is removed with the build tree instead of accumulating a full upstream clone on disk per build
+* fix(nhopkg): the --root npostinstall hook loads the nhoid fields (pkgname/pkgversion/pkgrevision/pkgdescription) before running inside the target
+* perf(nhopkg): a split build clones the git source once per build, not once per part
+* perf(nhopkg): build_prepare() reuses an already unpacked source instead of decompressing it again for every split part
+* test: the client suite covers literal per-split fields, License_<part>, a 150-part nhoid and the data.tar.zst packaging step, with mutants; the README records what it does not cover
+* docs: document split part fields, License_<part> and the extra repository default
+
 2.0.1 (2026-09-29)
 --------------------------------
 * fix(nhopkg): the private BusyBox PATH is exported again, so awk/sed/grep resolve on systems without coreutils ("awk: command not found")
