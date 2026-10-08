@@ -476,6 +476,12 @@ check_if_running()
 # ---------------------------------------------------------
 update_local_db()
 {
+	# Skip in packaging mode: don't update the live locate database
+	if [[ "${NHOPKG_PACKAGING}" = "yes" ]]; then
+		echog " * Packaging mode does not update the locate database."
+		echog "   Run 'nhopkg -u' when you want it refreshed."
+		return 0
+	fi
 	# Skip in root mode: don't update host's locate database
 	if [[ "${USE_INSTALL_ROOT}" = "yes" ]]; then
 		return 0
@@ -635,6 +641,11 @@ check_if_installed_package()
 
 	# Checks that exist other versión of package.
 	if [[ ! -f "${NHOPKG_LOCALSTATEDIR}/packages/${PKG_DISPLAY_NAME}" ]]; then
+		return 0
+	fi
+	if [[ "${NHOPKG_PACKAGING}" = "yes" ]]; then
+		echog " * ${PKG_DISPLAY_NAME} is installed; packaging leaves it untouched."
+		echog "   Install the new .nho with 'nhopkg -i', or build without --packaging."
 		return 0
 	fi
 	# Get data from old package.
@@ -3447,7 +3458,11 @@ case "${NHOPKG_OPTION}" in
 			echog " - Installing package and dependencies."
 
 			if [[ "${NHOPKG_CHECKDEPS}" = "yes" ]]; then
-				dep_install_queue "yes" "all"
+				if [[ "${NHOPKG_PACKAGING}" = "yes" ]]; then
+					dep_packaging_stop_if_missing || { cleanup_tmp_dir; exit 1; }
+				else
+					dep_install_queue "yes" "all"
+				fi
 			fi
 			
 			## 5. Restore package base tempdir for build package (*.srcnho)
@@ -3695,7 +3710,11 @@ case "${NHOPKG_OPTION}" in
 			fi
 
 			if [[ "${NHOPKG_CHECKDEPS}" = "yes" ]]; then
-				dep_install_queue "yes" "all"
+				if [[ "${NHOPKG_PACKAGING}" = "yes" ]]; then
+					dep_packaging_stop_if_missing || { cleanup_tmp_dir; exit 1; }
+				else
+					dep_install_queue "yes" "all"
+				fi
 			fi
 			
 			## 5. Restore package base tempdir for build package (Git)

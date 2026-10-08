@@ -122,6 +122,25 @@ dep_resolve_from_nhoid() {
 }
 
 #----------------------------------------------------------
+# dep_packaging_stop_if_missing() - Stops the build instead of installing deps
+#----------------------------------------------------------
+dep_packaging_stop_if_missing() {
+	if [[ ${#RCASEPACKAGES[@]} -gt 0 ]]; then
+		echog " * Packaging mode does not install dependencies."
+		echog "   Missing: ${RCASEPACKAGES[*]}."
+		echog "   Install them with 'nhopkg -i', or build without --packaging."
+		RCASEPACKAGES=()
+		ORCASEPACKAGES=()
+		return 1
+	fi
+	if [[ ${#ORCASEPACKAGES[@]} -gt 0 ]]; then
+		echog " * Packaging mode does not install dependencies (optional: ${ORCASEPACKAGES[*]})."
+		ORCASEPACKAGES=()
+	fi
+	return 0
+}
+
+#----------------------------------------------------------
 # dep_install_queue() - Instala toda la cola de dependencias
 #----------------------------------------------------------
 dep_install_queue() {

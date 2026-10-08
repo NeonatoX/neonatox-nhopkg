@@ -1565,6 +1565,11 @@ generate_installed_db() {
 # Parameters: updates (optional: "silent")
 # ---------------------------------------------------------
 shooter_updates() {
+	if [[ "${NHOPKG_PACKAGING}" = "yes" ]]; then
+		echog " * Packaging mode leaves this system's caches untouched (schemas, icons, mime, ldconfig)."
+		echog "   Run 'nhopkg -x' after installing the package."
+		return 0
+	fi
 	# --- ROOT MODE: ejecutar nhopkg -x en el chroot ---
 	if [[ "${USE_INSTALL_ROOT}" = "yes" ]]; then
 		# Check if nhopkg exists in the target root
