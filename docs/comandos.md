@@ -44,7 +44,7 @@ nhopkg is a universal binary and source package manager. This page documents eve
 | `--force-check-sha256` | Force checksum verification even if disabled in config |
 | `--sign-package` | Sign the binary package with GPG during `--build` |
 | `--no-sign-package` | Skip GPG signing |
-| `--packaging` | Build the `.nho` into a temporary `DESTDIR` without installing anything on the live system (only with `-b`/`-C`): no database registry, no install hooks, staging dir auto-removed |
+| `--packaging` | Build the `.nho` into a temporary `DESTDIR` without installing or changing anything on the live system (only with `-b`/`-C`): no database registry, no install hooks, an already installed package stays installed, dependencies are not installed (a missing required one stops the build and is listed), no cache refresh and no locate-database rewrite (`nhopkg -x` and `nhopkg -u` afterwards), staging dir auto-removed |
 | `--arch <arch>` | Target architecture for `# Arch:` and the `.nho` filename instead of `uname -m` (e.g. `--arch aarch64`). Only valid with `--packaging` (the Arch of an installed package must match the host). Metadata/naming only, no toolchain or sysroot changes |
 | `--verify-package-signature` | Verify the GPG signature of a package before installing it |
 | `--no-verify-package-signature` | Skip signature verification |

@@ -41,11 +41,27 @@ By default `ninstall()` runs directly against the live system. With
    **without** executing install/config hooks (they stay inside the `.nho`).
 4. Saves the build/install logs next to the `.nho` instead of in
    `${NHOPKG_LOCALSTATEDIR}/logs`.
+5. Leaves the rest of the live system alone: a package already installed is
+   not removed or replaced, dependencies are not installed, the system caches
+   (schemas, icons, mime, fonts, ldconfig) are not refreshed and the locate
+   database is not rewritten.
 
 Recipes must honor `DESTDIR` (e.g. `make install DESTDIR="$DESTDIR"`). If a
 recipe installs nothing into the staging dir the build aborts with a clear
 message — there is no fallback to scanning `/`. `--packaging` is only valid
 with `--build`/`--super-build`.
+
+A required dependency (`Dep(post)`, `BuildDep`) that is not installed stops
+the build: nhopkg lists what is missing and exits with status 1 without
+installing anything, so install those with `nhopkg -i` and build again. A
+missing optional dependency (`OptionalDep(post)`, `OptionalBuildDep`) is only
+reported and the build carries on. Once the `.nho` is installed,
+`nhopkg -x` refreshes the caches and `nhopkg -u` the locate database.
+
+> **If `NHOPKG_PACKAGING=yes` is set in `nhopkg.conf`**, nhopkg rejects `-i`,
+> `-x` and `-u` too: the startup check looks at the variable and not at where
+> it came from. Run them as `NHOPKG_PACKAGING=no nhopkg -x` in that case, or
+> take the variable out of the conf first.
 
 To label the `.nho` for another architecture (`# Arch:` and filename), use
 `--arch <arch>` or `NHOPKG_TARGET_ARCH` — only valid in packaging mode and only

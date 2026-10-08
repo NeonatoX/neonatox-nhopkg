@@ -202,7 +202,7 @@ Build binary packages without touching the running system. Only applies to the b
 
 | Variable | Default | Accepted Values | Description |
 |---|---|---|---|
-| `NHOPKG_PACKAGING` | `no` | `yes`, `no` | Build the `.nho` into a staging `DESTDIR`: recipes install into `NHOPACKAGING`, the package is not registered in the database and no install hook runs |
+| `NHOPKG_PACKAGING` | `no` | `yes`, `no` | Build the `.nho` into a staging `DESTDIR`: recipes install into `NHOPACKAGING`, the package is not registered in the database and no install hook runs. The live system is otherwise left alone: an already installed package stays installed, dependencies are not installed, the system caches and the locate database are not refreshed |
 | `NHOPACKAGING` | `""` (empty) | Valid directory path | Staging directory. If empty, auto-created with `mktemp` inside `TMPDIR` and removed after the build; a user-provided directory is never removed |
 | `NHOPKG_TARGET_ARCH` | `""` (empty) | Arch label (`aarch64`, `x86_64-musl`, ...) | Use this architecture for `# Arch:` and the `.nho` filename instead of `uname -m`. **Only applies with `NHOPKG_PACKAGING=yes`** (otherwise ignored, so a native build never registers a mismatched Arch). Metadata only; no toolchain/sysroot changes. Overridable with `--arch` (also requires packaging) |
 
@@ -214,6 +214,15 @@ architecture (aarch64, x86_64-musl, ...) set `NHOPKG_TARGET_ARCH` or pass
 `--arch <arch>` — **only valid in packaging mode** (it would make the Arch of an
 installed/registered package mismatch the host). Only `# Arch:` and the
 filename change, the toolchain is untouched:
+
+A required dependency (`Dep(post)`, `BuildDep`) that is not installed stops the
+build with the list of what is missing and status 1, installing nothing; a
+missing optional dependency is only reported. After installing the `.nho`,
+`nhopkg -x` refreshes the system caches and `nhopkg -u` the locate database,
+neither of which packaging mode does. If `NHOPKG_PACKAGING=yes` lives in this
+conf file, those two commands (and `-i`) are rejected as well — the startup
+check does not distinguish the conf from the command line — so run them as
+`NHOPKG_PACKAGING=no nhopkg -x`.
 
 ---
 

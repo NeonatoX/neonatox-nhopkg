@@ -299,6 +299,15 @@ NHOPKG_CMAKE_BUILD_PARALLEL_LEVEL=""
 # transparently: ninstall/nalloc-flavored recipes that honor DESTDIR land in
 # the staging dir; package metadata (nhoid, installed files, size, hash) is
 # generated from the staging dir, never from the live system.
+#
+# The live system is left alone everywhere else as well: an already installed
+# package is not removed, dependencies are not installed (a missing required
+# one stops the build and is listed), the system caches are not refreshed and
+# the locate database is not rewritten. The build tells you what to run
+# afterwards: 'nhopkg -i' for the missing dependencies, 'nhopkg -x' for the
+# caches and 'nhopkg -u' for the locate database. Beware: with this variable
+# set to "yes" in this file, those three commands are rejected at startup as
+# well, so run them as (for example) NHOPKG_PACKAGING=no nhopkg -x.
 #==============================================================================
 NHOPKG_PACKAGING="${NHOPKG_PACKAGING:-no}"
 NHOPACKAGING="${NHOPACKAGING:-}"

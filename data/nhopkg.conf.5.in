@@ -320,6 +320,15 @@ Only applies to the build flows (\fB\-b\fR/\fB\-\-build\fR and
 from there, and the package is neither registered in the database nor is its
 post-install hook executed. A recipe that ignores \fBDESTDIR\fR aborts the
 build with a clear message.
+The rest of the live system is left alone as well: a package already installed
+is not removed, dependencies are not installed (a missing required one stops
+the build and is listed, so install it with \fBnhopkg \-i\fR), the system
+caches are not refreshed (\fBnhopkg \-x\fR afterwards) and the locate database
+is not rewritten (\fBnhopkg \-u\fR afterwards). With this variable set to
+.I yes
+in this file those three commands are rejected at startup too, so run them as
+e.g.
+.BR NHOPKG_PACKAGING=no\ nhopkg\ \-x .
 Values:
 .I no
 (default) or

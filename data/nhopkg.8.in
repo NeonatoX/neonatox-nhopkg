@@ -128,9 +128,17 @@ Build only the \fIlib32\fR split package, skipping the base build (only with
 Build the binary \fI.nho\fR into a temporary \fBDESTDIR\fR (packaging mode,
 only with
 .BR \-\-build / \-\-super-build ).
-Nothing is installed on the live system: the package is not registered in the
-database and the install hooks (\fInpostinstall()\fR) are not executed; they
-stay inside the \fI.nho\fR for when the package is actually installed.
+Nothing is installed on or changed in the live system: the package is not
+registered in the database, the install hooks (\fInpostinstall()\fR) are not
+executed and stay inside the \fI.nho\fR for when the package is actually
+installed, a package already installed is left installed, dependencies are not
+installed, the system caches (schemas, icons, mime, fonts, ldconfig) are not
+refreshed and the locate database is not rewritten.
+A required dependency (\fIDep(post)\fR or \fIBuildDep\fR) that is not installed
+stops the build: nhopkg lists what is missing and exits with status 1, so run
+\fBnhopkg \-i\fR on those and build again. A missing optional dependency is
+reported only. After installing the package, \fBnhopkg \-x\fR refreshes the
+caches and \fBnhopkg \-u\fR the locate database.
 The staging directory is auto-created (or taken from \fBNHOPACKAGING\fR in
 nhopkg.conf) and removed afterwards. If the recipe does not honor
 \fBDESTDIR\fR the build fails with a clear message.
