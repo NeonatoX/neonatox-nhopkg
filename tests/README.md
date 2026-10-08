@@ -28,6 +28,7 @@ Logs of the tool's own output are written to `builddir/tests-tmp/logs/`.
 | `check-split-git-clone.sh` | Split packages from a git source: N parts must clone once, not N times. |
 | `check-split-source-reuse.sh` | Split packages from a tarball: N parts must not decompress it once each. |
 | `check-installed-size.sh` | `Installed-Size` must count each installed path once, however often the list names it. |
+| `check-packaging-no-host-writes.sh` | `--packaging` must not touch the live system: the installed package, the dependencies, the caches and the locate database. |
 | `run-all.sh` | Runs every `check-*.sh` and summarises. |
 
 Naming matters: the files are `check-*.sh`, not `test-*.sh`, because
@@ -222,6 +223,40 @@ parts.
 Removing the `sort -u` fails five assertions. `sort -u` with `-o FILE` works in
 both GNU and BusyBox, and the codebase already uses it elsewhere.
 
+## What `check-packaging-no-host-writes.sh` covers
+
+`--packaging` promises a build that does not touch the live system, and it used
+to mutate it in four places: it uninstalled the package that was already
+installed, installed dependencies into `/`, refreshed the system caches and
+rewrote the locate database. The build kept going in every case, so the only
+warning was the damage itself.
+
+- **The installed package is left alone.** The guard is inside
+  `check_if_installed_package()`, so all four call sites get it. In packaging
+  mode the run returns 0 with no prompt, no `backup_config_files` and no
+  `remove_package`; outside packaging mode all three still happen.
+- **Dependencies are never installed.** `dep_packaging_stop_if_missing()`
+  names the missing required ones and exits 1 (the build's own `cleanup_tmp_dir`
+  first), warns and carries on when only optional ones are missing, and says
+  nothing when there is nothing to install. Both call sites, build and
+  super-build, are extracted as a block and run three ways: packaging decides,
+  packaging stops, live installs.
+- **The locate database is left alone**, and `updatedb` still rewrites it
+  outside packaging mode.
+- **No cache of this system is touched.** All eight commands the shooter runs
+  are shimmed through `PATH`, which is also what makes the control run safe to
+  do on this machine: outside packaging mode the shims are what runs.
+- **The defects are written down as tests.** The four mutants below put each
+  guard back to the code it replaced, and each run reproduces the damage.
+
+The build needs root, so nothing here runs as a program. Each function is
+*extracted* from the generated tool and run verbatim in a sandbox, with
+everything it calls stubbed to write into a canary file: a missing guard shows
+up as a canary that is no longer empty. The dependency guard lives at its call
+sites rather than inside a function, so the enclosing block is extracted whole.
+If any of them move, `fn_body()` and `dep_block()` stop finding them and the
+test dies with a message instead of passing quietly.
+
 ## Mutants
 
 Some tests run the tool against a deliberately broken copy, to prove the test
@@ -237,6 +272,10 @@ would fail if the fix were reverted. The mutant is applied to the copy in
 | `pre-split-double-search` | the extra `build_search_for_files` in both split loops | `check-package-compress.sh` |
 | `pre-split-hook-mangling` | the `s|_${part}||g` header rewrite in the split hooks | `check-splits-scale.sh` |
 | `pre-split-field-regex` | the `grep "^# Group_${part}:"` per-part field lookup | `check-splits-scale.sh` |
+| `pre-packaging-keep-installed` | the packaging guard in `check_if_installed_package()` | `check-packaging-no-host-writes.sh` |
+| `pre-packaging-install-deps` | the packaging guard at both dependency call sites | `check-packaging-no-host-writes.sh` |
+| `pre-packaging-shooter` | the packaging guard in `shooter_updates()` | `check-packaging-no-host-writes.sh` |
+| `pre-packaging-updatedb` | the packaging guard in `update_local_db()` | `check-packaging-no-host-writes.sh` |
 
 `setup_tool <mutant>` in `lib.sh` applies a mutant to `nhopkg-repos`;
 `apply_mutant_to <file> <mutant>` applies one to any other copy, which is what
@@ -268,13 +307,13 @@ against a stale binary reports a working fix as a broken one. `ensure_build` in
   client uses holds the *unpacked* index, the plain nhoid files, not payloads.
 - **`nhouser`, `nhopicker`, `nhoget`** and the overlay tool: no tests yet.
 - **The client's build and install path**, beyond the packaging step of
-  `check-package-compress.sh`, the split hooks of `check-splits-scale.sh` and
-  the clone destination of `check-split-git-clone.sh`. Those three take the
-  step they check out of the generated tool and run it in a sandbox; the rest of
-  a build, and the install itself, still needs root. In particular, no test
-  builds a whole `.nho` from a split, so "the same package builds the same
-  bytes before and after a performance fix" is asserted by reading the code, not
-  by running it.
+  `check-package-compress.sh`, the split hooks of `check-splits-scale.sh`, the
+  clone destination of `check-split-git-clone.sh` and the four packaging guards
+  of `check-packaging-no-host-writes.sh`. Those four take what they check out of
+  the generated tool and run it in a sandbox; the rest of a build, and the
+  install itself, still needs root. In particular, no test builds a whole
+  `.nho` from a split, so "the same package builds the same bytes before and
+  after a performance fix" is asserted by reading the code, not by running it.
 - **`nhopkg-src`**, beyond `--validate`'s split handling.
 - **Package hooks inside a chroot.** The prelude that gives `npostinstall` and
   `npostremove` the target's config and `libnhopkg` is only verified statically

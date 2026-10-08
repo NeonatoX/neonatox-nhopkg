@@ -222,14 +222,53 @@ MUTANTS = {
          '\t\t\t\t\t# Create the binary package for this part\n'
          '\t\t\t\t\tbuild_make_binary_package "${part}"'),
     ],
+    # The four guards that keep --packaging from touching the live system.
+    # Each one is the packaging guard put back to the code it replaced, so the
+    # test can state the damage each guard prevents as a run that reproduces
+    # it. The first, third and fourth live in the two tools; the second is the
+    # dependency call site in src/nhopkg.in, which has it twice (build and
+    # super-build) and str.replace() takes care of both.
+    "pre-packaging-keep-installed": [
+        ('\tif [[ "${NHOPKG_PACKAGING}" = "yes" ]]; then\n'
+         '\t\techog " * ${PKG_DISPLAY_NAME} is installed; packaging leaves it untouched."\n'
+         "\t\techog \"   Install the new .nho with 'nhopkg -i', or build without --packaging.\"\n"
+         '\t\treturn 0\n'
+         '\tfi\n',
+         '\t:  # mutant: packaging uninstalls the package it finds installed\n'),
+    ],
+    "pre-packaging-install-deps": [
+        ('\t\t\t\tif [[ "${NHOPKG_PACKAGING}" = "yes" ]]; then\n'
+         '\t\t\t\t\tdep_packaging_stop_if_missing || { cleanup_tmp_dir; exit 1; }\n'
+         '\t\t\t\telse\n'
+         '\t\t\t\t\tdep_install_queue "yes" "all"\n'
+         '\t\t\t\tfi\n',
+         '\t\t\t\tdep_install_queue "yes" "all"\n'),
+    ],
+    "pre-packaging-shooter": [
+        ('\tif [[ "${NHOPKG_PACKAGING}" = "yes" ]]; then\n'
+         '\t\techog " * Packaging mode leaves this system\'s caches untouched (schemas, icons, mime, ldconfig)."\n'
+         "\t\techog \"   Run 'nhopkg -x' after installing the package.\"\n"
+         '\t\treturn 0\n'
+         '\tfi\n',
+         '\t:  # mutant: packaging refreshes the caches of this system\n'),
+    ],
+    "pre-packaging-updatedb": [
+        ('\t# Skip in packaging mode: don\'t update the live locate database\n'
+         '\tif [[ "${NHOPKG_PACKAGING}" = "yes" ]]; then\n'
+         '\t\techog " * Packaging mode does not update the locate database."\n'
+         "\t\techog \"   Run 'nhopkg -u' when you want it refreshed.\"\n"
+         '\t\treturn 0\n'
+         '\tfi\n',
+         '\t:  # mutant: packaging rewrites the locate database\n'),
+    ],
 }
 
 for marker in MUTANTS.get(mutant, []):
     old, new = marker
     if old not in s:
-        sys.exit("the marker for the '%s' mutant is no longer in src/nhopkg-repos.in:\n"
+        sys.exit("the marker for the '%s' mutant is no longer in %s:\n"
                  "  %r\n"
-                 "Update tests/lib.sh, or the test below is not testing what it claims." % (mutant, old))
+                 "Update tests/lib.sh, or the test below is not testing what it claims." % (mutant, path, old))
     s = s.replace(old, new)
 
 io.open(path, "w", encoding="utf-8").write(s)
