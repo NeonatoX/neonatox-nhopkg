@@ -29,6 +29,7 @@ Logs of the tool's own output are written to `builddir/tests-tmp/logs/`.
 | `check-split-source-reuse.sh` | Split packages from a tarball: N parts must not decompress it once each. |
 | `check-installed-size.sh` | `Installed-Size` must count each installed path once, however often the list names it. |
 | `check-packaging-no-host-writes.sh` | `--packaging` must not touch the live system: the installed package, the dependencies, the caches and the locate database. |
+| `check-self-provide.sh` | A runtime `Dep(post)` on a split built in the same run must resolve without aborting the build. |
 | `run-all.sh` | Runs every `check-*.sh` and summarises. |
 
 Naming matters: the files are `check-*.sh`, not `test-*.sh`, because
@@ -257,6 +258,34 @@ sites rather than inside a function, so the enclosing block is extracted whole.
 If any of them move, `fn_body()` and `dep_block()` stop finding them and the
 test dies with a message instead of passing quietly.
 
+## What `check-self-provide.sh` covers
+
+`nhopkg -b foo.srcnho` builds the base package first and resolves its
+dependencies before that. When the base declares a runtime dependency on one of
+its own splits (`# Splitpackage: lib` and `# Dep(post): foo-lib`), the split is
+neither installed nor in a repo yet, so the resolver used to fail and the build
+aborted with "dependency resolution failed for: foo-lib", even though the split
+was about to be built later in the same run.
+
+- **The self-provide hook resolves it.** A `required` or `optional` dep whose
+  name is in `SELF_PROVIDED_NAMES` returns 0 with the cache tagged
+  `self-split` and nothing queued for install. The version is compared against
+  the source package's (`>=1.0` passes on 1.5, `>=99` does not and falls back to
+  normal resolution).
+- **Build dependencies are left alone.** A `BuildDep` is never self-provided:
+  `nbuild()` needs the real files.
+- **The behavior is bounded.** A different name, or no splits at all, changes
+  nothing.
+- **`dep_resolve_from_nhoid()` does not abort.** The whole path is exercised
+  against a fixture nhoid, not just the helper.
+- **The defect is written down as a test.** The `pre-self-provide` mutant takes
+  the hook out and the same case fails to resolve, as it did before.
+
+The resolver is plain library code, so this runs without root: the generated
+`builddir/src/libnhopkg_udepsys` is sourced against an empty state directory,
+one resolution per subshell. If the hook moves, the mutant marker in `lib.sh`
+stops matching and the test dies with a message instead of passing quietly.
+
 ## Mutants
 
 Some tests run the tool against a deliberately broken copy, to prove the test
@@ -276,6 +305,7 @@ would fail if the fix were reverted. The mutant is applied to the copy in
 | `pre-packaging-install-deps` | the packaging guard at both dependency call sites | `check-packaging-no-host-writes.sh` |
 | `pre-packaging-shooter` | the packaging guard in `shooter_updates()` | `check-packaging-no-host-writes.sh` |
 | `pre-packaging-updatedb` | the packaging guard in `update_local_db()` | `check-packaging-no-host-writes.sh` |
+| `pre-self-provide` | the self-provide hook in `_dep_resolve_single()` | `check-self-provide.sh` |
 
 `setup_tool <mutant>` in `lib.sh` applies a mutant to `nhopkg-repos`;
 `apply_mutant_to <file> <mutant>` applies one to any other copy, which is what

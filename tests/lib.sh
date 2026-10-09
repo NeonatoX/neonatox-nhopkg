@@ -261,6 +261,23 @@ MUTANTS = {
          '\tfi\n',
          '\t:  # mutant: packaging rewrites the locate database\n'),
     ],
+    # The self-provide hook in src/libnhopkg_udepsys.in. Without it a runtime
+    # Dep(post) on a split built in the same run is not seen, the repos are
+    # searched instead, and the build aborts with "dependency resolution
+    # failed" even though the split is about to be built.
+    "pre-self-provide": [
+        ('\t# Self-provided: a split built later in this same run satisfies the dep.\n'
+         '\t# Only runtime deps: a BuildDep needs real files during nbuild().\n'
+         '\tif [[ "$dep_type" = "required" || "$dep_type" = "optional" ]]; then\n'
+         '\t\tif _dep_find_in_self_splits "$name" "$op" "$version"; then\n'
+         '\t\t\tDEP_RESOLVED_CACHE[$spec]="self"\n'
+         '\t\t\tDEP_REPO_CACHE[$spec]="self-split"\n'
+         '\t\t\t[[ "$silent" != "yes" ]] && echog "   - ${spec}: (self-provided by split)"\n'
+         '\t\t\treturn 0\n'
+         '\t\tfi\n'
+         '\tfi\n',
+         '\t:  # mutant: no self-provide hook\n'),
+    ],
 }
 
 for marker in MUTANTS.get(mutant, []):
