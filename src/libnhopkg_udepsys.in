@@ -31,6 +31,7 @@
 #   _dep_find_in_repos()        — Search repository packages (internal)
 #   _dep_resolve_children()     — Recurse into child deps (internal)
 #   _dep_provides_package()     — Check Provides (internal)
+#   _dep_find_in_self_splits()  — Check splits built in this run (internal)
 #   _dep_download_all()         — Download queue (internal)
 #   _dep_install_single         — Install a single package  (internal)
 #   _dep_install_all_from_queue — Install all downloaded packages  (internal)
@@ -46,6 +47,11 @@ declare -A DEP_RESOLVED_CACHE=()   # Cache: spec -> pkgfile path
 declare -A DEP_REPO_CACHE=()	   # Cache: spec -> repo name
 declare   DEP_FOUND_REPO=""		# Last found repository
 declare   REPLACES_PACKAGE=""      # Package to be replaced
+
+# Splits built in this same run (--build / --super-build). A runtime Dep(post)
+# on one of them is satisfied by the run itself, not by the repos.
+declare -a SELF_PROVIDED_NAMES=()  # Full display names of those splits
+declare   SELF_PROVIDED_VERSION="" # ${pkgversion}-${pkgrevision} of the source
 
 # Internal side-channel outputs
 declare   DEP_PARSED_NAME=""
@@ -322,6 +328,17 @@ _dep_resolve_single() {
 		return 0
 	fi
 	
+	# Self-provided: a split built later in this same run satisfies the dep.
+	# Only runtime deps: a BuildDep needs real files during nbuild().
+	if [[ "$dep_type" = "required" || "$dep_type" = "optional" ]]; then
+		if _dep_find_in_self_splits "$name" "$op" "$version"; then
+			DEP_RESOLVED_CACHE[$spec]="self"
+			DEP_REPO_CACHE[$spec]="self-split"
+			[[ "$silent" != "yes" ]] && echog "   - ${spec}: (self-provided by split)"
+			return 0
+		fi
+	fi
+	
 	pkgfile=$(_dep_find_installed "$name" "$op" "$version")
 	if [[ -n "$pkgfile" ]]; then
 		DEP_RESOLVED_CACHE[$spec]="$pkgfile"
@@ -580,6 +597,34 @@ _dep_provides_package() {
 				get_basic_data "$pkgfile"
 				local pkg_ver="${pkgversion}-${pkgrevision}"
 				version_compare "$pkg_ver" "$op" "$ver" && return 0
+				return 1
+			fi
+			return 0
+		fi
+	done
+	return 1
+}
+
+#----------------------------------------------------------
+# _dep_find_in_self_splits() - Dep covered by a split built in this run
+# Returns 0 if name (with op/ver) is in SELF_PROVIDED_NAMES.
+# Notes:
+#   - SELF_PROVIDED_NAMES holds full display names, resolved by the caller
+#     while $pkgname is still the source package (get_basic_data overwrites
+#     it during resolution), so no name is built here.
+#   - SELF_PROVIDED_VERSION is ${pkgversion}-${pkgrevision} of the source;
+#     splits inherit both.
+#----------------------------------------------------------
+_dep_find_in_self_splits() {
+	local name="$1" op="$2" ver="$3"
+	local self
+
+	[[ ${#SELF_PROVIDED_NAMES[@]} -eq 0 ]] && return 1
+
+	for self in "${SELF_PROVIDED_NAMES[@]}"; do
+		if [[ "$self" = "$name" ]]; then
+			if [[ -n "$op" ]]; then
+				version_compare "$SELF_PROVIDED_VERSION" "$op" "$ver" && return 0
 				return 1
 			fi
 			return 0

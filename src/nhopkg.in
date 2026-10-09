@@ -3447,6 +3447,18 @@ case "${NHOPKG_OPTION}" in
 			fi
 
 			## 4. Checks dependencies.
+			# Splits built later in this same run satisfy a runtime Dep(post)
+			# on their own name without going to the repos. Names are resolved
+			# here, while $pkgname is still the source package (resolution
+			# overwrites it via get_basic_data).
+			SELF_PROVIDED_NAMES=()
+			SELF_PROVIDED_VERSION="${pkgversion}-${pkgrevision}"
+			SELF_PARTS=$(build_split_parts "${SPLITPACKAGE}")
+			for _self_part in ${SELF_PARTS}; do
+				get_package_display_name "${_self_part}"
+				SELF_PROVIDED_NAMES+=("${PKG_DISPLAY_NAME}")
+			done
+			unset _self_part SELF_PARTS
 			if [[ "${NHOPKG_CHECKDEPS}" = "yes" ]]; then
 				echog " - Resolving Dependencies."
 				dep_resolve_from_nhoid "${NHOPKG_TMPDIR}/nhoid" "build"
@@ -3701,6 +3713,18 @@ case "${NHOPKG_OPTION}" in
 			fi
 			
 			## 4. Checks dependencies.
+			# Splits built later in this same run satisfy a runtime Dep(post)
+			# on their own name without going to the repos. Names are resolved
+			# here, while $pkgname is still the source package (resolution
+			# overwrites it via get_basic_data).
+			SELF_PROVIDED_NAMES=()
+			SELF_PROVIDED_VERSION="${pkgversion}-${pkgrevision}"
+			SELF_PARTS=$(build_split_parts "${SPLITPACKAGE}")
+			for _self_part in ${SELF_PARTS}; do
+				get_package_display_name "${_self_part}"
+				SELF_PROVIDED_NAMES+=("${PKG_DISPLAY_NAME}")
+			done
+			unset _self_part SELF_PARTS
 			if [[ "${NHOPKG_CHECKDEPS}" = "yes" ]]; then
 				echog " - Resolving Dependencies."
 				dep_resolve_from_nhoid "${NHOPKG_TMPDIR}/nhoid" "build"
