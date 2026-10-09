@@ -72,6 +72,21 @@ A spec without an operator matches any version.
 When resolving a single dependency, UDEPSYS searches in the following order.
 The first match wins.
 
+**LEVEL 0 — Self-provided splits (same run)**
+When `nhopkg` builds a source package that declares `# Splitpackage:`
+(`--build` or `--super-build`), the base package's runtime dependencies
+(`# Dep(post):` / `# OptionalDep(post):`) are resolved *before* the splits are
+built. A dependency whose name matches one of the splits that this same run
+will build is satisfied here, without scanning the installed or repository
+levels. Only runtime dependencies qualify: `# BuildDep:` must find the real
+files during `nbuild()`, so a split that does not exist yet never satisfies a
+build dependency. The version constraint, if any, is compared against the
+source package's `${pkgversion}-${pkgrevision}`, which every split inherits.
+A split excluded by `--base`/`--no-split` is not in the set and resolves
+normally.
+
+This check runs after the cache and before LEVEL 1.
+
 **LEVEL 1 — Installed packages (exact name)**
 Scans `${ROOT_PKG_STATE_DIR}/packages/` for a file whose internal `# Name:`
 matches the dependency name. Version constraints are checked against the
@@ -185,6 +200,18 @@ The same suffix mechanism applies to `# Provides:` and `# Conflicts:`:
 # Provides_dev:	libfoo-dev
 # Conflicts_lib32:	lib32-libfoo
 ```
+
+### A runtime dep on the package's own split
+
+A runtime dependency of the base on one of its own splits (`# Splitpackage: lib`
+and `# Dep(post): foo-lib`) is satisfied by the run that builds that split, as
+described in LEVEL 0 above, so the build no longer aborts with a missing
+dependency.
+
+The base is still installed *before* its splits, though. If the base's
+`ninstall()`/`npostinstall()` **executes** something linked against the split,
+it will not find it yet: self-providing only keeps the resolver from failing, it
+does not reorder the build. Recipes that only copy files are unaffected.
 
 ---
 
