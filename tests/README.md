@@ -330,6 +330,30 @@ The resolver is plain library code, so this runs without root: the generated
 one resolution per subshell. If the hook moves, the mutant marker in `lib.sh`
 stops matching and the test dies with a message instead of passing quietly.
 
+## A pattern where a literal was meant
+
+More than one defect here is the same shape, and it is worth naming: a variable
+is pasted into a pattern that is then matched or substituted, when a literal or a
+whole line was meant. The pattern is neither anchored nor escaped, so it matches
+more than intended, and it does so silently -- the build carries on and the
+damage only shows up later, somewhere else.
+
+- The `name-*` purge unindexed `alpha-devel` as soon as `alpha` was added
+  (`check-add-to-repo.sh`).
+- `sed "s|_${part}||g"` rewrote the hook's body, not only its header
+  (`check-splits-scale.sh`).
+- `grep "^# Group_${part}:"` matched a decoy part that shares the text
+  (`check-splits-scale.sh`).
+- `sed -e "s@^<path>@@"` clipped a captured path that is a prefix of a longer
+  one -- `libfoo.so.0` against `libfoo.so.0.15.0`, which a libtool build tree
+  holds (`check-build-capture.sh`). The fragment (`.0.15.0`) then reached `tar`,
+  which refused the whole package.
+
+The fix is the same each time: do not let the variable be read as a pattern.
+Match the literal with `grep -F`, match whole lines with `grep -xF -f`, put `--`
+before an argument that may start with `-`, and keep an anchored, escaped pattern
+only when a real pattern is what is wanted.
+
 ## Mutants
 
 Some tests run the tool against a deliberately broken copy, to prove the test
