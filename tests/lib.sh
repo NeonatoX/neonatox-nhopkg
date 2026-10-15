@@ -278,6 +278,66 @@ MUTANTS = {
          '\tfi\n',
          '\t:  # mutant: no self-provide hook\n'),
     ],
+    # The capture of a build, in src/nhopkg.in. build_package_install() stamps
+    # a marker before running ninstall(), and build_search_for_files() lists
+    # what find reports as newer than that marker. Touch it again afterwards
+    # and nothing is newer than it any more, so every file the recipe installed
+    # is missed: data.tar.zst is not even created and the build reports
+    # "Nhopkg can't install any file from this package". It broke the base
+    # package and every split alike, because they share the function.
+    "pre-preinstall-after-install": [
+        ('\tfi\n'
+         '}\n'
+         '## check_build_package_install(). Checks if install step is all Ok.\n',
+         '\tfi\n'
+         '\t# mutant: the marker is touched again after the install, so find has\n'
+         '\t# nothing newer than it and captures no file at all.\n'
+         '\ttouch "${NHOPKG_TMPDIR}/.nho-preinstall${part:+-}${part}"\n'
+         '}\n'
+         '## check_build_package_install(). Checks if install step is all Ok.\n'),
+    ],
+    # The other half of the same capture: the marker is compared with -cnewer,
+    # the inode change time, because cp -p / install -p / rsync -a / tar -x
+    # preserve the modification time. -newer reads mtime instead and drops
+    # every file that arrived with its timestamp preserved, so a recipe that
+    # installs with "cp -p" ships without them.
+    "pre-newer-not-cnewer": [
+        ('-cnewer "$ref"', '-newer "$ref"'),
+        ('stat -c %Z', 'stat -c %Y'),
+    ],
+    # The third defect: the NoUpgrade and existence filters edit the capture log
+    # in place with an unanchored "sed -e \"s@^<path>@@\"", so a captured path
+    # that is a prefix of another (libdemo.so.0 against libdemo.so.0.15.0, as
+    # libtool produces) is clipped into a relative fragment (".0.15.0") and the
+    # subsequent empty-line removal leaves fragments that tar cannot archive.
+    "pre-prefix-clip": [
+        ('\t\tif grep -qF -- "${noupgrade}" "${NHOPKG_TMPDIR}/.${PKG_DISPLAY_NAME}-${pkgversion}-${pkgrevision}-installed.log" 2>/dev/null; then\n'
+         '\t\t\tlocal __np_tmp\n'
+         '\t\t\t__np_tmp="$(mktemp -t nhopkg.XXXXXX 2>/dev/null || echo "/tmp/nhopkg.${$}")"\n'
+         '\t\t\tgrep -vF -- "${noupgrade}" "${NHOPKG_TMPDIR}/.${PKG_DISPLAY_NAME}-${pkgversion}-${pkgrevision}-installed.log" > "$__np_tmp" 2>/dev/null || true\n'
+         '\t\t\tcat "$__np_tmp" > "${NHOPKG_TMPDIR}/.${PKG_DISPLAY_NAME}-${pkgversion}-${pkgrevision}-installed.log"\n'
+         '\t\t\trm -f "$__np_tmp"\n'
+         '\t\tfi',
+         '\t\tif grep -- "${noupgrade}" "${NHOPKG_TMPDIR}/.${PKG_DISPLAY_NAME}-${pkgversion}-${pkgrevision}-installed.log" &>/dev/null; then\n'
+         '\t\t\tlocal __np_tmp\n'
+         '\t\t\t__np_tmp="$(mktemp -t nhopkg.XXXXXX 2>/dev/null || echo "/tmp/nhopkg.${$}")"\n'
+         '\t\t\tgrep -- "${noupgrade}" "${NHOPKG_TMPDIR}/.${PKG_DISPLAY_NAME}-${pkgversion}-${pkgrevision}-installed.log" > "$__np_tmp" || true\n'
+         '\t\t\twhile IFS= read -r noupgrade2; do\n'
+         '\t\t\t\tsed -e "s@^${noupgrade2}@@" -i "${NHOPKG_TMPDIR}/.${PKG_DISPLAY_NAME}-${pkgversion}-${pkgrevision}-installed.log" 2> /dev/null || true\n'
+         '\t\t\t\tsed -e \'/^$/d\' -i "${NHOPKG_TMPDIR}/.${PKG_DISPLAY_NAME}-${pkgversion}-${pkgrevision}-installed.log" 2> /dev/null || true\n'
+         '\t\t\tdone < "$__np_tmp"\n'
+         '\t\t\trm -f "$__np_tmp"\n'
+         '\t\tfi'),
+        ('\t\t\t# Record the path; the log is rewritten once, after the loop.\n'
+         '\t\t\t# Stripping each path from the log in place with sed\n'
+         '\t\t\t# ("s@^<path>@@") was unsafe for the same reason as above: it is\n'
+         '\t\t\t# not end-anchored, so ".0" also cut ".0.15.0" down to ".15.0",\n'
+         '\t\t\t# and the loop reads a snapshot taken before, so the garbage it\n'
+         '\t\t\t# created was never revisited.\n'
+         '\t\t\tprintf \'%s\\n\' "${casefile}" >> "$__np_missing"',
+         '\t\t\t\tsed -e "s@^${casefile}@@" -i "${NHOPKG_TMPDIR}/.${PKG_DISPLAY_NAME}-${pkgversion}-${pkgrevision}-installed.log" 2> /dev/null || true\n'
+         '\t\t\t\tsed -e \'/^$/d\' -i "${NHOPKG_TMPDIR}/.${PKG_DISPLAY_NAME}-${pkgversion}-${pkgrevision}-installed.log" 2> /dev/null || true'),
+    ],
 }
 
 for marker in MUTANTS.get(mutant, []):

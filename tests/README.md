@@ -24,6 +24,7 @@ Logs of the tool's own output are written to `builddir/tests-tmp/logs/`.
 | `check-add-to-repo.sh` | Validation, rejection, and index consistency. |
 | `check-retired-metadata.sh` | Retiring a version must not leave its entry behind. |
 | `check-package-compress.sh` | The client's packaging step: the installed file list has to reach `data.tar.zst` whole, and a split must search it once. |
+| `check-build-capture.sh` | What a recipe installs has to reach the package: the marker, the `find` predicate, the filters that drop build-tree paths, and a whole `.nho` for the base package and for a split. |
 | `check-splits-scale.sh` | Split packages: a hook body has to survive, and a per-part field has to be found literally. |
 | `check-split-git-clone.sh` | Split packages from a git source: N parts must clone once, not N times. |
 | `check-split-source-reuse.sh` | Split packages from a tarball: N parts must not decompress it once each. |
@@ -104,6 +105,49 @@ The client needs root, so the tool is not run as a program. The step is
 sandbox, against the same file list the build writes. If the step in
 `src/nhopkg.in` moves or is renamed, `compress_step()` stops finding it and the
 test dies with a message instead of passing quietly.
+
+## What `check-build-capture.sh` covers
+
+The step before the packaging one: `build_package_install()` stamps a marker and
+runs `ninstall()`, then `build_search_for_files()` asks `find` what is newer than
+that marker. Both halves of that comparison have been wrong, and neither shows
+up until the package is installed.
+
+- **The marker is stamped once, before the install.** Stamping it again after
+  `ninstall()` made it the newest file on disk, so `find` reported nothing: the
+  package installed and brought nothing or, with an empty file list,
+  `build_make_binary_package()` refused with "Nhopkg can't install any file from
+  this package". It hit the base package and every split alike, because they go
+  through the same function.
+- **The comparison is `-cnewer`, not `-newer`.** A recipe that installs with
+  `cp -p` (or `install -p`, `rsync -a`, `tar -x`) preserves the modification
+  time, and `-newer` drops exactly those files. `-cnewer` reads the inode change
+  time, which creating the file always moves forward, so it keeps them. The
+  BusyBox branch reads `%Z` for the same reason.
+- **A whole `.nho` comes out**, for the base package and for a `lib32` split,
+  and each carries only its own files. This is the coverage that was missing: a
+  `.nho` is built from a split without root.
+- **A build tree under the find root is filtered, not clipped.** The search
+  walks `FIND_DIRS`, and `NHOPKG_BUILDIR` (`/usr/src/nhopkg`) sits under `/usr`,
+  so the build tree is captured too and dropped through `NOUPGRADE_FILES`.
+  Dropping it with an unanchored `sed -e "s@^<path>@@"` clipped a captured path
+  that is a prefix of another -- `libdemo.so.0` against `libdemo.so.0.15.0`,
+  which every libtool tree holds -- into a relative fragment (`.0.15.0`). The
+  fragment reached `tar`, which refused the whole archive. The test runs the
+  search with the build tree under the root and the root in `NOUPGRADE_FILES`,
+  and asserts a `.nho` with only the installed files and no clipped fragment in
+  the capture log.
+- **The defects are written down as tests.** The three mutants below put each
+  change back and are asserted to reproduce the damage: no capture and no `.nho`
+  in the first case, a silently dropped file in the second, and no `.nho` at all
+  in the third.
+
+The client needs root, so the three functions are *extracted* from the generated
+`builddir/src/nhopkg` and run verbatim in a sandbox, the way
+`check-package-compress.sh` does. What is not under test is stubbed: the
+signature, the binary nhoid, the `chown` of the output, the build time, the
+display name, and the three-second `sleep`. If a function moves, `fn_body()`
+stops finding it and the test dies with a message instead of passing quietly.
 
 ## What `check-splits-scale.sh` covers
 
@@ -299,6 +343,9 @@ would fail if the fix were reverted. The mutant is applied to the copy in
 | `pre-explicit-tar-opts` | the old-style `cp` bundling after `-C` | `check-package-compress.sh` |
 | `pre-compress-guard` | no `PIPESTATUS` check, no refusal of an empty archive | `check-package-compress.sh` |
 | `pre-split-double-search` | the extra `build_search_for_files` in both split loops | `check-package-compress.sh` |
+| `pre-preinstall-after-install` | the second `touch` of the marker, after the install | `check-build-capture.sh` |
+| `pre-newer-not-cnewer` | `-cnewer` → `-newer` (and BusyBox `%Z` → `%Y`) | `check-build-capture.sh` |
+| `pre-prefix-clip` | dropping NoUpgrade/vanished paths with an unanchored `sed` | `check-build-capture.sh` |
 | `pre-split-hook-mangling` | the `s|_${part}||g` header rewrite in the split hooks | `check-splits-scale.sh` |
 | `pre-split-field-regex` | the `grep "^# Group_${part}:"` per-part field lookup | `check-splits-scale.sh` |
 | `pre-packaging-keep-installed` | the packaging guard in `check_if_installed_package()` | `check-packaging-no-host-writes.sh` |
@@ -337,13 +384,15 @@ against a stale binary reports a working fix as a broken one. `ensure_build` in
   client uses holds the *unpacked* index, the plain nhoid files, not payloads.
 - **`nhouser`, `nhopicker`, `nhoget`** and the overlay tool: no tests yet.
 - **The client's build and install path**, beyond the packaging step of
-  `check-package-compress.sh`, the split hooks of `check-splits-scale.sh`, the
-  clone destination of `check-split-git-clone.sh` and the four packaging guards
-  of `check-packaging-no-host-writes.sh`. Those four take what they check out of
-  the generated tool and run it in a sandbox; the rest of a build, and the
-  install itself, still needs root. In particular, no test builds a whole
-  `.nho` from a split, so "the same package builds the same bytes before and
-  after a performance fix" is asserted by reading the code, not by running it.
+  `check-package-compress.sh`, the capture of `check-build-capture.sh`, the split
+  hooks of `check-splits-scale.sh`, the clone destination of
+  `check-split-git-clone.sh` and the four packaging guards of
+  `check-packaging-no-host-writes.sh`. Those take what they check out of the
+  generated tool and run it in a sandbox; the rest of a build, and the install
+  itself, still needs root. `check-build-capture.sh` does assemble a whole `.nho`
+  from a split, but it does not run a build end to end: "the same package builds
+  the same bytes before and after a performance fix" is still asserted by reading
+  the code, not by running it.
 - **`nhopkg-src`**, beyond `--validate`'s split handling.
 - **Package hooks inside a chroot.** The prelude that gives `npostinstall` and
   `npostremove` the target's config and `libnhopkg` is only verified statically
