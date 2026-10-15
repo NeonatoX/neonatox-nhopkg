@@ -1833,23 +1833,26 @@ build_search_for_files()
 		if [[ -z "${noupgrade}" ]]; then
 			continue
 		fi
-		if grep -- "${noupgrade}" "${NHOPKG_TMPDIR}/.${PKG_DISPLAY_NAME}-${pkgversion}-${pkgrevision}-installed.log" &>/dev/null; then
+		# The pattern is a literal path or file name, so match it literally and
+		# drop whole lines. Editing the log in place with sed ("s@^<line>@@")
+		# was wrong: the pattern is neither end-anchored nor escaped, so a
+		# captured path that is a prefix of another -- libfoo.so.0 against
+		# libfoo.so.0.15.0, exactly what a libtool build tree holds -- was
+		# clipped into a bogus relative path (".0.15.0") instead of removed.
+		# That garbage then hit tar, which refused the whole package.
+		if grep -qF -- "${noupgrade}" "${NHOPKG_TMPDIR}/.${PKG_DISPLAY_NAME}-${pkgversion}-${pkgrevision}-installed.log" 2>/dev/null; then
 			local __np_tmp
 			__np_tmp="$(mktemp -t nhopkg.XXXXXX 2>/dev/null || echo "/tmp/nhopkg.${$}")"
-			grep -- "${noupgrade}" "${NHOPKG_TMPDIR}/.${PKG_DISPLAY_NAME}-${pkgversion}-${pkgrevision}-installed.log" > "$__np_tmp" || true
-			while IFS= read -r noupgrade2; do
-				# Remove exact matches lines.
-				sed -e "s@^${noupgrade2}@@" -i "${NHOPKG_TMPDIR}/.${PKG_DISPLAY_NAME}-${pkgversion}-${pkgrevision}-installed.log" 2> /dev/null || true
-				# Remove empty lines.
-				sed -e '/^$/d' -i "${NHOPKG_TMPDIR}/.${PKG_DISPLAY_NAME}-${pkgversion}-${pkgrevision}-installed.log" 2> /dev/null || true
-			done < "$__np_tmp"
+			grep -vF -- "${noupgrade}" "${NHOPKG_TMPDIR}/.${PKG_DISPLAY_NAME}-${pkgversion}-${pkgrevision}-installed.log" > "$__np_tmp" 2>/dev/null || true
+			cat "$__np_tmp" > "${NHOPKG_TMPDIR}/.${PKG_DISPLAY_NAME}-${pkgversion}-${pkgrevision}-installed.log"
 			rm -f "$__np_tmp"
 		fi
 	done
 	# Check if files exists and gets package size.
 	PACKAGE_SIZE=0
-	local __np_tmp
+	local __np_tmp __np_missing
 	__np_tmp="$(mktemp -t nhopkg.XXXXXX 2>/dev/null || echo "/tmp/nhopkg.${$}")"
+	__np_missing="$(mktemp -t nhopkg.XXXXXX 2>/dev/null || echo "/tmp/nhopkg.${$}")"
 	grep -v '^#' "${NHOPKG_TMPDIR}/.${PKG_DISPLAY_NAME}-${pkgversion}-${pkgrevision}-installed.log" > "$__np_tmp" || true
 	# The same path can be listed more than once, so the sum below would count it
 	# more than once and the package would declare more than it installs. Take
@@ -1863,14 +1866,27 @@ build_search_for_files()
 	while IFS= read -r casefile; do
 		[[ -n "${casefile}" ]] || continue
 		if [[ ! -e "${_srch_prefix}${casefile}" ]]; then
-			sed -e "s@^${casefile}@@" -i "${NHOPKG_TMPDIR}/.${PKG_DISPLAY_NAME}-${pkgversion}-${pkgrevision}-installed.log" 2> /dev/null || true
-			sed -e '/^$/d' -i "${NHOPKG_TMPDIR}/.${PKG_DISPLAY_NAME}-${pkgversion}-${pkgrevision}-installed.log" 2> /dev/null || true
+			# Record the path; the log is rewritten once, after the loop.
+			# Stripping each path from the log in place with sed
+			# ("s@^<path>@@") was unsafe for the same reason as above: it is
+			# not end-anchored, so ".0" also cut ".0.15.0" down to ".15.0",
+			# and the loop reads a snapshot taken before, so the garbage it
+			# created was never revisited.
+			printf '%s\n' "${casefile}" >> "$__np_missing"
 		elif [[ -f "${_srch_prefix}${casefile}" ]]; then
 			# Use du -- to be safe with leading dashes.
 			PACKAGE_SIZE=$(( PACKAGE_SIZE + $(du -- "${_srch_prefix}${casefile}" | awk '{print $1}') ))
 		fi
 	done < "$__np_tmp"
 	rm -f "$__np_tmp"
+	if [[ -s "$__np_missing" ]]; then
+		# Whole-line and literal: a path removes only an identical line, never
+		# a longer path that happens to start with it.
+		grep -vxF -f "$__np_missing" "${NHOPKG_TMPDIR}/.${PKG_DISPLAY_NAME}-${pkgversion}-${pkgrevision}-installed.log" > "$__np_tmp" 2>/dev/null || true
+		cat "$__np_tmp" > "${NHOPKG_TMPDIR}/.${PKG_DISPLAY_NAME}-${pkgversion}-${pkgrevision}-installed.log"
+		rm -f "$__np_tmp"
+	fi
+	rm -f "$__np_missing"
 }
 ## get_build_time(). Calculates time on build and install a package.
 # Usage: get_build_time (without arguments)
