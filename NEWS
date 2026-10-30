@@ -1,3 +1,13 @@
+2.1.1 (2026-10-30)
+--------------------------------
+* fix(nhopkg): --packaging leaves the live system alone: the package being rebuilt stays installed instead of being desinstalled, dependencies are not installed (a missing required one stops the build with exit 1, a missing optional one only warns), and the cache and locate database are left to nhopkg -x and nhopkg -u
+* fix(nhopkg): a Dep(post) on one of the package's own splits is satisfied by the split built later in the same run, instead of aborting with "dependency resolution failed"
+* fix(nhopkg): the build capture drops whole paths literally, so a captured path that is a prefix of another (libfoo.so.0 against libfoo.so.0.15.0) is no longer clipped into a fragment tar rejects
+* fix(nhopkg): the lock directory is created behind a dangling /var/lock symlink, so nhopkg starts inside a chroot where /run is not mounted
+* fix(nhopkg): a split is checked for an installed copy before it is rebuilt, restoring the UPDATE/REINSTALL prompt, the config backup and the removal of the old split
+* test: five new suites (build capture, packaging host writes, self-provided split deps, split installed check, lock in a chroot) with mutants that reproduce each defect; the suite now has 12 files
+* docs: state what --packaging leaves alone, document self-provided split dependencies, and name the pattern-vs-literal trap in the test suite
+
 2.1.0 (2026-10-02)
 --------------------------------
 * feat(nhopkg): License_<part> overrides the base license of a split, and a split with no Repository_<part> falls back to extra instead of being published with no Repository field at all
