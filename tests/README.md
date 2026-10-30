@@ -31,6 +31,7 @@ Logs of the tool's own output are written to `builddir/tests-tmp/logs/`.
 | `check-installed-size.sh` | `Installed-Size` must count each installed path once, however often the list names it. |
 | `check-packaging-no-host-writes.sh` | `--packaging` must not touch the live system: the installed package, the dependencies, the caches and the locate database. |
 | `check-self-provide.sh` | A runtime `Dep(post)` on a split built in the same run must resolve without aborting the build. |
+| `check-lock-in-chroot.sh` | `check_if_running()` must create the lock directory when `/var/lock` is a dangling symlink. |
 | `run-all.sh` | Runs every `check-*.sh` and summarises. |
 
 Naming matters: the files are `check-*.sh`, not `test-*.sh`, because
@@ -330,6 +331,32 @@ The resolver is plain library code, so this runs without root: the generated
 one resolution per subshell. If the hook moves, the mutant marker in `lib.sh`
 stops matching and the test dies with a message instead of passing quietly.
 
+## What `check-lock-in-chroot.sh` covers
+
+`NHOPKG_LOCKFILE` defaults to `/var/lock/nhopkg`, and `/var/lock` is usually a
+symlink to `/run/lock`. On a booted system `/run` is a tmpfs mount, so the
+directory exists or `mkdir -p` can create it. Inside a chroot `/run` is often
+not mounted, the link dangles, and `mkdir -p` does not create the parents of a
+symlink target: it fails with "No such file or directory" and nhopkg refuses to
+start. `check_if_running()` now resolves the link and creates the real target.
+
+- **A dangling absolute link is resolved and created.** The target points inside
+  the sandbox, never at the host's `/run`, and the lock file is asserted to
+  appear in it with the PID.
+- **A relative link is resolved too** (`../run/lock`).
+- **A link to an existing directory and a plain directory still work**, so the
+  normal case is not broken by the fix.
+- **A path that cannot be created still aborts**, with the reason reported: the
+  fix must not turn a real error into a silent no-op.
+- **The defect is written down as a test.** The `pre-dangling-lock` mutant puts
+  the plain `mkdir -p` back and the dangling case aborts again, leaving no lock.
+
+The client needs root, so `check_if_running()` is *extracted* from the generated
+`builddir/src/nhopkg` and run verbatim in a sandbox, with `echog` stubbed. If the
+function moves, `lock_fn()` stops finding it and the test dies with a message
+instead of passing quietly. The sandboxed symlinks are absolute or relative
+paths inside `builddir/tests-tmp/`, so the run never touches the host's `/run`.
+
 ## A pattern where a literal was meant
 
 More than one defect here is the same shape, and it is worth naming: a variable
@@ -377,6 +404,7 @@ would fail if the fix were reverted. The mutant is applied to the copy in
 | `pre-packaging-shooter` | the packaging guard in `shooter_updates()` | `check-packaging-no-host-writes.sh` |
 | `pre-packaging-updatedb` | the packaging guard in `update_local_db()` | `check-packaging-no-host-writes.sh` |
 | `pre-self-provide` | the self-provide hook in `_dep_resolve_single()` | `check-self-provide.sh` |
+| `pre-dangling-lock` | the symlink resolution in `check_if_running()` | `check-lock-in-chroot.sh` |
 
 `setup_tool <mutant>` in `lib.sh` applies a mutant to `nhopkg-repos`;
 `apply_mutant_to <file> <mutant>` applies one to any other copy, which is what

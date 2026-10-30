@@ -278,6 +278,38 @@ MUTANTS = {
          '\tfi\n',
          '\t:  # mutant: no self-provide hook\n'),
     ],
+    # check_if_running() in src/nhopkg.in. /var/lock is usually a symlink to
+    # /run/lock, and `mkdir -p` does not create the parents of a symlink
+    # target. Inside a chroot /run may not exist at all, so the lock directory
+    # could not be created and nhopkg refused to start.
+    "pre-dangling-lock": [
+        ('\tlocal _lockdir _locktarget _link _hops\n'
+         '\t_lockdir="$(dirname "${NHOPKG_LOCKFILE}")"\n'
+         '\t# /var/lock suele ser un enlace a /run/lock. En un chroot /run puede no\n'
+         '\t# existir y `mkdir -p` no crea los padres del *destino* de un enlace\n'
+         '\t# colgante, así que se resuelve el enlace y se crea el destino real.\n'
+         '\tif ! mkdir -p "${_lockdir}" 2>/dev/null; then\n'
+         '\t\t_locktarget="${_lockdir}"\n'
+         '\t\t_hops=0\n'
+         '\t\twhile [[ -L "${_locktarget}" ]]; do\n'
+         '\t\t\t_hops=$((_hops + 1))\n'
+         '\t\t\t[[ ${_hops} -le 10 ]] || break\n'
+         '\t\t\t_link="$(readlink "${_locktarget}" 2>/dev/null)" || break\n'
+         '\t\t\tcase "${_link}" in\n'
+         '\t\t\t\t/*) _locktarget="${_link}" ;;\n'
+         '\t\t\t\t*)  _locktarget="$(dirname "${_locktarget}")/${_link}" ;;\n'
+         '\t\t\tesac\n'
+         '\t\tdone\n'
+         '\t\tif ! mkdir -p "${_locktarget}" 2>/dev/null; then\n'
+         '\t\t\techog " * Cannot create lock directory: ${_lockdir}" >&2\n'
+         '\t\t\texit 1\n'
+         '\t\tfi\n'
+         '\tfi\n',
+         '\tif ! mkdir -p "$(dirname "${NHOPKG_LOCKFILE}")"; then\n'
+         '\t\techog " * Cannot create lock directory: $(dirname "${NHOPKG_LOCKFILE}")" >&2\n'
+         '\t\texit 1\n'
+         '\tfi\n'),
+    ],
     # The capture of a build, in src/nhopkg.in. build_package_install() stamps
     # a marker before running ninstall(), and build_search_for_files() lists
     # what find reports as newer than that marker. Touch it again afterwards

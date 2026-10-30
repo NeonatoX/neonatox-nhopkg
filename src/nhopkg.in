@@ -427,11 +427,27 @@ check_if_running()
 	NHOPKG_LECHE=0
 	local _wait_attempts="${NHOPKG_LOCK_WAIT:-12}"
 	local _attempt=0
-	# /var/lock suele apuntar a /run/lock; en un arranque limpio /run es un
-	# tmpfs vacío y el directorio puede no existir, así que se crea antes.
-	if ! mkdir -p "$(dirname "${NHOPKG_LOCKFILE}")"; then
-		echog " * Cannot create lock directory: $(dirname "${NHOPKG_LOCKFILE}")" >&2
-		exit 1
+	local _lockdir _locktarget _link _hops
+	_lockdir="$(dirname "${NHOPKG_LOCKFILE}")"
+	# /var/lock suele ser un enlace a /run/lock. En un chroot /run puede no
+	# existir y `mkdir -p` no crea los padres del *destino* de un enlace
+	# colgante, así que se resuelve el enlace y se crea el destino real.
+	if ! mkdir -p "${_lockdir}" 2>/dev/null; then
+		_locktarget="${_lockdir}"
+		_hops=0
+		while [[ -L "${_locktarget}" ]]; do
+			_hops=$((_hops + 1))
+			[[ ${_hops} -le 10 ]] || break
+			_link="$(readlink "${_locktarget}" 2>/dev/null)" || break
+			case "${_link}" in
+				/*) _locktarget="${_link}" ;;
+				*)  _locktarget="$(dirname "${_locktarget}")/${_link}" ;;
+			esac
+		done
+		if ! mkdir -p "${_locktarget}" 2>/dev/null; then
+			echog " * Cannot create lock directory: ${_lockdir}" >&2
+			exit 1
+		fi
 	fi
 	while [[ -e "${NHOPKG_LOCKFILE}" ]];
 	do
