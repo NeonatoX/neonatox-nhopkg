@@ -28,6 +28,7 @@ Logs of the tool's own output are written to `builddir/tests-tmp/logs/`.
 | `check-splits-scale.sh` | Split packages: a hook body has to survive, and a per-part field has to be found literally. |
 | `check-split-git-clone.sh` | Split packages from a git source: N parts must clone once, not N times. |
 | `check-split-source-reuse.sh` | Split packages from a tarball: N parts must not decompress it once each. |
+| `check-split-installed-check.sh` | A split built again must be checked for an installed copy before compiling/installing it. |
 | `check-installed-size.sh` | `Installed-Size` must count each installed path once, however often the list names it. |
 | `check-packaging-no-host-writes.sh` | `--packaging` must not touch the live system: the installed package, the dependencies, the caches and the locate database. |
 | `check-self-provide.sh` | A runtime `Dep(post)` on a split built in the same run must resolve without aborting the build. |
@@ -195,6 +196,36 @@ The client needs root, so the hook block is *extracted* from the generated
 the generated `builddir/src/libnhopkg`. If any of them move, the test dies with a
 message instead of passing quietly. The validation half runs `nhopkg-src
 --validate` for real, against the generated tool.
+
+## What `check-split-installed-check.sh` covers
+
+A split package built again has to be checked for an installed copy before it is
+compiled and installed, the same way the base package is. The check builds the
+installed name as `<base>-<part>`, but the split loop runs
+`check_package_conflicts()` first, and that reads the split nhoid through
+`get_basic_data()`, which overwrites the global `$pkgname` with the split name.
+The lookup then asked for `<base>-<part>-<part>`, found nothing and returned
+without checking anything: no UPDATE/REINSTALL prompt, no config backup and no
+removal of the old split, which was then installed over without being retired.
+
+- **Both per-part blocks reload the source metadata** before the check, so the
+  lookup name is `<base>-<part>` and the installed copy is found. The build and
+  super-build loops are extracted and run separately.
+- **The check really runs.** With an installed copy on disk, the run reaches
+  `backup_config_files()`, `remove_package()` and `remove_package_config_files()`,
+  which is what a skipped check would not do.
+- **The split nhoid stays in place** while the check runs, because
+  `backup_config_files()` reads its `Backup` field; only `$pkgname` is reloaded
+  from `.nhoid`.
+- **The defect is written down as a test.** The `pre-split-installed-name` mutant
+  drops the reload and the same run asks for `<base>-<part>-<part>`, backs up
+  nothing and removes nothing.
+
+The client needs root, so the per-part block is *extracted* from the generated
+tool and run verbatim in a sandbox. `get_basic_data()`,
+`get_package_display_name()`, `check_if_installed_package()` and
+`dep_check_conflicts()` are the real ones; everything else writes to a canary.
+If any of them move, the test dies with a message instead of passing quietly.
 
 ## What `check-split-git-clone.sh` covers
 
@@ -399,6 +430,7 @@ would fail if the fix were reverted. The mutant is applied to the copy in
 | `pre-prefix-clip` | dropping NoUpgrade/vanished paths with an unanchored `sed` | `check-build-capture.sh` |
 | `pre-split-hook-mangling` | the `s|_${part}||g` header rewrite in the split hooks | `check-splits-scale.sh` |
 | `pre-split-field-regex` | the `grep "^# Group_${part}:"` per-part field lookup | `check-splits-scale.sh` |
+| `pre-split-installed-name` | the source-metadata reload before the split's installed check | `check-split-installed-check.sh` |
 | `pre-packaging-keep-installed` | the packaging guard in `check_if_installed_package()` | `check-packaging-no-host-writes.sh` |
 | `pre-packaging-install-deps` | the packaging guard at both dependency call sites | `check-packaging-no-host-writes.sh` |
 | `pre-packaging-shooter` | the packaging guard in `shooter_updates()` | `check-packaging-no-host-writes.sh` |

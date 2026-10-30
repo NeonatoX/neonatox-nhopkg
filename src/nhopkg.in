@@ -3584,6 +3584,14 @@ case "${NHOPKG_OPTION}" in
 					if [[ -n "${REPLACES_PACKAGE}" && "${NHOPKG_PACKAGING}" != "yes" ]]; then
 						remove_replaced_package "${REPLACES_PACKAGE}"
 					fi
+					# dep_check_conflicts() reads the split nhoid through
+					# get_basic_data(), which overwrites the global $pkgname
+					# with the split name. Reload the source metadata so the
+					# lookup uses "<base>-<part>": otherwise it asks for
+					# "<base>-<part>-<part>", misses the installed file and
+					# returns without checking anything. The split nhoid stays
+					# in place because backup_config_files() reads its Backup.
+					get_basic_data "${NHOPKG_TMPDIR}/.nhoid"
 					# Check that the split package is installed
 					# (backup_config_files uses the split nhoid generated above)
 					check_if_installed_package "${part}"
@@ -3882,6 +3890,14 @@ case "${NHOPKG_OPTION}" in
 					if [[ -n "${REPLACES_PACKAGE}" && "${NHOPKG_PACKAGING}" != "yes" ]]; then
 						remove_replaced_package "${REPLACES_PACKAGE}"
 					fi
+					# dep_check_conflicts() reads the split nhoid through
+					# get_basic_data(), which overwrites the global $pkgname
+					# with the split name. Reload the source metadata so the
+					# lookup uses "<base>-<part>": otherwise it asks for
+					# "<base>-<part>-<part>", misses the installed file and
+					# returns without checking anything. The split nhoid stays
+					# in place because backup_config_files() reads its Backup.
+					get_basic_data "${NHOPKG_TMPDIR}/.nhoid"
 					# Check that the split package is installed
 					# (backup_config_files uses the split nhoid generated above)
 					check_if_installed_package "${part}"

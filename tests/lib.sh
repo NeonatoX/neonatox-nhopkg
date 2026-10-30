@@ -191,6 +191,23 @@ MUTANTS = {
         ('\tnhoid_copy_split_field "Group" "" "${part}" "${NHOPKG_TMPDIR}/.nhoid" >> "${NHOPKG_TMPDIR}/nhoid" 2>/dev/null || true',
          '\tgrep "^# Group${part:+_${part}}:" "${NHOPKG_TMPDIR}/.nhoid" | sed "s/^# Group${part:+_${part}}:# Group:/" >> "${NHOPKG_TMPDIR}/nhoid" 2>/dev/null || true'),
     ],
+    # The installed check of a split package, in src/nhopkg.in. The split loop
+    # runs check_package_conflicts() first, and that reads the split nhoid with
+    # get_basic_data(), which leaves the global $pkgname as the split name.
+    # Without the reload of the source metadata, check_if_installed_package()
+    # asks for "<base>-<part>-<part>", misses the installed file and returns
+    # without checking anything: no prompt, no config backup, no removal.
+    "pre-split-installed-name": [
+        ('\t\t\t\t\t# dep_check_conflicts() reads the split nhoid through\n'
+         '\t\t\t\t\t# get_basic_data(), which overwrites the global $pkgname\n'
+         '\t\t\t\t\t# with the split name. Reload the source metadata so the\n'
+         '\t\t\t\t\t# lookup uses "<base>-<part>": otherwise it asks for\n'
+         '\t\t\t\t\t# "<base>-<part>-<part>", misses the installed file and\n'
+         '\t\t\t\t\t# returns without checking anything. The split nhoid stays\n'
+         '\t\t\t\t\t# in place because backup_config_files() reads its Backup.\n'
+         '\t\t\t\t\tget_basic_data "${NHOPKG_TMPDIR}/.nhoid"\n',
+         '\t\t\t\t\t:  # mutant: the base metadata is not reloaded\n'),
+    ],
     # The guard that came with the fix above: read tar's own exit status and
     # refuse to keep an empty archive, so this cannot fail silently again.
     "pre-compress-guard": [
