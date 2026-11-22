@@ -1,0 +1,36 @@
+#%NHO-0.5
+# Package Maintainer:	cargabsj175 <cargabsj175@archlinux>
+
+# Name:	kinfocenter
+# Version:	6.8.3
+# Release:	n27
+# License:	LGPL-2.0-or-later
+# Group:	plasma
+# Repository:	extra
+# Arch:	x86_64
+# Url:	https://kde.org/plasma-desktop/
+# Description:	A utility that provides information about a computer system
+# Packageurl:	https://download.kde.org/stable/plasma/6.8.3/kinfocenter-6.8.3.tar.xz
+# SHA256:	f14e80ce9c634ed5316dba727e3216ef734c7f0827dd2140596215009ba31a03  kinfocenter-6.8.3.tar.xz
+
+# BuildDep:	extra-cmake-modules kdoctools vulkan-headers musl glu iproute2 kauth kcmutils kconfig kcoreaddons kdeclarative ki18n kio kirigami kservice libdisplay-info libdrm libglvnd pulseaudio libusb lm-sensors qt6-base qt6-declarative qt6-graphs solid systemd-libs systemsettings
+# Dep(post):	musl glu iproute2 kauth kcmutils kconfig kcoreaddons kdeclarative ki18n kio kirigami kservice libdisplay-info libdrm libglvnd pulseaudio libusb lm-sensors qt6-base qt6-declarative qt6-graphs solid systemd-libs systemsettings
+
+nbuild() {
+cmake -B build  -S . \
+    -DBUILD_TESTING=OFF \
+    -DKDE_INSTALL_LIBEXECDIR=lib
+cmake --build build
+}
+
+ninstall() {
+cmake --install build
+}
+
+npostinstall() {
+    noemptyfuncs
+}
+
+npostremove() {
+    noemptyfuncs
+}

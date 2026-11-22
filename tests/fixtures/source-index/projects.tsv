@@ -1,0 +1,4 @@
+# project	ref	commit	url	extra_files
+kinfocenter	main	013963ff9f07c2b5bb392ae536a1abd9de2f73a2	https://gitlab.com/neonatox-sources/kinfocenter.git	none
+kinfocenter	musl	8861717582cca888832dba0473e68986a1a60ae5	https://gitlab.com/neonatox-sources/kinfocenter.git	none
+broken	main	0000000000000000000000000000000000000000	https://gitlab.com/neonatox-sources/broken.git	none
