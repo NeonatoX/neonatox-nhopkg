@@ -43,4 +43,5 @@ during generation. Recipes are cached under
 `${NHOPKG_LOCALSTATEDIR}/sources/<ref>/packages/` and can be queried with
 `nhopkg-src --list-sources`, `--search-sources` and `--show-source`, or deployed
 with `nhopkg-src --get-source <project> --from-index`. See
-[`configuracion.md`](configuracion.md) and [`nhopkg-src.md`](nhopkg-src.md).
+[`configuracion.md`](configuracion.md), [`nhopkg-src.md`](nhopkg-src.md) and the
+[generation and publication guide](indice-fuentes.md).

@@ -24,6 +24,7 @@ This documentation is divided into independent sections to make maintenance and 
   * [16\. Ready for production?](produccion.md)
   * [17\. Next steps](proximos-pasos.md)
   * [18\. Internationalization (i18n)](i18n.md)
+  * [19\. Source index: generation and publication](indice-fuentes.md)
 
 
 Documentation for **nhopkg v1.0** — January 2026

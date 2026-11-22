@@ -24,6 +24,7 @@ Esta documentación está dividida en secciones independientes para facilitar su
   * [16\. ¿Listo para producción?](produccion.md)
   * [17\. Próximos pasos](proximos-pasos.md)
   * [18\. Internacionalización (i18n)](i18n.md)
+  * [19\. Índice de fuentes: generación y publicación](indice-fuentes.md)
 
 
 Documentación de **nhopkg v1.0** — Enero 2026

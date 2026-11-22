@@ -166,4 +166,5 @@ la generación. Las recetas se guardan en
 `${NHOPKG_LOCALSTATEDIR}/sources/<ref>/packages/` y se pueden consultar con
 `nhopkg-src --list-sources`, `--search-sources` y `--show-source`, o desplegar
 con `nhopkg-src --get-source <proyecto> --from-index`. Consulta
-[`configuracion.md`](configuracion.md) y [`nhopkg-src.md`](nhopkg-src.md).
+[`configuracion.md`](configuracion.md), [`nhopkg-src.md`](nhopkg-src.md) y la
+[guía de generación y publicación](indice-fuentes.md).

@@ -347,3 +347,4 @@ Usa el índice local como fuente de la receta. `--from-index` solo se aplica a `
 
 - [`formato-nhoid.md`](formato-nhoid.md) — referencia completa de campos nhoid
 - `nhopkg -bv` — compila un paquete binario desde un paquete fuente `.srcnho`
+- [Generación y publicación del índice de fuentes](indice-fuentes.md) — guía operativa

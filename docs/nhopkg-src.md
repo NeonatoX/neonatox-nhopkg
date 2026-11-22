@@ -365,3 +365,4 @@ Use the local index as the source of the recipe. `--from-index` only applies to 
 
 - [`formato-nhoid.md`](formato-nhoid.md) — full nhoid field reference
 - `nhopkg -bv` — builds a binary package from a `.srcnho` source package
+- [Source index generation and publication](indice-fuentes.md) — operational guide
