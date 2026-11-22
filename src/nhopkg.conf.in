@@ -243,6 +243,10 @@ NHOPKG_GIT_SOURCES=https://gitlab.com/neonatox-sources
 # Default Git branch/tag for --super-build (e.g., "glibc" or "musl")
 NHOPKG_GIT_BRANCH="@NHOPKG_GIT_BRANCH@"
 
+# Opt-in: when a BuildDep is missing from the binary repositories, try to
+# build it from the local source index. "no" keeps the usual abort behaviour.
+NHOPKG_AUTO_SOURCE_FALLBACK="${NHOPKG_AUTO_SOURCE_FALLBACK:-no}"
+
 
 #==============================================================================
 # Section: Language Support

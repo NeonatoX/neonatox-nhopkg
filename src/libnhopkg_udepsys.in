@@ -111,6 +111,15 @@ dep_resolve_from_nhoid() {
 			
 			if ! _dep_resolve_single "$dep_spec" "$dep_type" "yes" "$silent" "$search_repos"; then
 				if [[ "$dep_type" = "required" ]] || [[ "$dep_type" = "build" ]]; then
+					# Etapa 5: with the opt-in flag and a matching indexed recipe
+					# the dependency is built from source, then resolved again now
+					# that it is installed. With the default "no" this is inert.
+					if [[ "$dep_type" = "build" ]] &&
+						declare -F source_fallback_for_build_dep > /dev/null &&
+						source_fallback_for_build_dep "$dep_spec" "$dep_type" &&
+						_dep_resolve_single "$dep_spec" "$dep_type" "yes" "$silent" "$search_repos"; then
+						continue
+					fi
 					echog " *** Dependency resolution failed for: ${dep_spec}" >&2
 					exit 1
 				fi

@@ -3705,14 +3705,10 @@ case "${NHOPKG_OPTION}" in
 			# Saving package base tempdir
 			ORIG_NHOPKG_TMPDIR="${NHOPKG_TMPDIR}"
 
-			# 1. Set repo URL
-			git_url="${NHOPKG_GIT_SOURCES}/${pkgname}.git"
-
-			# 2. Clone repo to temporary directory
+			# 1. Get the recipe: the local index supplies it with no clone when
+			#    there are no extra files; otherwise clone as before.
 			build_clone_dir="${NHOPKG_TMPDIR}/.gitclone"
-			echog " - Cloning ${git_url}..."
-			NHOGET_REF="${NHOPKG_GIT_BRANCH:-}" nhoget_vcs git "${git_url}" "${build_clone_dir}" || {
-				echog " * Failed to clone ${git_url}" >&2
+			source_index_get_sources "${pkgname}" "${build_clone_dir}" || {
 				cleanup_tmp_dir
 				exit 1
 			}
@@ -3866,7 +3862,6 @@ case "${NHOPKG_OPTION}" in
 					# Here CASEPACKAGE is already "version-name-revision"
 					# We extract only the base name for the URL
 					pkg_base_name="${ORIGINAL_PKGNAME}"
-					git_url="${NHOPKG_GIT_SOURCES}/${pkg_base_name}.git"
 
 					# The clone has to outlive ${NHOPKG_TMPDIR}, which
 					# cleanup_tmp_dir() wipes at the top of every part. Under it
@@ -3874,10 +3869,11 @@ case "${NHOPKG_OPTION}" in
 					# build of N parts cloned the whole history N times. It lives
 					# next to the build tree because that is where fetch_vcs_source()
 					# already keeps the clone build_prepare() uses, and that one
-					# was already reused across parts.
+					# was already reused across parts. When the index supplies a
+					# recipe with no extras, this destination is just a plain
+					# directory holding the cached nhoid and no clone happens.
 					build_clone_dir="${NHOPKG_BUILDIR}/.gitclone-${pkg_base_name}"
-					NHOGET_REF="${NHOPKG_GIT_BRANCH:-}" nhoget_vcs git "${git_url}" "${build_clone_dir}" || {
-						echog " * Failed to clone ${git_url}" >&2
+					source_index_get_sources "${pkg_base_name}" "${build_clone_dir}" || {
 						cleanup_tmp_dir
 						exit 1
 					}
