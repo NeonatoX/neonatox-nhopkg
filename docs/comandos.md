@@ -21,7 +21,7 @@ nhopkg is a universal binary and source package manager. This page documents eve
 | `-t` | `--list-repo` | List all packages available in configured repositories |
 | `-k` | `--check` | Verify the integrity of an installed package (check every listed file exists) |
 | `-y` | `--upgrade` | Upgrade all installed packages to the latest version available in repositories |
-| `-U` | `--update` | Synchronise all configured repository databases (`core.packages.tar.zst`, `core.files.tar.zst`, `lastsync`) |
+| `-U` | `--update` | Synchronise all configured repository databases (`core.packages.tar.zst`, `core.files.tar.zst`, `lastsync`); when `NHOPKG_SOURCES_REPO` is set, also the source metadata index |
 | `-u` | `--update-db` | Rebuild the local file-location database (`updatedb` / `plocate`) |
 | `-x` | `--update-shooters` | Refresh system caches: GLib schemas, icon cache, desktop database, MIME database, man pages, font cache, shared library cache, and GDK pixbuf loaders |
 | `-e` | `--clean` | Remove cached `.nho` packages from the download cache; with `-R` also cleans the build directory |

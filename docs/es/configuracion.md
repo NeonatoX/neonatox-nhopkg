@@ -148,11 +148,16 @@ Las URLs de los repositorios pueden incluir varios mirrors por repositorio (cons
 
 ## 8. Fuentes Git
 
-Repositorio Git por defecto utilizado para obtener las fuentes de los paquetes `.srcnho`.
+Repositorio Git por defecto utilizado para obtener las fuentes de los paquetes `.srcnho` y, opcionalmente, el índice de metadatos de fuentes.
 
-| Variable | Valor por defecto | Descripción |
-|---|---|---|
-| `NHOPKG_GIT_SOURCES` | `https://gitlab.com/neonatox-sources` | URL del repositorio Git para paquetes fuente |
+| Variable | Valor por defecto | Valores aceptados | Descripción |
+|---|---|---|---|
+| `NHOPKG_GIT_SOURCES` | `https://gitlab.com/neonatox-sources` | URL | URL del repositorio Git para paquetes fuente |
+| `NHOPKG_GIT_BRANCH` | `""` (vacía) | `""`, `glibc`, `musl`, rama/tag | Ref por defecto para `--super-build` y los comandos del índice de fuentes. Vacía o `glibc` se resuelve como `main`; `musl` se mantiene como `musl`. Un `--ref` explícito tiene prioridad |
+| `NHOPKG_SOURCES_REPO` | `""` (vacía) | URL o vacía | URL del índice de metadatos publicado por `nhopkg-source-index.sh`. Vacía desactiva la descarga adicional en `nhopkg -U` y deja el índice local intacto. El cliente no necesita credenciales de GitLab |
+| `NHOPKG_AUTO_SOURCE_FALLBACK` | `no` | `yes`, `no` | Durante `-C`, compilar desde el índice local un `BuildDep` ausente en lugar de abortar. Las cadenas están limitadas (profundidad 5, sin recetas repetidas) |
+
+Cuando `NHOPKG_SOURCES_REPO` está definida, `nhopkg -U` descarga también `core.sources.tar.zst`, `content.source.db.zst` y `lastsync` (además de las firmas separadas) en `${NHOPKG_LOCALSTATEDIR}/sources/<ref>/`. Un fallo o una entrada inválida en el índice de fuentes es solo un aviso: la actualización de los repositorios binarios no se ve afectada. Las recetas cacheadas están disponibles para `nhopkg-src --list-sources`, `--search-sources`, `--show-source`, `--get-source --from-index` y para el fallback de `-C` indicado arriba.
 
 ---
 

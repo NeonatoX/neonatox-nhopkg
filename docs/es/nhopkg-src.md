@@ -297,13 +297,13 @@ another.diff
 archivo_extra
 ```
 
-### `--get-source <proyecto> [--ref <ref>]`
+### `--get-source <proyecto> [--ref <ref>] [--from-index]`
 
-Clona un proyecto fuente desde el repositorio `NHOPKG_GIT_SOURCES`.
+Clona un proyecto fuente desde el repositorio `NHOPKG_GIT_SOURCES` o lo despliega desde el índice de fuentes local.
 
 El proyecto se clona en un subdirectorio con el nombre del proyecto. Si se proporciona `--ref`, se pasa a git como referencia de tag, rama o commit. Después de clonar, se crean los directorios estándar `patches/` y `others/` para que el proyecto esté listo para editar y empaquetar.
 
-La URL del repositorio se construye como `${NHOPKG_GIT_SOURCES}/${proyecto}.git`.
+La URL del repositorio se construye como `${NHOPKG_GIT_SOURCES}/${proyecto}.git`. Una `NHOPKG_GIT_BRANCH` vacía significa glibc y se resuelve como `main`; el valor literal `glibc` es un alias de `main`, mientras que `musl` se mantiene como `musl`. Un `--ref` explícito tiene prioridad sobre la rama configurada.
 
 **Ejemplos:**
 
@@ -313,7 +313,35 @@ nhopkg-src --get-source gcc
 
 # Clonar con una rama/tag específica
 nhopkg-src --get-source gcc --ref n2027
+
+# Desplegar la receta cacheada en lugar de clonar (ver --from-index más abajo)
+nhopkg-src --get-source gcc --from-index
 ```
+
+### `--list-sources [--ref <ref>]`
+
+Lista las recetas instaladas por `nhopkg -U` en `${NHOPKG_LOCALSTATEDIR}/sources/<ref>/packages/`. Las entradas inválidas o que no se pueden verificar no se muestran. Sin `--ref` se usa la `NHOPKG_GIT_BRANCH` configurada. No accede a la red.
+
+### `--search-sources <patrón> [--ref <ref>]`
+
+Busca en el índice local por nombre de proyecto, descripción, grupo, `BuildDep` y `Dep(post)`. El patrón es texto literal, sin distinguir mayúsculas. Devuelve el código 1 si no hay coincidencias.
+
+```bash
+# ¿Qué recetas necesitan qt6-base como dependencia de compilación?
+nhopkg-src --search-sources qt6-base
+```
+
+### `--show-source <proyecto> [--ref <ref>]`
+
+Muestra el sidecar de procedencia y el `nhoid` cacheado de una receta, sin contactar con GitLab. El `nhoid` se comprueba contra `Source-Nhoid-SHA256`; una caché modificada se rechaza.
+
+### `--get-source --from-index`
+
+Usa el índice local como fuente de la receta. `--from-index` solo se aplica a `--get-source`.
+
+- Con `Source-Extra-Files: none`, se copia el `nhoid` del índice y **no se hace ningún git clone**. Esto no es totalmente offline: el `nbuild()` de la receta todavía puede descargar o clonar fuentes upstream.
+- Cuando el sidecar lista archivos en `patches/` u `others/`, se clona el repositorio con el ref resuelto para materializarlos y el `nhoid` indexado sobrescribe el clonado.
+- Sin entrada local, el comando falla y sugiere ejecutar `nhopkg -U` o prescindir de `--from-index`.
 
 ## Véase también
 

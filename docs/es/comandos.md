@@ -21,7 +21,7 @@ nhopkg es un gestor universal de paquetes binarios y fuente. Esta página docume
 | `-t` | `--list-repo` | Lista todos los paquetes disponibles en los repositorios configurados |
 | `-k` | `--check` | Verifica la integridad de un paquete instalado (comprueba que cada archivo listado exista) |
 | `-y` | `--upgrade` | Actualiza todos los paquetes instalados a la versión más reciente disponible en los repositorios |
-| `-U` | `--update` | Sincroniza todas las bases de datos de repositorios configuradas (`core.packages.tar.zst`, `core.files.tar.zst`, `lastsync`) |
+| `-U` | `--update` | Sincroniza todas las bases de datos de repositorios configuradas (`core.packages.tar.zst`, `core.files.tar.zst`, `lastsync`); si `NHOPKG_SOURCES_REPO` está definida, también el índice de metadatos de fuentes |
 | `-u` | `--update-db` | Reconstruye la base de datos local de ubicación de archivos (`updatedb` / `plocate`) |
 | `-x` | `--update-shooters` | Actualiza las cachés del sistema: esquemas GLib, caché de iconos, base de datos de escritorio, base de datos MIME, páginas man, caché de fuentes, caché de bibliotecas compartidas y cargadores GDK pixbuf |
 | `-e` | `--clean` | Elimina los paquetes `.nho` en caché del directorio de descarga; con `-R` también limpia el directorio de compilación |

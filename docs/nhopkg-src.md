@@ -315,13 +315,13 @@ another.diff
 extra_file
 ```
 
-### `--get-source <project> [--ref <ref>]`
+### `--get-source <project> [--ref <ref>] [--from-index]`
 
-Clone a source project from the `NHOPKG_GIT_SOURCES` repository.
+Clone a source project from the `NHOPKG_GIT_SOURCES` repository, or deploy it from the local source index.
 
 The project is cloned into a subdirectory named after the project. If `--ref` is given, it is passed to git as a tag, branch, or commit reference. After cloning, the standard `patches/` and `others/` directories are created so the project is ready for editing and packaging.
 
-The repository URL is built as `${NHOPKG_GIT_SOURCES}/${project}.git`.
+The repository URL is built as `${NHOPKG_GIT_SOURCES}/${project}.git`. An empty `NHOPKG_GIT_BRANCH` means glibc and resolves to `main`; the literal `glibc` is an alias of `main`, while `musl` stays `musl`. An explicit `--ref` wins over the configured branch.
 
 **Examples:**
 
@@ -331,7 +331,35 @@ nhopkg-src --get-source gcc
 
 # Clone with a specific branch/tag
 nhopkg-src --get-source gcc --ref n2027
+
+# Deploy the cached recipe instead of cloning (see --from-index below)
+nhopkg-src --get-source gcc --from-index
 ```
+
+### `--list-sources [--ref <ref>]`
+
+List the recipes installed by `nhopkg -U` under `${NHOPKG_LOCALSTATEDIR}/sources/<ref>/packages/`. Invalid or unverifiable entries are not listed. Without `--ref`, the configured `NHOPKG_GIT_BRANCH` is used. No network access is involved.
+
+### `--search-sources <pattern> [--ref <ref>]`
+
+Search the local index by project name, description, group, `BuildDep` and `Dep(post)`. The pattern is literal text, case insensitive. Exits with status 1 when nothing matches.
+
+```bash
+# Which recipes need qt6-base as a build dependency?
+nhopkg-src --search-sources qt6-base
+```
+
+### `--show-source <project> [--ref <ref>]`
+
+Print the provenance sidecar and the cached `nhoid` for one indexed recipe, without contacting GitLab. The `nhoid` is checked against `Source-Nhoid-SHA256`; a modified cache is rejected.
+
+### `--get-source --from-index`
+
+Use the local index as the source of the recipe. `--from-index` only applies to `--get-source`.
+
+- With `Source-Extra-Files: none`, the `nhoid` is copied from the index and **no git clone happens**. This is not fully offline: the recipe's `nbuild()` may still download or clone upstream sources.
+- When the sidecar lists `patches/` or `others/` files, the repository is cloned with the resolved ref to materialise them, and the indexed `nhoid` overwrites the cloned one.
+- With no local entry, the command fails and suggests running `nhopkg -U` or dropping `--from-index`.
 
 ## See Also
 

@@ -151,3 +151,19 @@ Esto garantiza que siempre se use la versión más adecuada para el repositorio 
     
     # 4. Instalar un paquete del repositorio 'multilib'
     sudo nhopkg --super-install lib32-glibc
+
+## Índice de metadatos de fuentes
+
+Además de los repositorios binarios, `nhopkg -U` puede sincronizar un índice
+opcional de recetas fuente publicado por `nhopkg-source-index.sh`. Define
+`NHOPKG_SOURCES_REPO` con el directorio publicado para activarlo; si está vacía
+no hace nada, de modo que las instalaciones existentes no cambian y el cliente
+no necesita credenciales de GitLab.
+
+El índice contiene `core.sources.tar.zst`, `content.source.db.zst`, `lastsync`,
+sus firmas separadas y `report.txt`, que nombra cada `nhoid` rechazado durante
+la generación. Las recetas se guardan en
+`${NHOPKG_LOCALSTATEDIR}/sources/<ref>/packages/` y se pueden consultar con
+`nhopkg-src --list-sources`, `--search-sources` y `--show-source`, o desplegar
+con `nhopkg-src --get-source <proyecto> --from-index`. Consulta
+[`configuracion.md`](configuracion.md) y [`nhopkg-src.md`](nhopkg-src.md).

@@ -148,11 +148,16 @@ Repository URLs can include multiple mirrors per repo (check nhopkg source for m
 
 ## 8. Git Sources
 
-Default Git repository used to fetch sources for `.srcnho` packages.
+Default Git repository used to fetch sources for `.srcnho` packages, plus the optional source metadata index.
 
-| Variable | Default | Description |
-|---|---|---|
-| `NHOPKG_GIT_SOURCES` | `https://gitlab.com/neonatox-sources` | Git repository URL for source packages |
+| Variable | Default | Accepted Values | Description |
+|---|---|---|---|
+| `NHOPKG_GIT_SOURCES` | `https://gitlab.com/neonatox-sources` | URL | Git repository URL for source packages |
+| `NHOPKG_GIT_BRANCH` | `""` (empty) | `""`, `glibc`, `musl`, branch/tag | Default ref for `--super-build` and the source-index commands. Empty or `glibc` resolves to `main`; `musl` stays `musl`. An explicit `--ref` wins |
+| `NHOPKG_SOURCES_REPO` | `""` (empty) | URL or empty | URL of the source metadata index published by `nhopkg-source-index.sh`. Empty disables the extra `nhopkg -U` download and leaves the local source index untouched. Clients need no GitLab credentials |
+| `NHOPKG_AUTO_SOURCE_FALLBACK` | `no` | `yes`, `no` | During `-C`, build a missing `BuildDep` from the local index instead of aborting. Chains are capped (depth 5, no repeated recipe) |
+
+When `NHOPKG_SOURCES_REPO` is set, `nhopkg -U` also downloads `core.sources.tar.zst`, `content.source.db.zst` and `lastsync` (plus detached signatures) into `${NHOPKG_LOCALSTATEDIR}/sources/<ref>/`. A failed or invalid source-index update is a warning: binary repository updates are unaffected. The cached recipes are available to `nhopkg-src --list-sources`, `--search-sources`, `--show-source`, `--get-source --from-index`, and to the `-C` fallback above.
 
 ---
 

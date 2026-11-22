@@ -235,6 +235,29 @@ Default:
 Default Git repository URL for source packages.
 Default:
 .I @NHOPKG_GIT_SOURCES@
+.TP
+.B NHOPKG_GIT_BRANCH
+Default ref for \fBnhopkg -C\fR and the source-index commands. An empty value or
+\fIglibc\fR resolves to \fImain\fR; \fImusl\fR stays \fImusl\fR. An explicit
+\fB\-\-ref\fR wins.
+Default:
+.I "" (empty: resolves to main)
+.TP
+.B NHOPKG_SOURCES_REPO
+URL of the source metadata index published by \fBnhopkg\-source\-index.sh\fR.
+When empty, \fBnhopkg \-U\fR syncs only the binary repositories and the local
+source index is left untouched; clients need no GitLab credentials.
+Default:
+.I "" (empty: source index sync disabled)
+.TP
+.B NHOPKG_AUTO_SOURCE_FALLBACK
+During \fB\-C\fR, build a missing \fIBuildDep\fR from the local source index
+instead of aborting. Chains are capped (depth 5, no repeated recipe).
+Values:
+.I yes
+or
+.I no
+(default).
 .SS "9. Language support (i18n)"
 .TP
 .B NHOPKG_GETTEXT
@@ -407,6 +430,9 @@ NHOPKG_REPO_MULTILIB=https://repo.neonatox.vegnux.com/multilib
 
 # --- Git sources ---
 NHOPKG_GIT_SOURCES=https://gitlab.com/neonatox-sources
+# NHOPKG_GIT_BRANCH=glibc   # empty/glibc -> main, musl -> musl
+# NHOPKG_SOURCES_REPO=https://neonatox.vegnux.com/repo/n2026/x86_64/sources
+# NHOPKG_AUTO_SOURCE_FALLBACK=no
 
 # --- Language ---
 NHOPKG_GETTEXT=yes
