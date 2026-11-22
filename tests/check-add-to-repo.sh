@@ -27,11 +27,11 @@ head1 "a batch of valid packages is added and indexed"
 # ---------------------------------------------------------------------------
 
 out=$(repos_add "${R}" \
-	alpha-devel-1.0-n2026.linux-x86_64.nho \
-	alpha-1.0-n2026.linux-x86_64.nho \
-	beta-2.0-n2026.linux-x86_64.nho \
-	gamma-1.0-n2026.linux-x86_64.nho \
-	"epsilon 1.0-n2026.linux-x86_64.nho" 2>&1)
+	alpha-devel-1.0-n27.linux-x86_64.nho \
+	alpha-1.0-n27.linux-x86_64.nho \
+	beta-2.0-n27.linux-x86_64.nho \
+	gamma-1.0-n27.linux-x86_64.nho \
+	"epsilon 1.0-n27.linux-x86_64.nho" 2>&1)
 rc=$?
 printf '%s\n' "${out}" > "${LOGS}/add-valid.log"
 
@@ -41,15 +41,15 @@ assert_contains "${out}" "Integrity check passed" "the integrity check runs and 
 
 on_disk=$(ids_on_disk "${R}/extra")
 indexed=$(packages_index "${R}/extra")
-for id in alpha-1.0-n2026 alpha-devel-1.0-n2026 beta-2.0-n2026; do
+for id in alpha-1.0-n27 alpha-devel-1.0-n27 beta-2.0-n27; do
 	assert_in_list "${on_disk}" "${id}" "${id} is on disk"
 	assert_in_list "${indexed}" "${id}" "${id} is in core.packages"
 done
 # The metapackage ships no files, so it is in core.packages but by design not
 # in core.files.
-assert_in_list "${on_disk}" "gamma-1.0-n2026" "the metapackage is on disk"
-assert_in_list "${indexed}" "gamma-1.0-n2026" "the metapackage is indexed"
-assert_not_in_list "$(files_index "${R}/extra")" "gamma-1.0-n2026" \
+assert_in_list "${on_disk}" "gamma-1.0-n27" "the metapackage is on disk"
+assert_in_list "${indexed}" "gamma-1.0-n27" "the metapackage is indexed"
+assert_not_in_list "$(files_index "${R}/extra")" "gamma-1.0-n27" \
 	"the metapackage has no file list, as designed"
 # Every id on disk is reachable through the index. This is the property the
 # whole Fase 1 work was about.
@@ -63,9 +63,9 @@ head1 "a name that is a prefix of another does not eat it"
 
 # alpha was added after alpha-devel above on purpose. If the purge still used
 # a glob, alpha-devel would be on disk and missing from the index.
-assert_in_list "$(ids_on_disk "${R}/extra")" "alpha-devel-1.0-n2026" \
+assert_in_list "$(ids_on_disk "${R}/extra")" "alpha-devel-1.0-n27" \
 	"alpha-devel is still on disk after adding alpha"
-assert_in_list "${indexed}" "alpha-devel-1.0-n2026" \
+assert_in_list "${indexed}" "alpha-devel-1.0-n27" \
 	"alpha-devel is still indexed after adding alpha"
 
 # ---------------------------------------------------------------------------
@@ -81,11 +81,11 @@ assert_status 1 "${rc}" "exit 1: not every requested package made it in"
 assert_contains "${out}" "1 added, 6 skipped, 0 failed" "the valid one still went in"
 for pair in \
 	"corrupt.nho: unreadable or invalid tar archive" \
-	"glob-1.0-n2026.nho: invalid package name" \
-	"noversion-1.0-n2026.nho: incomplete nhoid metadata" \
-	"slash-1.0-n2026.nho: invalid version/release" \
-	"traversal-1.0-n2026.nho: invalid package name" \
-	"weirdver-1.0-n2026.nho: invalid version/release"
+	"glob-1.0-n27.nho: invalid package name" \
+	"noversion-1.0-n27.nho: incomplete nhoid metadata" \
+	"slash-1.0-n27.nho: invalid version/release" \
+	"traversal-1.0-n27.nho: invalid package name" \
+	"weirdver-1.0-n27.nho: invalid version/release"
 do
 	assert_contains "${out}" "${pair}" "rejected with a reason: ${pair%%:*}"
 done
@@ -93,7 +93,7 @@ done
 # repository directory, and no stray entries may appear in the index.
 assert_no_file "${REPOS}/escape" "the traversal name did not escape the repository"
 assert_not_in_list "$(packages_index "${R2}/extra")" ".." "the index holds no path traversal"
-assert_in_list "$(packages_index "${R2}/extra")" "goodpkg-1.0-n2026" \
+assert_in_list "$(packages_index "${R2}/extra")" "goodpkg-1.0-n27" \
 	"the valid package in the hostile batch is indexed"
 
 # ---------------------------------------------------------------------------
@@ -105,13 +105,13 @@ head1 "the audit catches the defect it was written for (pre-fase1 mutant)"
 # alpha-devel unindexed and the test would pass happily.
 setup_tool pre-fase1
 R3="${REPOS}/mutant"
-out=$(repos_add "${R3}" alpha-devel-1.0-n2026.linux-x86_64.nho 2>&1)
-out+=$(repos_add "${R3}" alpha-1.0-n2026.linux-x86_64.nho 2>&1)
+out=$(repos_add "${R3}" alpha-devel-1.0-n27.linux-x86_64.nho 2>&1)
+out+=$(repos_add "${R3}" alpha-1.0-n27.linux-x86_64.nho 2>&1)
 rc=$?
 printf '%s\n' "${out}" > "${LOGS}/add-mutant.log"
 
 assert_status 1 "${rc}" "exit 1 with the buggy purge"
-assert_contains "${out}" "alpha-devel-1.0-n2026 is not in core.packages.tar.zst" \
+assert_contains "${out}" "alpha-devel-1.0-n27 is not in core.packages.tar.zst" \
 	"the audit names the package that went missing from the index"
 assert_contains "${out}" "Repository integrity check FAILED" \
 	"the audit fails the run instead of warning"

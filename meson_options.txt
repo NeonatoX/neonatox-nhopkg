@@ -7,8 +7,8 @@ option('binlocate',
 
 option('repo-version',
   type: 'string',
-  value: 'n2026',
-  description: 'Repository version segment (e.g., n2026, n27)'
+  value: 'n27',
+  description: 'Repository version segment (e.g., n27)'
 )
 
 option('repo-arch',

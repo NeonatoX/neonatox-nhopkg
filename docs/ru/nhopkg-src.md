@@ -16,7 +16,7 @@
 |---|---|---|---|
 | Имя | Да | — | Из аргумента или интерактивного запроса |
 | Версия | Нет | `1.0` | |
-| Выпуск | Нет | `n2026` | |
+| Выпуск | Нет | `n27` | |
 | Имя сопровождающего | Нет | `$USER` | Предопределяются через `PKG_MAINTAINER_NAME` |
 | Почта сопровождающего | Нет | `$USER@$HOSTNAME` | Предопределяются через `PKG_MAINTAINER_EMAIL` |
 | Лицензия | Нет | `GPL-3.0-only` | |
@@ -81,7 +81,7 @@ nhoid для tarball-архива (после загрузки для SHA256):
 
 # Name:	myapp
 # Version:	1.0
-# Release:	n2026
+# Release:	n27
 # License:	GPL-3.0-only
 # Repository:	extra
 # Arch:	x86_64
@@ -222,7 +222,7 @@ nhopkg-src --init fonts-meta --meta
 ```bash
 cd myapp/
 nhopkg-src --createpackage
-# Создаёт: myapp-1.0-n2026.srcnho
+# Создаёт: myapp-1.0-n27.srcnho
 
 # Перезаписать существующий:
 nhopkg-src --createpackage --force
@@ -246,7 +246,7 @@ nhopkg-src --createpackage --force
 cd myapp/
 nhopkg-src --createpackage
 nhopkg-src --buildpackage
-# Выполняет: sudo -k nhopkg -bv myapp-1.0-n2026.srcnho
+# Выполняет: sudo -k nhopkg -bv myapp-1.0-n27.srcnho
 ```
 
 ---

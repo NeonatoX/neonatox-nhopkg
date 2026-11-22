@@ -22,7 +22,7 @@ sudo ninja -C builddir install
 ## Key Options
 
 - `-D binlocate=plocate` - Use plocate (Arch/Fedora), use `locate` for mlocate (Debian/Ubuntu)
-- `-D repo-version=n2026` - Repository version segment (n2026, n27, etc.)
+- `-D repo-version=n27` - Repository version segment (n27, etc.)
 - `-D repo-arch=x86_64` - Repository architecture segment (x86_64, x86_64-musl, etc.)
 - `-D repo-url-core`, `-D repo-url-extra`, `-D repo-url-multilib` - Override individual repo URLs (empty = auto-built from repo-version + repo-arch)
 - `-D libc=glibc` - C library variant: `glibc` or `musl` (affects NHOHOLD, active repos, multilib)

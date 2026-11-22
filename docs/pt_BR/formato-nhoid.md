@@ -24,7 +24,7 @@ Se a versão do cabeçalho não corresponder a `NHOID_VERSION`, o pacote é reje
 |---|---|---|
 | `# Name:` | Sim | Nome do pacote |
 | `# Version:` | Sim | Versão do pacote (ex. `1.0`, `2.15.6`) |
-| `# Release:` | Sim | Lançamento do pacote (ex. `n2026`) |
+| `# Release:` | Sim | Lançamento do pacote (ex. `n27`) |
 | `# License:` | Não | Licença de software (ex. `GPL-3.0-only`, `MIT`) |
 | `# Group:` | Não | Classificação de grupo do pacote (pode aparecer mais de uma vez; um pacote pode pertencer a vários grupos) |
 | `# Repository:` | Não | Repositório alvo (`core`, `extra`, `multilib`) |
@@ -223,7 +223,7 @@ npostinstall() {
 
 # Name:	mktorrent
 # Version:	1.1
-# Release:	n2026
+# Release:	n27
 # License:	GPL-2.0-only
 # Repository:	extra
 # Arch:	x86_64
@@ -257,7 +257,7 @@ npostremove() {
 
 # Name:	qt6
 # Version:	6.10.2
-# Release:	n2026
+# Release:	n27
 # License:	GPL-3.0-only LGPL-3.0-only
 # Repository:	extra
 # Arch:	i686 x86_64

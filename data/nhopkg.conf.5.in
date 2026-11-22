@@ -431,7 +431,7 @@ NHOPKG_REPO_MULTILIB=https://repo.neonatox.vegnux.com/multilib
 # --- Git sources ---
 NHOPKG_GIT_SOURCES=https://gitlab.com/neonatox-sources
 # NHOPKG_GIT_BRANCH=glibc   # empty/glibc -> main, musl -> musl
-# NHOPKG_SOURCES_REPO=https://neonatox.vegnux.com/repo/n2026/x86_64/sources
+# NHOPKG_SOURCES_REPO=https://neonatox.vegnux.com/repo/n27/x86_64/sources
 # NHOPKG_AUTO_SOURCE_FALLBACK=no
 
 # --- Language ---

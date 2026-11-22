@@ -18,7 +18,7 @@ Crea un nuevo directorio de proyecto de paquete fuente. Guías interactivas le g
 |---|---|---|---|
 | Nombre | Sí | — | Desde argumento o entrada interactiva |
 | Versión | No | `1.0` | |
-| Release | No | `n2026` | |
+| Release | No | `n27` | |
 | Nombre del mantenedor | No | `$USER` | Predefinir con `PKG_MAINTAINER_NAME` |
 | Correo del mantenedor | No | `$USER@$HOSTNAME` | Predefinir con `PKG_MAINTAINER_EMAIL` |
 | Licencia | No | `GPL-3.0-only` | |
@@ -84,7 +84,7 @@ Ejemplo de nhoid para tarball (después de descargar para SHA256):
 
 # Name:	miapp
 # Version:	1.0
-# Release:	n2026
+# Release:	n27
 # License:	GPL-3.0-only
 # Repository:	extra
 # Arch:	x86_64
@@ -225,7 +225,7 @@ Empaqueta el directorio del proyecto actual en un tarball `.srcnho` plano.
 ```bash
 cd miapp/
 nhopkg-src --createpackage
-# Crea: miapp-1.0-n2026.srcnho
+# Crea: miapp-1.0-n27.srcnho
 
 # Sobrescribir existente:
 nhopkg-src --createpackage --force
@@ -249,7 +249,7 @@ Compila el paquete `.srcnho` usando `nhopkg -bv` con `sudo -k` (siempre solicita
 cd miapp/
 nhopkg-src --createpackage
 nhopkg-src --buildpackage
-# Ejecuta: sudo -k nhopkg -bv miapp-1.0-n2026.srcnho
+# Ejecuta: sudo -k nhopkg -bv miapp-1.0-n27.srcnho
 ```
 
 ---

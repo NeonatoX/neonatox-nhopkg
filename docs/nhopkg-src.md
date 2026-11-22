@@ -16,7 +16,7 @@ Creates a new source package project directory. Interactive prompts guide you th
 |---|---|---|---|
 | Name | Yes | — | From argument or interactive prompt |
 | Version | No | `1.0` | |
-| Release | No | `n2026` | |
+| Release | No | `n27` | |
 | Maintainer name | No | `$USER` | Predefine with `PKG_MAINTAINER_NAME` |
 | Maintainer email | No | `$USER@$HOSTNAME` | Predefine with `PKG_MAINTAINER_EMAIL` |
 | License | No | `GPL-3.0-only` | |
@@ -81,7 +81,7 @@ Tarball nhoid (after download for SHA256):
 
 # Name:	myapp
 # Version:	1.0
-# Release:	n2026
+# Release:	n27
 # License:	GPL-3.0-only
 # Repository:	extra
 # Arch:	x86_64
@@ -184,7 +184,7 @@ their shell profile) and generate projects in one shot.
 |---|---|---|
 | `PKG_NAME` | Package name | `myapp` |
 | `PKG_VERSION` | Version | `1.0` |
-| `PKG_RELEASE` | Release | `n2026` |
+| `PKG_RELEASE` | Release | `n27` |
 | `PKG_MAINTAINER_NAME` | Maintainer name | `Jane Doe` |
 | `PKG_MAINTAINER_EMAIL` | Maintainer email | `jane@example.com` |
 | `PKG_GROUP` | Package group | `apps libs` |
@@ -243,7 +243,7 @@ Packages the current project directory into a flat `.srcnho` tarball.
 ```bash
 cd myapp/
 nhopkg-src --createpackage
-# Creates: myapp-1.0-n2026.srcnho
+# Creates: myapp-1.0-n27.srcnho
 
 # Overwrite existing:
 nhopkg-src --createpackage --force
@@ -267,7 +267,7 @@ Builds the `.srcnho` package using `nhopkg -bv` with `sudo -k` (always prompts f
 cd myapp/
 nhopkg-src --createpackage
 nhopkg-src --buildpackage
-# Runs: sudo -k nhopkg -bv myapp-1.0-n2026.srcnho
+# Runs: sudo -k nhopkg -bv myapp-1.0-n27.srcnho
 ```
 
 ---

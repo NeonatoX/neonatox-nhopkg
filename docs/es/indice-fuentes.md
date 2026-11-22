@@ -152,7 +152,7 @@ en un directorio nuevo y cambia `current` de golpe para que el cliente no lea
 un índice a medias:
 
 ```bash
-BASE=/ruta/real/de/staging/repo/n2026/x86_64/sources   # ← ajústalo
+BASE=/ruta/real/de/staging/repo/n27/x86_64/sources   # ← ajústalo
 NEW="$BASE/.new-$DATE"
 mkdir -p "$NEW"
 

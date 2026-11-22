@@ -228,7 +228,7 @@ NHOPKG_REPO_MULTILIB="@NHOPKG_REPO_MULTILIB@"
 # Source metadata index URL. When empty, `nhopkg -U` syncs only binary
 # repositories and the local source index is left untouched.
 # Set it to the directory published by nhopkg-source-index.sh, e.g.
-# https://neonatox.vegnux.com/repo/n2026/x86_64/sources
+# https://neonatox.vegnux.com/repo/n27/x86_64/sources
 NHOPKG_SOURCES_REPO="@NHOPKG_SOURCES_REPO@"
 
 

@@ -16,7 +16,7 @@ Cria um novo diretório de projeto de pacote fonte. Perguntas interativas guiam 
 |---|---|---|---|
 | Nome | Sim | — | Do argumento ou pergunta interativa |
 | Versão | Não | `1.0` | |
-| Release | Não | `n2026` | |
+| Release | Não | `n27` | |
 | Nome do mantenedor | Não | `$USER` | Predefina com `PKG_MAINTAINER_NAME` |
 | E-mail do mantenedor | Não | `$USER@$HOSTNAME` | Predefina com `PKG_MAINTAINER_EMAIL` |
 | Licença | Não | `GPL-3.0-only` | |
@@ -81,7 +81,7 @@ Tarball nhoid (após download para SHA256):
 
 # Name:	meuapp
 # Version:	1.0
-# Release:	n2026
+# Release:	n27
 # License:	GPL-3.0-only
 # Repository:	extra
 # Arch:	x86_64
@@ -222,7 +222,7 @@ Empacota o diretório do projeto atual em um tarball `.srcnho` plano.
 ```bash
 cd meuapp/
 nhopkg-src --createpackage
-# Cria: meuapp-1.0-n2026.srcnho
+# Cria: meuapp-1.0-n27.srcnho
 
 # Sobrescrever existente:
 nhopkg-src --createpackage --force
@@ -246,7 +246,7 @@ Constrói o pacote `.srcnho` usando `nhopkg -bv` com `sudo -k` (sempre solicita 
 cd meuapp/
 nhopkg-src --createpackage
 nhopkg-src --buildpackage
-# Executa: sudo -k nhopkg -bv meuapp-1.0-n2026.srcnho
+# Executa: sudo -k nhopkg -bv meuapp-1.0-n27.srcnho
 ```
 
 ---

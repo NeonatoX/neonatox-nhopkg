@@ -38,7 +38,7 @@ sudo nhopkg-src --buildpackage
 
 ```bash
 # Установить собранный мета-пакет локально
-sudo nhopkg -i base-meta-1.0-n2026.linux-any.nho
+sudo nhopkg -i base-meta-1.0-n27.linux-any.nho
 
 # Удалить, не затрагивая его пакеты
 sudo nhopkg -r base-meta
@@ -67,5 +67,5 @@ nhopkg --search base | grep base
 # Собрать и установить мета-пакет "base"
 nhopkg-src --init base-meta --meta
 nhopkg-src --createpackage
-sudo nhopkg -b base-meta-1.0-n2026.srcnho
+sudo nhopkg -b base-meta-1.0-n27.srcnho
 ```

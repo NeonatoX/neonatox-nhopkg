@@ -60,7 +60,7 @@ nhopkg is a universal binary and source package manager. This page documents eve
 
 ```bash
 # Install a local .nho package
-sudo nhopkg -i gimp-3.0.4-n20260523.linux-x86_64.nho
+sudo nhopkg -i gimp-3.0.4-n27.linux-x86_64.nho
 
 # Install from repository (with dependency resolution)
 sudo nhopkg -S gimp

@@ -38,7 +38,7 @@ A metapackage is installed and removed like any other package:
 
 ```bash
 # Install a built metapackage locally
-sudo nhopkg -i base-meta-1.0-n2026.linux-any.nho
+sudo nhopkg -i base-meta-1.0-n27.linux-any.nho
 
 # Uninstall it without affecting its packages
 sudo nhopkg -r base-meta
@@ -67,5 +67,5 @@ nhopkg --search base | grep base
 # Build and install the "base" metapackage
 nhopkg-src --init base-meta --meta
 nhopkg-src --createpackage
-sudo nhopkg -b base-meta-1.0-n2026.srcnho
+sudo nhopkg -b base-meta-1.0-n27.srcnho
 ```

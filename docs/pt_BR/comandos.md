@@ -58,7 +58,7 @@ nhopkg é um gerenciador universal de pacotes binários e fonte. Esta página do
 
 ```bash
 # Instalar um pacote .nho local
-sudo nhopkg -i gimp-3.0.4-n20260523.linux-x86_64.nho
+sudo nhopkg -i gimp-3.0.4-n27.linux-x86_64.nho
 
 # Instalar do repositório (com resolução de dependências)
 sudo nhopkg -S gimp

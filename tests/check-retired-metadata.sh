@@ -27,8 +27,8 @@ ensure_build
 setup_tool clean
 "${TESTS_DIR}/make-packages.sh" >/dev/null
 
-RC1=zeta-1.0-rc1-1-n2026.linux-x86_64.nho
-NEW=zeta-1.0-1-n2026.linux-x86_64.nho
+RC1=zeta-1.0-rc1-1-n27.linux-x86_64.nho
+NEW=zeta-1.0-1-n27.linux-x86_64.nho
 RC1ID=zeta-1.0-rc1-1
 NEWID=zeta-1.0-1
 

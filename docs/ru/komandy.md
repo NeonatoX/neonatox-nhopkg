@@ -58,7 +58,7 @@ nhopkg — универсальный менеджер бинарных и ис�
 
 ```bash
 # Установить локальный пакет .nho
-sudo nhopkg -i gimp-3.0.4-n20260523.linux-x86_64.nho
+sudo nhopkg -i gimp-3.0.4-n27.linux-x86_64.nho
 
 # Установить из репозитория (с разрешением зависимостей)
 sudo nhopkg -S gimp

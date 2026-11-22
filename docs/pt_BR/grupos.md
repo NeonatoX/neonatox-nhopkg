@@ -38,7 +38,7 @@ Um meta-pacote é instalado e removido como qualquer outro pacote:
 
 ```bash
 # Instalar um meta-pacote compilado localmente
-sudo nhopkg -i base-meta-1.0-n2026.linux-any.nho
+sudo nhopkg -i base-meta-1.0-n27.linux-any.nho
 
 # Desinstalar sem afetar seus pacotes
 sudo nhopkg -r base-meta
@@ -67,5 +67,5 @@ nhopkg --search base | grep base
 # Compilar e instalar o meta-pacote "base"
 nhopkg-src --init base-meta --meta
 nhopkg-src --createpackage
-sudo nhopkg -b base-meta-1.0-n2026.srcnho
+sudo nhopkg -b base-meta-1.0-n27.srcnho
 ```

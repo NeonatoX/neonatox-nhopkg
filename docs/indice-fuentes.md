@@ -149,7 +149,7 @@ downloaded again.
 Publish into a new directory and swap `current` atomically:
 
 ```bash
-BASE=/path/to/staging/repo/n2026/x86_64/sources   # ← adjust
+BASE=/path/to/staging/repo/n27/x86_64/sources   # ← adjust
 NEW="$BASE/.new-$DATE"
 mkdir -p "$NEW"
 

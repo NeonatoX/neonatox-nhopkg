@@ -58,7 +58,7 @@ nhopkg es un gestor universal de paquetes binarios y fuente. Esta página docume
 
 ```bash
 # Instalar un paquete .nho local
-sudo nhopkg -i gimp-3.0.4-n20260523.linux-x86_64.nho
+sudo nhopkg -i gimp-3.0.4-n27.linux-x86_64.nho
 
 # Instalar desde el repositorio (con resolución de dependencias)
 sudo nhopkg -S gimp

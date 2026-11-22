@@ -24,7 +24,7 @@
 |---|---|---|
 | `# Name:` | Да | Имя пакета |
 | `# Version:` | Да | Версия пакета (например, `1.0`, `2.15.6`) |
-| `# Release:` | Да | Релиз пакета (например, `n2026`) |
+| `# Release:` | Да | Релиз пакета (например, `n27`) |
 | `# License:` | Нет | Лицензия ПО (например, `GPL-3.0-only`, `MIT`) |
 | `# Group:` | Нет | Классификация группы пакета (может встречаться более одного раза; пакет может принадлежать нескольким группам) |
 | `# Repository:` | Нет | Целевой репозиторий (`core`, `extra`, `multilib`) |
@@ -223,7 +223,7 @@ npostinstall() {
 
 # Name:	mktorrent
 # Version:	1.1
-# Release:	n2026
+# Release:	n27
 # License:	GPL-2.0-only
 # Repository:	extra
 # Arch:	x86_64
@@ -257,7 +257,7 @@ npostremove() {
 
 # Name:	qt6
 # Version:	6.10.2
-# Release:	n2026
+# Release:	n27
 # License:	GPL-3.0-only LGPL-3.0-only
 # Repository:	extra
 # Arch:	i686 x86_64

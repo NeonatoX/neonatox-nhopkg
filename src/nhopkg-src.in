@@ -313,7 +313,7 @@ cmd_init() {
 		echog "Package Name: ${PKG_NAME}"
 	fi
 	prompt_with_default PKG_VERSION "Package Version" "1.0"
-	prompt_with_default PKG_RELEASE "Package Release" "n2026"
+	prompt_with_default PKG_RELEASE "Package Release" "n27"
 
 	local default_maintainer_name="${USER:-user}"
 	local default_maintainer_email="${USER:-user}@$(hostname)"

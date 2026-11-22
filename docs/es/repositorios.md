@@ -19,8 +19,8 @@ Cada repositorio activo debe tener una variable correspondiente que defina su UR
 
 Repositorio | Variable de configuración | Ejemplo  
 ---|---|---  
-`extra` | `NHOPKG_REPO_EXTRA` | `https://neonatox.vegnux.com/repo/n2026/x86_64/extra`  
-`multilib` | `NHOPKG_REPO_MULTILIB` | `https://neonatox.vegnux.com/repo/n2026/x86_64/multilib`  
+`extra` | `NHOPKG_REPO_EXTRA` | `https://neonatox.vegnux.com/repo/n27/x86_64/extra`  
+`multilib` | `NHOPKG_REPO_MULTILIB` | `https://neonatox.vegnux.com/repo/n27/x86_64/multilib`  
 `core` | `NHOPKG_REPO_CORE` | `https://mirror1.example.com/core https://mirror2.example.com/core`  
   
 Cada variable puede contener **múltiples URLs separadas por espacios** , lo que permite definir mirrors redundantes.
