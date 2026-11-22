@@ -1,0 +1,156 @@
+#!/bin/bash
+###############################################################################
+# libnhopkg_sources — Source metadata index synchronisation
+#==============================================================================
+#	libnhopkg_sources v. @PACKAGE_VERSION@ @RELEASEDATE@
+#	<https://github.com/NeonatoX/neonatox-nhopkg>
+#
+#	Part of nhopkg package manager.
+#
+#	Copyright (C) 2009-@RELEASEDATE@  Carlos Sánchez <cargabsj175@gmail.com>
+#
+# This library is self-contained and can be sourced by nhopkg.in via
+# NHOPKG_SOURCES_LIB. It deliberately mirrors sync_repo() but never touches the
+# binary repository path.
+#
+# Functions provided:
+#   sync_sources_repo()   — Download, verify and install the source index.
+###############################################################################
+
+#==============================================================================
+# sync_sources_repo()
+# Description: Synchronises the source metadata index published by the source
+#    generator into ${ROOT_PKG_STATE_DIR}/sources/<ref>/packages/. The index is
+#    optional: with no NHOPKG_SOURCES_REPO this is a silent no-op, so nhopkg -U
+#    behaves exactly as before.
+# Parameters: none
+# Globals: NHOPKG_SOURCES_REPO, ROOT_PKG_STATE_DIR, NHOPKG_LOCALSTATEDIR,
+#    NHOPKG_VERIFY_REPO_METADATA
+# Returns: 0 on success (including up-to-date or disabled), 1 on download or
+#    extraction failure. Callers must treat 1 as a warning: a broken source
+#    index must never break the binary repository update.
+#==============================================================================
+sync_sources_repo()
+{
+	local sources_url="${NHOPKG_SOURCES_REPO:-}"
+	local state_dir="${ROOT_PKG_STATE_DIR:-${NHOPKG_LOCALSTATEDIR}}"
+	local cache_dir="${state_dir}/cache/sources"
+	local dest_dir="${state_dir}/sources"
+	local lastsync_file="${dest_dir}/lastsync"
+	local remote_sync local_sync ref ref_dir packages_dir new_dir old_dir
+	local tar_file db_file stage
+	local message_prefix=" :: Updating source index:"
+
+	[[ -n "${sources_url}" ]] || return 0
+	sources_url="${sources_url%/}"
+
+	mkdir -p "${cache_dir}" || {
+		echog " *** Cannot create the source index cache directory." >&2
+		return 1
+	}
+
+	# lastsync is small, so no progress bar here (same as sync_repo).
+	nhoget_url "${sources_url}/lastsync" "${cache_dir}/lastsync" || {
+		echog " * Unable to download lastsync for the source index." >&2
+		return 1
+	}
+
+	remote_sync="$(cat "${cache_dir}/lastsync" 2>/dev/null)"
+	local_sync="$(cat "${lastsync_file}" 2>/dev/null)"
+	if [[ "${remote_sync}" =~ ^[0-9]+$ && "${local_sync}" =~ ^[0-9]+$ ]] \
+	   && (( local_sync >= remote_sync )); then
+		echog "   - Source index already up to date."
+		rm -f "${cache_dir}/lastsync"
+		return 0
+	fi
+
+	echog "${message_prefix} ${sources_url}"
+
+	tar_file="${cache_dir}/core.sources.tar.zst"
+	db_file="${cache_dir}/content.source.db.zst"
+
+	if declare -F nhoget_url_with_progress >/dev/null 2>&1; then
+		nhoget_url_with_progress "${sources_url}/core.sources.tar.zst" "${tar_file}" || {
+			echog " *** Failed to download the source index." >&2
+			return 1
+		}
+	else
+		nhoget_url "${sources_url}/core.sources.tar.zst" "${tar_file}" || {
+			echog " *** Failed to download the source index." >&2
+			return 1
+		}
+	fi
+	nhoget_url "${sources_url}/content.source.db.zst" "${db_file}" || {
+		echog " *** Failed to download the source content database." >&2
+		return 1
+	}
+
+	# The same policy as binary repositories. crypto_verify_repo_metadata()
+	# checks every *.zst and lastsync that has an .asc beside it.
+	if [[ "${NHOPKG_VERIFY_REPO_METADATA:-no}" == "yes" ]]; then
+		nhoget_url "${sources_url}/core.sources.tar.zst.asc" \
+			"${tar_file}.asc" 2>/dev/null || true
+		nhoget_url "${sources_url}/content.source.db.zst.asc" \
+			"${db_file}.asc" 2>/dev/null || true
+		nhoget_url "${sources_url}/lastsync.asc" \
+			"${cache_dir}/lastsync.asc" 2>/dev/null || true
+
+		if ! crypto_verify_repo_metadata "${cache_dir}"; then
+			echog " *** Source index metadata verification failed." >&2
+			return 1
+		fi
+	fi
+
+	# Extract to a staging directory first: a corrupt tar must not empty the
+	# already installed index.
+	stage="${cache_dir}/unpack"
+	rm -rf "${stage}"
+	mkdir -p "${stage}" || return 1
+	zstd -dc "${tar_file}" 2>/dev/null | tar xf - -C "${stage}" 2>/dev/null || {
+		echog " *** Failed to extract the source index." >&2
+		rm -rf "${stage}"
+		return 1
+	}
+
+	for ref_dir in "${stage}"/*; do
+		[[ -d "${ref_dir}" ]] || continue
+		ref="$(basename "${ref_dir}")"
+		[[ "${ref}" =~ ^[A-Za-z0-9._-]+$ ]] || {
+			echog " *** Unsafe ref in the source index, skipped: ${ref}" >&2
+			continue
+		}
+
+		packages_dir="${dest_dir}/${ref}/packages"
+		new_dir="${dest_dir}/${ref}/packages.new.$$"
+		old_dir="${dest_dir}/${ref}/packages.old.$$"
+		mkdir -p "${dest_dir}/${ref}" || {
+			rm -rf "${stage}"
+			return 1
+		}
+		rm -rf "${new_dir}" "${old_dir}"
+		mkdir -p "${new_dir}" || {
+			rm -rf "${stage}"
+			return 1
+		}
+		if ! cp -a "${ref_dir}/." "${new_dir}/"; then
+			echog " *** Failed to install the source index for ${ref}." >&2
+			rm -rf "${new_dir}" "${stage}"
+			return 1
+		fi
+		[[ -d "${packages_dir}" ]] && mv "${packages_dir}" "${old_dir}"
+		if ! mv "${new_dir}" "${packages_dir}"; then
+			[[ -d "${old_dir}" ]] && mv "${old_dir}" "${packages_dir}"
+			rm -rf "${stage}"
+			return 1
+		fi
+		rm -rf "${old_dir}"
+	done
+
+	mv "${db_file}" "${dest_dir}/content.source.db.zst"
+	mv "${cache_dir}/lastsync" "${lastsync_file}"
+	rm -f "${tar_file}" "${tar_file}.asc" "${db_file}.asc" "${cache_dir}/lastsync.asc"
+	rm -rf "${stage}"
+
+	echog " - Source index updated successfully."
+	return 0
+}

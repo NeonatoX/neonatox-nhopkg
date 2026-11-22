@@ -35,6 +35,12 @@ option('repo-url-multilib',
   description: 'Override Multilib repository URL (empty = auto-built from repo-version + repo-arch)'
 )
 
+option('repo-url-sources',
+  type: 'string',
+  value: '',
+  description: 'Source metadata index URL (empty = source index sync disabled)'
+)
+
 option('git-url',
   type: 'string',
   value: 'https://gitlab.com/neonatox-sources',

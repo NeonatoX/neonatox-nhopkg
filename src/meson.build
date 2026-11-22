@@ -65,6 +65,13 @@ libnhopkg_nhouser = configure_file(
   configuration: conf
 )
 
+# Configurar librería del índice de fuentes en /usr/lib/nhopkg
+libnhopkg_sources = configure_file(
+  input: 'libnhopkg_sources.in',
+  output: 'libnhopkg_sources',
+  configuration: conf
+)
+
 # Configurar nhoget CLI
 nhoget = configure_file(
   input: 'nhoget.in',
@@ -88,7 +95,8 @@ install_data(
 
 # Instalar librería en libdir/nhopkg (/usr/lib/nhopkg)
 install_data(
-  [libnhopkg, libnhopkg_udepsys, libnhopkg_download, libnhopkg_crypto, libnhopkg_nhouser],
+  [libnhopkg, libnhopkg_udepsys, libnhopkg_download, libnhopkg_crypto,
+   libnhopkg_nhouser, libnhopkg_sources],
   install_dir: join_paths(get_option('libdir'), 'nhopkg'),
   install_mode: 'rw-r--r--'
 )
