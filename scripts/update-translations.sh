@@ -34,6 +34,7 @@ SOURCES=(
     "${PROJECT_DIR}/src/libnhopkg.in"
     "${PROJECT_DIR}/src/libnhopkg_download.in"
     "${PROJECT_DIR}/src/libnhopkg_udepsys.in"
+    "${PROJECT_DIR}/src/libnhopkg_sources.in"
     "${PROJECT_DIR}/src/nhoget.in"
     "${PROJECT_DIR}/src/nhopkg.in"
     "${PROJECT_DIR}/src/nhopkg-overlay.in"
