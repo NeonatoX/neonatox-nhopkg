@@ -20,7 +20,8 @@
 #
 # Description: Source package project tool for nhopkg.
 #              Creates, validates and builds .srcnho packages.
-# Parameters: --init, --createpackage, --buildpackage, --validate
+# Parameters: --init, --createpackage, --buildpackage, --validate,
+#             --list-sources, --search-sources, --show-source, --get-source
 ###############################################################################
 #==============================================================================
 # Section: Basic configurations.
@@ -60,7 +61,10 @@ nhopkg_src_usage() {
 	echo "  nhopkg-src --createpackage [--force]"
 	echo "  nhopkg-src --buildpackage"
 	echo "  nhopkg-src --validate [<nhoid_file>]"
-	echo "  nhopkg-src --get-source <project> [--ref <ref>]"
+	echo "  nhopkg-src --get-source <project> [--ref <ref>] [--from-index]"
+	echo "  nhopkg-src --list-sources [--ref <ref>]"
+	echo "  nhopkg-src --search-sources <pattern> [--ref <ref>]"
+	echo "  nhopkg-src --show-source <project> [--ref <ref>]"
 	echo
 	echog "Options:"
 	echo "  --init [<name>]       Create a new source package project"
@@ -70,6 +74,10 @@ nhopkg_src_usage() {
 	echo "  --buildpackage        Build source package with nhopkg -bv"
 	echo "  --validate [<file>]   Validate a nhoid file"
 	echo "  --get-source <proj>   Clone source from NHOPKG_GIT_SOURCES"
+	echo "  --from-index          Use the local source index (no GitLab metadata)"
+	echo "  --list-sources        List recipes cached by 'nhopkg -U'"
+	echo "  --search-sources <pat> Search by name, description, group or dependency"
+	echo "  --show-source <proj>  Show a cached recipe and its provenance"
 	echo "  --ref <ref>           Git reference (tag/branch/commit)"
 	echo "  -h, --help            Show this help"
 	echo "  --version             Show version"
@@ -712,6 +720,7 @@ cmd_validate() {
 cmd_getsource() {
 	local project="$1"
 	local ref="$2"
+	local resolved_ref
 
 	if [[ -z "$project" ]]; then
 		echog " * No project name specified." >&2
@@ -734,11 +743,9 @@ cmd_getsource() {
 	echogn " --- Cloning source project:"
 	echo " ${project}"
 
-	if [[ -n "$ref" ]]; then
-		export NHOGET_REF="$ref"
-	else
-		export NHOGET_REF=""
-	fi
+	# An empty branch means glibc, and "glibc" is accepted as an alias of main.
+	resolved_ref="$(nhopkg_map_git_ref "${ref:-${NHOPKG_GIT_BRANCH:-}}")"
+	export NHOGET_REF="${resolved_ref}"
 
 	nhoget_vcs git "${git_url}" "${proj_dir}" || exit 1
 
@@ -750,6 +757,106 @@ cmd_getsource() {
 		echo " - Edit nhoid as needed"
 	fi
 	echo " - Run 'nhopkg-src --createpackage' to package"
+}
+
+#==============================================================================
+# Section: local source index commands
+#==============================================================================
+cmd_listsources() {
+	source_index_list "${1:-}"
+}
+
+cmd_searchsources() {
+	local pattern="$1"
+	[[ -n "${pattern}" ]] || {
+		echog " * No search pattern specified." >&2
+		return 1
+	}
+	source_index_search "${pattern}" "${2:-}"
+}
+
+cmd_showsource() {
+	local project="$1" ref="${2:-}" base resolved
+
+	[[ -n "${project}" ]] || {
+		echog " * No project name specified." >&2
+		return 1
+	}
+
+	resolved="$(source_index_resolve_ref "${ref}")"
+	base="$(source_index_entry_path "${project}" "${ref}")" || {
+		echog " * No local source entry for '${project}' (ref ${resolved}). Run 'nhopkg -U' first." >&2
+		return 1
+	}
+	if ! source_index_verify_entry "${base}"; then
+		echog " *** Cached nhoid for '${project}' failed its SHA256 check." >&2
+		return 1
+	fi
+
+	echog " --- Source: ${resolved}/${project}"
+	echog " --- Provenance:"
+	cat "${base}.sourceinfo" || return 1
+	echo
+	echog " --- nhoid:"
+	cat "${base}" || return 1
+	return 0
+}
+
+cmd_getsource_from_index() {
+	local project="$1" ref="${2:-}" base info extras git_url proj_dir resolved
+
+	[[ -n "${project}" ]] || {
+		echog " * No project name specified." >&2
+		return 1
+	}
+
+	resolved="$(source_index_resolve_ref "${ref}")"
+	base="$(source_index_entry_path "${project}" "${ref}")" || {
+		echog " * No local source entry for '${project}' (ref ${resolved}). Run 'nhopkg -U', or drop --from-index." >&2
+		return 1
+	}
+	if ! source_index_verify_entry "${base}"; then
+		echog " *** Cached nhoid for '${project}' failed its SHA256 check." >&2
+		return 1
+	fi
+
+	info="${base}.sourceinfo"
+	extras="$(source_index_read_field "${info}" Source-Extra-Files || true)"
+	proj_dir="${PWD}/${project}"
+	if [[ -d "${proj_dir}" ]]; then
+		echog " * Directory '${project}' already exists!" >&2
+		return 1
+	fi
+
+	if [[ -z "${extras}" || "${extras}" == "none" ]]; then
+		mkdir -p "${proj_dir}" || return 1
+		cp -- "${base}" "${proj_dir}/nhoid" || return 1
+		echog " --- Source project ready from index (${resolved}/${project})."
+		echo " - cd ${project}"
+		echo " - Run 'nhopkg-src --createpackage' to package"
+		return 0
+	fi
+
+	# A recipe with patches/others still needs the repository; the nhoid itself
+	# comes from the index, so the recipe is the exact one that was published.
+	git_url="$(source_index_read_field "${info}" Source-Url || true)"
+	if [[ -z "${git_url}" ]]; then
+		[[ -n "${NHOPKG_GIT_SOURCES:-}" ]] || {
+			echog " * NHOPKG_GIT_SOURCES is not configured." >&2
+			return 1
+		}
+		git_url="${NHOPKG_GIT_SOURCES}/${project}.git"
+	fi
+
+	echogn " --- Cloning source project for extra files:"
+	echo " ${project} (${extras})"
+	export NHOGET_REF="${resolved}"
+	nhoget_vcs git "${git_url}" "${proj_dir}" || return 1
+	mkdir -p "${proj_dir}/patches" "${proj_dir}/others" || return 1
+	cp -- "${base}" "${proj_dir}/nhoid" || return 1
+	echog " --- Source project ready from index (${resolved}/${project})."
+	echo " - cd ${project}"
+	return 0
 }
 
 #==============================================================================
@@ -765,6 +872,7 @@ NHOPKG_SRC_FORCE="no"
 NHOPKG_SRC_ARG=""
 NHOPKG_SRC_REF=""
 NHOPKG_SRC_META="no"
+NHOPKG_SRC_FROM_INDEX="no"
 
 while [[ $# -gt 0 ]]; do
 	case "$1" in
@@ -808,8 +916,36 @@ while [[ $# -gt 0 ]]; do
 				shift
 			fi
 			;;
+		--from-index)
+			NHOPKG_SRC_FROM_INDEX="yes"
+			shift
+			;;
+		--list-sources)
+			NHOPKG_SRC_CMD="listsources"
+			shift
+			;;
+		--search-sources)
+			NHOPKG_SRC_CMD="searchsources"
+			shift
+			if [[ $# -gt 0 && "$1" != -* ]]; then
+				NHOPKG_SRC_ARG="$1"
+				shift
+			fi
+			;;
+		--show-source)
+			NHOPKG_SRC_CMD="showsource"
+			shift
+			if [[ $# -gt 0 && "$1" != -* ]]; then
+				NHOPKG_SRC_ARG="$1"
+				shift
+			fi
+			;;
 		--ref)
 			shift
+			[[ $# -gt 0 ]] || {
+				echog " * --ref needs an argument." >&2
+				exit 1
+			}
 			NHOPKG_SRC_REF="$1"
 			shift
 			;;
@@ -829,6 +965,11 @@ while [[ $# -gt 0 ]]; do
 	esac
 done
 
+if [[ "${NHOPKG_SRC_FROM_INDEX}" == "yes" && "${NHOPKG_SRC_CMD}" != "getsource" ]]; then
+	echog " * --from-index only applies to --get-source." >&2
+	exit 1
+fi
+
 case "$NHOPKG_SRC_CMD" in
 	init)
 		cmd_init "$NHOPKG_SRC_ARG"
@@ -843,7 +984,20 @@ case "$NHOPKG_SRC_CMD" in
 		cmd_validate "$NHOPKG_SRC_ARG"
 		;;
 	getsource)
-		cmd_getsource "$NHOPKG_SRC_ARG" "$NHOPKG_SRC_REF"
+		if [[ "${NHOPKG_SRC_FROM_INDEX}" == "yes" ]]; then
+			cmd_getsource_from_index "$NHOPKG_SRC_ARG" "$NHOPKG_SRC_REF"
+		else
+			cmd_getsource "$NHOPKG_SRC_ARG" "$NHOPKG_SRC_REF"
+		fi
+		;;
+	listsources)
+		cmd_listsources "$NHOPKG_SRC_REF"
+		;;
+	searchsources)
+		cmd_searchsources "$NHOPKG_SRC_ARG" "$NHOPKG_SRC_REF"
+		;;
+	showsource)
+		cmd_showsource "$NHOPKG_SRC_ARG" "$NHOPKG_SRC_REF"
 		;;
 	*)
 		echog " * No command specified." >&2

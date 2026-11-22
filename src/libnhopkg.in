@@ -1700,3 +1700,267 @@ SHOOTER_SCRIPT
 
 	return $((update_errors > 0 ? 1 : 0))
 }
+
+#==============================================================================
+# Section: Local source index (Etapa 4)
+#==============================================================================
+
+# ---------------------------------------------------------
+# nhopkg_map_git_ref <ref>
+# Description: Map the configured branch name to the ref really used by the
+#    source repositories. An empty branch means glibc, and the old literal
+#    "glibc" is accepted for compatibility; both resolve to "main".
+# Parameters: $1: ref or branch (may be empty)
+# Returns: 0; prints the canonical ref.
+# ---------------------------------------------------------
+nhopkg_map_git_ref()
+{
+	case "${1:-}" in
+		""|glibc) printf '%s\n' main ;;
+		*) printf '%s\n' "$1" ;;
+	esac
+}
+
+# ---------------------------------------------------------
+# source_index_resolve_ref [ref]
+# Description: Resolve an explicit ref, falling back to NHOPKG_GIT_BRANCH.
+# ---------------------------------------------------------
+source_index_resolve_ref()
+{
+	local requested="${1:-${NHOPKG_GIT_BRANCH:-}}"
+	nhopkg_map_git_ref "${requested}"
+}
+
+# ---------------------------------------------------------
+# source_index_state_dir()
+# Description: Directory holding the local source index installed by -U.
+# ---------------------------------------------------------
+source_index_state_dir()
+{
+	printf '%s\n' "${ROOT_PKG_STATE_DIR:-${NHOPKG_LOCALSTATEDIR:-/var/nhopkg}}/sources"
+}
+
+# ---------------------------------------------------------
+# source_index_packages_dir [ref]
+# Description: Packages directory of the resolved ref.
+# ---------------------------------------------------------
+source_index_packages_dir()
+{
+	local ref
+	ref="$(source_index_resolve_ref "${1:-}")" || return 1
+	printf '%s\n' "$(source_index_state_dir)/${ref}/packages"
+}
+
+# A package name is used as a file name below the index: never let it carry a
+# path, a glob or a shell metacharacter.
+_source_index_valid_name()
+{
+	[[ "$1" =~ ^[A-Za-z0-9][A-Za-z0-9._+-]*$ ]]
+}
+
+# ---------------------------------------------------------
+# source_index_read_field <sidecar> <field>
+# Description: Read the value of a "Source-<field>:" line.
+# ---------------------------------------------------------
+source_index_read_field()
+{
+	local file="$1" field="$2" value
+	[[ -f "$file" ]] || return 1
+	value=$(awk -v prefix="${field}:" '
+		substr($0, 1, length(prefix)) == prefix {
+			v = substr($0, length(prefix) + 1)
+			sub(/^[[:space:]]+/, "", v)
+			print v
+			exit
+		}
+	' "$file") || return 1
+	[[ -n "${value}" ]] || return 1
+	printf '%s\n' "${value}"
+}
+
+# ---------------------------------------------------------
+# source_index_entry_path <name> [ref]
+# Description: Print the path of a cached nhoid, or fail if it is not indexed.
+# ---------------------------------------------------------
+source_index_entry_path()
+{
+	local name="$1" ref dir base
+	_source_index_valid_name "${name}" || return 1
+	ref="$(source_index_resolve_ref "${2:-}")" || return 1
+	dir="$(source_index_packages_dir "${ref}")" || return 1
+	base="${dir}/${name}"
+	[[ -f "${base}" && ! -L "${base}" ]] || return 1
+	[[ -f "${base}.sourceinfo" && ! -L "${base}.sourceinfo" ]] || return 1
+	printf '%s\n' "${base}"
+}
+
+# ---------------------------------------------------------
+# source_index_verify_entry <nhoid path>
+# Description: Check the nhoid against Source-Nhoid-SHA256 in its sidecar.
+# ---------------------------------------------------------
+source_index_verify_entry()
+{
+	local base="$1" expected actual
+	expected="$(source_index_read_field "${base}.sourceinfo" Source-Nhoid-SHA256)" || return 1
+	actual="$(sha256sum "${base}" 2>/dev/null | awk '{print $1}')"
+	[[ -n "${actual}" && "${actual}" == "${expected}" ]] || return 1
+	return 0
+}
+
+# ---------------------------------------------------------
+# source_index_list [ref]
+# Description: Print the package names indexed for one ref, sorted.
+# ---------------------------------------------------------
+source_index_list()
+{
+	local dir info name
+	local -a names=()
+	dir="$(source_index_packages_dir "${1:-}")" || return 1
+	[[ -d "${dir}" ]] || {
+		echog " * No local source index for this ref. Run 'nhopkg -U' first." >&2
+		return 1
+	}
+	for info in "${dir}"/*.sourceinfo; do
+		[[ -f "${info}" ]] || continue
+		name="$(basename "${info}" .sourceinfo)"
+		_source_index_valid_name "${name}" || continue
+		[[ -f "${dir}/${name}" ]] || continue
+		names+=("${name}")
+	done
+	(( ${#names[@]} > 0 )) || return 1
+	printf '%s\n' "${names[@]}" | sort
+	return 0
+}
+
+# ---------------------------------------------------------
+# source_index_search <pattern> [ref]
+# Description: Search names, descriptions, groups and dependencies, case
+#    insensitively. The pattern is literal, never a regular expression.
+# ---------------------------------------------------------
+source_index_search()
+{
+	local pattern="$1" dir info name nhoid fields haystack
+	local -a names=()
+	[[ -n "${pattern}" ]] || return 1
+	dir="$(source_index_packages_dir "${2:-}")" || return 1
+	[[ -d "${dir}" ]] || {
+		echog " * No local source index for this ref. Run 'nhopkg -U' first." >&2
+		return 1
+	}
+	for info in "${dir}"/*.sourceinfo; do
+		[[ -f "${info}" ]] || continue
+		name="$(basename "${info}" .sourceinfo)"
+		_source_index_valid_name "${name}" || continue
+		nhoid="${dir}/${name}"
+		[[ -f "${nhoid}" ]] || continue
+		fields="$(grep -E '^# (Description|Group|BuildDep|Dep)' "${nhoid}" 2>/dev/null || true)"
+		haystack="${name}"$'\n'"$(cat "${info}" 2>/dev/null)"$'\n'"${fields}"
+		if printf '%s\n' "${haystack}" | grep -qiF -- "${pattern}"; then
+			names+=("${name}")
+		fi
+	done
+	(( ${#names[@]} > 0 )) || return 1
+	printf '%s\n' "${names[@]}" | sort
+	return 0
+}
+
+#==============================================================================
+# Section: Indexed sources for builds (Etapa 5)
+#==============================================================================
+
+# ---------------------------------------------------------
+# source_index_get_sources <name> <dest> [ref]
+# Description: Put the source recipe for <name> in <dest>/nhoid. A verified
+#    index entry without extra files needs no clone at all; with extra files
+#    the repository is cloned (so patches/others are available) but the nhoid
+#    is taken from the index, not from whatever HEAD carries. With no usable
+#    index entry this is exactly the old clone, using the canonical ref.
+# Parameters: $1: source project name
+#             $2: clone/destination directory
+#             $3: optional ref, defaults to NHOPKG_GIT_BRANCH
+# Returns: 0 on success, 1 on failure.
+# ---------------------------------------------------------
+source_index_get_sources()
+{
+	local name="$1" dest="$2" requested_ref="${3:-}"
+	local base="" extras resolved git_url
+
+	resolved="$(source_index_resolve_ref "${requested_ref}")" || return 1
+	git_url="${NHOPKG_GIT_SOURCES:-}/${name}.git"
+
+	base="$(source_index_entry_path "$name" "${requested_ref}")" || base=""
+	if [[ -n "$base" ]]; then
+		source_index_verify_entry "$base" || base=""
+	fi
+
+	if [[ -n "$base" ]]; then
+		extras="$(source_index_read_field "${base}.sourceinfo" Source-Extra-Files || true)"
+		if [[ -z "$extras" || "$extras" == "none" ]]; then
+			mkdir -p "$dest" || return 1
+			cp -- "$base" "${dest}/nhoid" || return 1
+			echog " - Using cached source metadata for ${name} (${resolved}, no clone)."
+			return 0
+		fi
+	fi
+
+	echog " - Cloning ${git_url}..."
+	NHOGET_REF="${resolved}" nhoget_vcs git "${git_url}" "${dest}" || {
+		echog " * Failed to clone ${git_url}" >&2
+		return 1
+	}
+	if [[ -n "$base" ]]; then
+		# Keep the exact recipe that was published, not the repository's copy.
+		cp -- "$base" "${dest}/nhoid" || return 1
+	fi
+	return 0
+}
+
+# ---------------------------------------------------------
+# source_fallback_for_build_dep <spec> [dep_type]
+# Description: Opt-in fallback called by dep_resolve_from_nhoid() when a build
+#    dependency cannot be satisfied from the binary repositories. It builds the
+#    dependency from the local source index and returns 0 so the caller can
+#    retry resolution. SOURCE_FALLBACK_TRIED and SOURCE_FALLBACK_DEPTH travel
+#    to the chained process, cutting cycles and capping the chain.
+# Returns: 0 only when the chain was attempted successfully, 1 otherwise.
+# ---------------------------------------------------------
+source_fallback_for_build_dep()
+{
+	local spec="$1" dep_type="${2:-build}" name base ref depth tried
+	local -a cmd=()
+
+	[[ "${NHOPKG_AUTO_SOURCE_FALLBACK:-no}" == "yes" ]] || return 1
+	[[ "$dep_type" == "build" ]] || return 1
+
+	name="${spec%%[<>=]*}"
+	[[ -n "$name" ]] || return 1
+
+	base="$(source_index_entry_path "$name")" || return 1
+	source_index_verify_entry "$base" || return 1
+	ref="$(source_index_resolve_ref "")" || return 1
+
+	tried="${SOURCE_FALLBACK_TRIED:-}"
+	case ":${tried}:" in
+		*":${name}:"*)
+			echog " - Source fallback skipped for ${name}: already tried in this run."
+			return 1
+			;;
+	esac
+
+	depth="${SOURCE_FALLBACK_DEPTH:-0}"
+	[[ "$depth" =~ ^[0-9]+$ ]] || depth=0
+	if (( depth >= ${NHOPKG_SOURCE_FALLBACK_MAX_DEPTH:-5} )); then
+		echog " - Source fallback depth limit reached (${depth}); not building ${name}."
+		return 1
+	fi
+
+	echog " - ${name} is not in binary repos; source available: ${ref}/${name}"
+
+	export SOURCE_FALLBACK_TRIED="${tried:+${tried}:}${name}"
+	export SOURCE_FALLBACK_DEPTH="$((depth + 1))"
+
+	cmd=("${NHOPKG_BIN:-nhopkg}" -C "$name")
+	[[ "${NHOPKG_PACKAGING:-no}" == "yes" ]] && cmd+=("--packaging")
+	"${cmd[@]}" || return 1
+	return 0
+}
