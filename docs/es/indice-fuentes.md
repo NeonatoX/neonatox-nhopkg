@@ -36,6 +36,28 @@ Artefactos que se publican:
 Refs por defecto: `main musl`. `NHOPKG_GIT_BRANCH` vacía o `glibc` → `main`;
 `musl` → `musl`. Un `--ref` explícito gana siempre.
 
+### Ramas que no se llaman `main`
+
+El generador **no detecta** la rama por defecto de GitLab: filtra por nombre
+exacto los valores de `--refs`. Si una receta solo tiene `master`, no se
+indexa y ni siquiera aparece como `invalid-entry` en el `report.txt`.
+
+Para un grupo con `master`:
+
+```bash
+scripts/nhopkg-source-index.sh \
+  --refs "master musl" \
+  --output "$OUT" --cache "$CACHE" \
+  --nhopkg-src builddir/src/nhopkg-src --rate 2 --no-sign
+```
+
+Y en el cliente, `NHOPKG_GIT_BRANCH=master` (o `--ref master`). Si se deja
+vacía, se resuelve como `main`: el cliente busca `sources/main/packages` sin
+encontrarlo y `--get-source` intenta clonar `main`. Si el grupo mezcla `main`
+y `master`, pasa ambos (`--refs "main master musl"`) y elige en cada cliente.
+El nombre del ref es la clave: `sources/<ref>/packages/` y el campo
+`Source-Ref` del sidecar deben coincidir.
+
 ## 2. Antes de empezar
 
 - Token con scopes `read_api` y `read_repository`.

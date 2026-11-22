@@ -37,6 +37,28 @@ Published artefacts:
 Default refs: `main musl`. Empty `NHOPKG_GIT_BRANCH` or `glibc` → `main`;
 `musl` → `musl`. An explicit `--ref` always wins.
 
+### Branches not named `main`
+
+The generator **does not detect** GitLab's default branch: it filters branch
+names exactly against `--refs`. A recipe that only has `master` is not indexed
+and does not even appear as an `invalid-entry` in `report.txt`.
+
+For a group using `master`:
+
+```bash
+scripts/nhopkg-source-index.sh \
+  --refs "master musl" \
+  --output "$OUT" --cache "$CACHE" \
+  --nhopkg-src builddir/src/nhopkg-src --rate 2 --no-sign
+```
+
+On the client set `NHOPKG_GIT_BRANCH=master` (or pass `--ref master`). If it is
+left empty it resolves to `main`, so the client looks in
+`sources/main/packages` and finds nothing, while `--get-source` tries to clone
+`main`. For a group mixing `main` and `master`, pass both
+(`--refs "main master musl"`) and choose per client. The ref name is the key:
+`sources/<ref>/packages/` and the sidecar's `Source-Ref` must match.
+
 ## 2. Before you start
 
 - Token with `read_api` and `read_repository` scopes.
