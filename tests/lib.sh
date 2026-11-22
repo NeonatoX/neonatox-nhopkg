@@ -422,6 +422,7 @@ setup_tool() {
 	export NHOPKG_CONF=/etc/nhopkg/nhopkg.conf
 	export NHOPKG_LIB="${BUILDDIR}/src/libnhopkg"
 	export NHOPKG_CRYPTO_LIB="${TOOLDIR}/crypto_stub"
+	export NHOPKG_SOURCES_LIB="${BUILDDIR}/src/libnhopkg_sources"
 }
 
 clean_workspace() { rm -rf "${WORK}"; mkdir -p "${WORK}"; }

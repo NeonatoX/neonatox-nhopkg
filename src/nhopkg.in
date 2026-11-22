@@ -126,6 +126,15 @@ if [[ -e "${NHOPKG_CRYPTO_LIB}" ]]; then
 	source "${NHOPKG_CRYPTO_LIB}" 2> /dev/null
 fi
 
+
+#==============================================================================
+# Section: Source index library (external library)
+#==============================================================================
+NHOPKG_SOURCES_LIB="${NHOPKG_SOURCES_LIB:-@prefix@/lib/nhopkg/libnhopkg_sources}"
+if [[ -e "${NHOPKG_SOURCES_LIB}" ]]; then
+	source "${NHOPKG_SOURCES_LIB}" 2> /dev/null
+fi
+
 # ---------------------------------------------------------
 # ns_exec_in()
 # Description: Executes a script inside a target root using
@@ -926,7 +935,7 @@ bin_install_setting_up()
 # Host-side NHOPKG_* overrides (--root style paths) do not exist inside the
 # target: drop them so in-target tools fall back to their baked defaults, then
 # load the target's conf + libnhopkg (noemptyfuncs and package helpers).
-unset NHOPKG_CONF NHOPKG_LIB NHOPKG_UDEP_LIB NHOPKG_DOWNLOAD_LIB NHOPKG_CRYPTO_LIB NHOPKG_BB_DIR NHOPKG_BB_SETUP
+unset NHOPKG_CONF NHOPKG_LIB NHOPKG_UDEP_LIB NHOPKG_DOWNLOAD_LIB NHOPKG_CRYPTO_LIB NHOPKG_SOURCES_LIB NHOPKG_BB_DIR NHOPKG_BB_SETUP
 $(nhopkg_chroot_prelude)
 # get info like name version, etc.
 get_basic_data ${_nh_path}
@@ -1271,7 +1280,7 @@ remove_package_all()
 # Host-side NHOPKG_* overrides (--root style paths) do not exist inside the
 # target: drop them so in-target tools fall back to their baked defaults, then
 # load the target's conf + libnhopkg (noemptyfuncs and package helpers).
-unset NHOPKG_CONF NHOPKG_LIB NHOPKG_UDEP_LIB NHOPKG_DOWNLOAD_LIB NHOPKG_CRYPTO_LIB NHOPKG_BB_DIR NHOPKG_BB_SETUP
+unset NHOPKG_CONF NHOPKG_LIB NHOPKG_UDEP_LIB NHOPKG_DOWNLOAD_LIB NHOPKG_CRYPTO_LIB NHOPKG_SOURCES_LIB NHOPKG_BB_DIR NHOPKG_BB_SETUP
 $(nhopkg_chroot_prelude)
 source ${_nh_path}
 npostremove
@@ -2627,6 +2636,26 @@ update_repositories()
 	
 	echog " - All repositories updated successfully."
 	NHOPKG_OPTION="${NHOPKG_OPTION_BACKUP}"
+	return 0
+}
+# ---------------------------------------------------------
+# maybe_sync_sources_repo()
+# Description: Sync the optional source index after a binary repository
+#    update. A failure is a warning only: the binary update must stand.
+# Parameters: none
+# Returns: 0 always.
+# ---------------------------------------------------------
+maybe_sync_sources_repo()
+{
+	[[ -n "${NHOPKG_SOURCES_REPO:-}" ]] || return 0
+
+	if ! declare -F sync_sources_repo >/dev/null 2>&1; then
+		echog " *** Source index library not available; skipping sources." >&2
+		return 0
+	fi
+
+	sync_sources_repo ||
+		echog " *** Source index update failed; binary repositories are unaffected." >&2
 	return 0
 }
 #==============================================================================
@@ -4045,6 +4074,7 @@ case "${NHOPKG_OPTION}" in
 				FSYNC=$(cat ${ROOT_PKG_STATE_DIR}/cache/lastsync)
 				if (( ${ISYNC} == ${FSYNC} )) || (( ${ISYNC} > ${FSYNC} )); then
 					echog " * Repository already is updated." >&2
+					maybe_sync_sources_repo
 					exit 1
 				fi
 				rm -f "${ROOT_PKG_STATE_DIR}/repo/lastsync"
@@ -4081,6 +4111,7 @@ case "${NHOPKG_OPTION}" in
 			echog " - Repository database updated successfully."
 			rm -rf "${ROOT_PKG_STATE_DIR}/cache/core.packages.tar.zst"
 			rm -rf "${ROOT_PKG_STATE_DIR}/cache/core.files.tar.zst"
+			maybe_sync_sources_repo
 			exit 0
 		fi
 
@@ -4117,6 +4148,7 @@ case "${NHOPKG_OPTION}" in
 		done
 
 		echog " - All repositories updated successfully."
+		maybe_sync_sources_repo
 		exit 0
 	;;
 	upgrade)
