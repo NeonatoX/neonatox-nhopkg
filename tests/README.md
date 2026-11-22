@@ -22,6 +22,10 @@ Logs of the tool's own output are written to `builddir/tests-tmp/logs/`.
 | `lib.sh` | Shared harness. Not a test. Build freshness, the tool under test, the crypto stub, reading a repository, assertions. |
 | `make-packages.sh` | Generates the `.nho` packages. Run on its own to look at them. |
 | `check-add-to-repo.sh` | Validation, rejection, and index consistency. |
+| `check-source-index.sh` | Source index: golden `nhoid` fixtures, offline generator and live GitLab collector against a REST stub (Etapas 0-2). |
+| `check-source-index-sync.sh` | `nhopkg -U` synchronising the optional source index from a local HTTP server (Etapa 3). |
+| `check-source-index-client.sh` | `nhopkg-src` querying the local index and `--get-source --from-index` (Etapa 4). |
+| `check-source-index-build.sh` | Indexed recipes in `nhopkg -C` and the opt-in build-dep fallback (Etapa 5). |
 | `check-retired-metadata.sh` | Retiring a version must not leave its entry behind. |
 | `check-package-compress.sh` | The client's packaging step: the installed file list has to reach `data.tar.zst` whole, and a split must search it once. |
 | `check-build-capture.sh` | What a recipe installs has to reach the package: the marker, the `find` predicate, the filters that drop build-tree paths, and a whole `.nho` for the base package and for a split. |
@@ -37,6 +41,108 @@ Logs of the tool's own output are written to `builddir/tests-tmp/logs/`.
 
 Naming matters: the files are `check-*.sh`, not `test-*.sh`, because
 `.gitignore` has a `test-*` rule that would swallow them.
+
+## What `check-source-index.sh` covers
+
+Etapas 0-2 of the source-index proposal. No client code is involved: this checks
+the contract inputs and the server-side generator only. The live collector runs
+against `fixtures/source-index/gitlab-stub.py`, a local REST stub, so no network
+access or GitLab credentials are needed.
+
+- **The fixtures are real.** The two `kinfocenter` `nhoid` files were fetched from
+  the GitLab API (`main` and `musl`), are byte-identical to what is published, and
+  pass the real `nhopkg-src --validate`. A deliberately broken one is rejected.
+- **The published index is byte-exact.** The tar holds one `rama/proyecto` and one
+  `rama/proyecto.sourceinfo` per valid entry; the `nhoid` inside compares equal to
+  the fixture with `cmp`.
+- **The sidecar carries provenance.** Commit, URL, canonical ref, extra-files
+  marker, indexed epoch and the SHA256 of the cached `nhoid` are all asserted.
+- **Invalid entries are excluded, not published.** They are named in `report.txt`
+  with their rejection reason, so a bad recipe cannot silently become an installable
+  entry.
+- **No `.srcnho` yet.** At this stage the sidecar's `Source-Artifact` is empty and
+  the output tree contains no artefact. Signatures are optional and exercised with
+  a stand-in `gpg`.
+- **The live collector walks GitLab.** Pagination, `--limit`, branch filtering,
+  tree-based `Source-Extra-Files`, a 404 tree, the derived clone URL and the
+  commit-keyed cache are checked through the stub's request log; a second run
+  reports `reused=4` and makes no raw `nhoid` download.
+- **Rate limits do not break a run.** The stub injects one HTTP 429 with a short
+  `Retry-After`; the retry is logged and `--rate` throttling is measured.
+- **Invalid live recipes behave like invalid fixtures.** They are excluded,
+  named in `report.txt`, and do not stop the valid entries from publishing.
+
+`--from-index` and the `nhopkg -C` cache are covered by their own stages, not
+here (Etapas 4 and 5 respectively).
+
+## What `check-source-index-sync.sh` covers
+
+Etapa 3: the real generated `nhopkg -U` against a local HTTP server serving a
+binary repository and an index produced by the real generator. Root is stubbed
+through a copy of `libnhopkg`; the download, crypto and source-index libraries
+are the generated ones. `fixtures/source-index/repo-server.py` logs every
+request so the test can tell what was actually downloaded.
+
+- **Without `NHOPKG_SOURCES_REPO` nothing changes.** `-U` syncs the binary
+  repository, never asks for the source index and creates no `sources/` tree.
+- **With the variable set, the index is installed.** `lastsync`,
+  `core.sources.tar.zst` and `content.source.db.zst` are downloaded, verified
+  when configured, and expanded to `sources/<ref>/packages/`; the published
+  `nhoid` files compare byte-for-byte with the fixtures.
+- **An unchanged index is skipped.** The second run reports "already up to
+  date" and does not download the tarball again.
+- **Signatures matter only to the source index.** A good `.asc` is accepted; a
+  bad one with `NHOPKG_REQUIRE_SIGNED_METADATA=yes` prevents the index from
+  being installed while the binary update still succeeds.
+
+## What `check-source-index-client.sh` covers
+
+Etapa 4: the real generated `nhopkg-src` reading an index produced by the real
+generator and installed under a simulated `NHOPKG_LOCALSTATEDIR`. Clones go
+through a logging `nhoget_vcs` stub, so the test can tell when the network path
+would have been used.
+
+- **Branch mapping is centralised.** `nhopkg_map_git_ref()` maps an empty branch
+  and the old literal `glibc` to `main`, leaves `musl` alone and passes unknown
+  refs through. Both `nhopkg` clone sites and `nhopkg-src --get-source` use it.
+- **Queries are offline.** `--list-sources` and `--search-sources` find recipes
+  by name, group, description and dependency; `--show-source` prints the sidecar
+  and the cached recipe. None of them calls git.
+- **Cached recipes are verified.** `--show-source` and `--get-source` refuse a
+  `nhoid` whose SHA256 no longer matches the sidecar.
+- **`--from-index` means "metadata from the index", not necessarily offline.**
+  A recipe with `Source-Extra-Files: none` is deployed with zero git calls; one
+  with extras clones with the resolved ref and then uses the indexed `nhoid`,
+  never the repository's copy.
+- **Ref resolution is explicit.** An explicit `--ref` wins over the configured
+  branch; the branch comes from `NHOPKG_GIT_BRANCH` when no `--ref` is given.
+
+## What `check-source-index-build.sh` covers
+
+Etapa 5: both super-build clone sites now call `source_index_get_sources()`.
+The real generated library runs against an index produced by the real
+generator; a logging `nhoget_vcs` stub is the only stand-in for git, so clone
+counts and refs are direct observations rather than source-text assertions.
+
+- **No extras means no clone.** A verified entry is copied byte for byte into
+  the destination; `glibc` and an empty branch both find the `main` index.
+- **Extras mean one clone.** The clone uses the canonical ref, and the indexed
+  `nhoid` replaces the one from HEAD so the published recipe wins.
+- **A missing or corrupt entry is not cached.** Without an entry, or when the
+  SHA256 no longer matches, the old clone path runs (one clone); a `musl` build
+  with only a `main` index clones from `musl` rather than falling back.
+- **The fallback is opt-in.** The generated config defaults to
+  `NHOPKG_AUTO_SOURCE_FALLBACK=no`, and with `no` no child is started and the
+  tried set stays empty. With `yes`, an indexed `BuildDep` is announced and
+  chained through `nhopkg -C <dep>`; version constraints are stripped to the
+  package name, and `--packaging` is forwarded when the parent is packaging.
+- **Chains terminate.** `SOURCE_FALLBACK_TRIED` cuts A→B→A, and
+  `SOURCE_FALLBACK_DEPTH` (default cap 5) stops a long chain. A dependency with
+  no index entry and a failed child are both reported as failures.
+- **The resolution hook is narrow.** `dep_resolve_from_nhoid()` retries once
+  only after a successful fallback; with the default or a refused fallback it
+  keeps the original abort, it never applies to runtime dependencies, and
+  optional build deps keep their soft-failure behaviour.
 
 ## What `check-add-to-repo.sh` covers
 
@@ -476,8 +582,11 @@ against a stale binary reports a working fix as a broken one. `ensure_build` in
   itself, still needs root. `check-build-capture.sh` does assemble a whole `.nho`
   from a split, but it does not run a build end to end: "the same package builds
   the same bytes before and after a performance fix" is still asserted by reading
-  the code, not by running it.
-- **`nhopkg-src`**, beyond `--validate`'s split handling.
+  the code, not by running it. `check-source-index-build.sh` exercises the
+  source-materialisation helper with a clone stub, not a full `nhopkg -C` run.
+- **`nhopkg-src`**, beyond `--validate`'s split handling and the local-index
+  commands of `check-source-index-client.sh`. `--init`, `--createpackage` and
+  `--buildpackage` still have no dedicated test.
 - **Package hooks inside a chroot.** The prelude that gives `npostinstall` and
   `npostremove` the target's config and `libnhopkg` is only verified statically
   (syntax, `@prefix@` substitution, invocation from both hooks). Running it
