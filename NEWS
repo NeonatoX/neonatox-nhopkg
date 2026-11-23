@@ -1,3 +1,9 @@
+2.3.0 (2026-11-23)
+--------------------------------
+* feat(nhopkg): new NHOPKG_USE_SOURCE_INDEX switch, defaulting to no in the generated config; nhopkg -C now clones from GitLab and follows the repository HEAD unless the switch is set to yes, and the BuildDep fallback requires both switches enabled
+* config/docs: NHOPKG_USE_SOURCE_INDEX documented in nhopkg.conf(5), the generated config, EN/ES configuration docs and both source-index runbooks; explicit nhopkg-src --from-index queries and the -U sync remain unaffected
+* test: the build suite now covers the default clone path, the opt-in cached path and the doubled fallback gate; 16/16 files pass
+
 2.2.0 (2026-11-23)
 --------------------------------
 * feat(source-index): new scripts/nhopkg-source-index.sh generates source metadata from the GitLab group and publishes core.sources.tar.zst, content.source.db.zst, lastsync, report.txt and detached armored .asc files; the token stays on the generating machine and clients only need HTTP
