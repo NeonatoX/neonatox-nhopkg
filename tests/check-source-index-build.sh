@@ -207,6 +207,36 @@ assert_eq "0" "${get_clones}" "and needs no clone"
 assert_contains "${get_out}" "Using cached source metadata for masteronly (master, no clone)." \
 	"the sidecar's ref is used, not a guessed main"
 
+# A recipe published for both master and musl must resolve to master when no
+# ref is configured; musl is a libc variant, not the default branch.
+STATE_DUAL="${WORK}/state-dual"
+for ref in master musl; do
+	mkdir -p "${STATE_DUAL}/sources/${ref}/packages"
+	printf '# Name: dualref\n# Version: 1.0\n' \
+		> "${STATE_DUAL}/sources/${ref}/packages/dualref"
+	dual_sha="$(sha256sum "${STATE_DUAL}/sources/${ref}/packages/dualref" | awk '{print $1}')"
+	cat > "${STATE_DUAL}/sources/${ref}/packages/dualref.sourceinfo" <<EOF
+Source-Project: dualref
+Source-Ref: ${ref}
+Source-Commit: deadbeef
+Source-Url: http://no-network.invalid/sources/dualref.git
+Source-Extra-Files: none
+Source-Nhoid-SHA256: ${dual_sha}
+Source-Validated: yes
+Source-Indexed: 200
+EOF
+done
+run_get_sources "${STATE_DUAL}" "" dualref
+assert_status 0 "${get_rc}" "a master+musl recipe is found with no branch set"
+assert_eq "0" "${get_clones}" "and needs no clone"
+assert_contains "${get_out}" "Using cached source metadata for dualref (master, no clone)." \
+	"the default branch wins over the musl variant"
+run_get_sources "${STATE_DUAL}" musl dualref
+assert_status 0 "${get_rc}" "an explicit musl ref still works"
+assert_eq "0" "${get_clones}" "and needs no clone either"
+assert_contains "${get_out}" "Using cached source metadata for dualref (musl, no clone)." \
+	"the explicitly requested variant is honoured"
+
 # ---------------------------------------------------------------------------
 head1 "Etapa 5: the fallback is opt-in and cuts cycles"
 # ---------------------------------------------------------------------------

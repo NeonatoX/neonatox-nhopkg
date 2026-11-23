@@ -107,9 +107,9 @@ would have been used.
   `nhopkg_git_clone_ref()` leaves an empty branch empty so Git picks the
   repository's own default (`main` or `master`). Both clone sites use it.
 - **Project lookup can find non-main refs.** `source_index_find_project_ref()`
-  prefers `main`, then `musl`, then the first ref containing the project, and
-  the sidecar's `Source-Ref` is what gets reported and cloned when extras are
-  needed.
+  prefers `main`, then `master`, then the first other non-`musl` ref; `musl` is
+  chosen only when explicitly requested. The sidecar's `Source-Ref` is what
+  gets reported and cloned when extras are needed.
 - **Queries are offline.** `--list-sources` and `--search-sources` find recipes
   by name, group, description and dependency; `--show-source` prints the sidecar
   and the cached recipe. None of them calls git.
@@ -137,6 +137,8 @@ counts and refs are direct observations rather than source-text assertions.
   published recipe wins.
 - **A `master`-only recipe is found with no branch set.** Its sidecar is used
   instead of guessing `main`, and no clone is needed.
+- **A `master`+`musl` recipe picks `master` when no branch is set.** The `musl`
+  variant is selected only with an explicit ref.
 - **A missing or corrupt entry is not cached.** Without an entry, or when the
   SHA256 no longer matches, the old clone path runs (one clone); an explicit
   `musl` branch clones `musl`, while an empty branch leaves the ref to Git.

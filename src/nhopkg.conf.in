@@ -241,10 +241,12 @@ NHOPKG_SOURCES_REPO="@NHOPKG_SOURCES_REPO@"
 NHOPKG_GIT_SOURCES=https://gitlab.com/neonatox-sources
 
 # Default Git branch/tag for --super-build and source-index queries.
-# Empty: use the indexed sidecar's Source-Ref for known projects, or Git's own
-# default branch when cloning a project that is not in the index (main on some
-# repos, master on others). "glibc" is an explicit alias of main; "musl" and
-# any other ref are passed through unchanged. An explicit --ref always wins.
+# Empty: use the indexed sidecar's Source-Ref for the default-branch entry of
+# a known project (main, then master); musl is used only when requested
+# explicitly. Projects absent from the index are cloned with Git's own default
+# branch (main on some repos, master on others). "glibc" is an explicit alias
+# of main; "musl" and any other ref are passed through unchanged. An explicit
+# --ref always wins.
 NHOPKG_GIT_BRANCH="@NHOPKG_GIT_BRANCH@"
 
 # Opt-in: when a BuildDep is missing from the binary repositories, try to

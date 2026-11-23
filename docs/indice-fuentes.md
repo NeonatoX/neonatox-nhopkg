@@ -44,9 +44,13 @@ exactly and most repositories default to `master`. A recipe that only has
 
 | `NHOPKG_GIT_BRANCH` / `--ref` | Indexed project | Project absent from the index |
 |---|---|---|
-| empty | the sidecar `Source-Ref` wins (`main` preferred, then `musl`, then the first ref found); whole-index queries still use `main` | Git uses the repository's default branch (`main` or `master`) |
+| empty | the sidecar `Source-Ref` of the default-branch entry wins (`main`, then `master`, then another non-`musl` ref); whole-index queries still use `main` | Git uses the repository's default branch (`main` or `master`) |
 | `glibc` | `main` (explicit alias) | `main` |
 | `musl`, `master`, other | that ref | that ref |
+
+A `musl` entry is **never chosen implicitly**: use `--ref musl` or
+`NHOPKG_GIT_BRANCH=musl` for that variant. This matters for projects such as
+`enchant`, which are published under both `master` and `musl`.
 
 This is the fix for `nhopkg -RCv enchant`: `enchant` defaults to `master`.
 Before it is indexed, the clone no longer asks Git for `main`; after the

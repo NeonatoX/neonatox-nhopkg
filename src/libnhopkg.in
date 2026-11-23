@@ -1777,7 +1777,8 @@ source_index_refs()
 # ---------------------------------------------------------
 # source_index_find_project_ref <name> [ref]
 # Description: Resolve the ref holding a project. An explicit ref wins;
-#    otherwise prefer main, then musl, then the first ref that contains it.
+#    otherwise prefer main, then master, then the first other non-musl ref.
+#    "musl" is a libc variant and is chosen only when asked for explicitly.
 # ---------------------------------------------------------
 source_index_find_project_ref()
 {
@@ -1790,6 +1791,9 @@ source_index_find_project_ref()
 	fi
 
 	for ref in $(source_index_refs); do
+		# Without an explicit ref, never pick the musl variant for what is
+		# normally a glibc/default build.
+		[[ "${ref}" != "musl" ]] || continue
 		dir="$(source_index_packages_dir "${ref}")" || continue
 		base="${dir}/${name}"
 		[[ -f "${base}" && ! -L "${base}" ]] || continue
@@ -1798,12 +1802,15 @@ source_index_find_project_ref()
 	done
 
 	(( ${#found[@]} > 0 )) || return 1
-	for ref in main musl "${found[@]}"; do
+	local chosen=""
+	for ref in main master "${found[@]}"; do
+		[[ "${ref}" != "musl" ]] || continue
 		case " ${found[*]} " in
-			*" ${ref} "*) printf '%s\n' "${ref}"; return 0 ;;
+			*" ${ref} "*) chosen="${ref}"; break ;;
 		esac
 	done
-	printf '%s\n' "${found[0]}"
+	[[ -n "${chosen}" ]] || return 1
+	printf '%s\n' "${chosen}"
 	return 0
 }
 

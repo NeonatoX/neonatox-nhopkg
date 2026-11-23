@@ -43,9 +43,13 @@ que solo tiene `master` no se indexa y ni siquiera aparece como
 
 | `NHOPKG_GIT_BRANCH` / `--ref` | Proyecto indexado | Proyecto ausente del índice |
 |---|---|---|
-| vacío | gana el `Source-Ref` del sidecar (prefiere `main`, luego `musl`, luego el primer ref encontrado); las consultas globales siguen usando `main` | Git usa la rama por defecto del repo (`main` o `master`) |
+| vacío | gana el `Source-Ref` del entry de rama por defecto (`main`, luego `master`, luego otro ref que no sea `musl`); las consultas globales siguen usando `main` | Git usa la rama por defecto del repo (`main` o `master`) |
 | `glibc` | `main` (alias explícito) | `main` |
 | `musl`, `master`, otro | ese ref | ese ref |
+
+Una entrada `musl` **nunca se elige implícitamente**: usa `--ref musl` o
+`NHOPKG_GIT_BRANCH=musl` para esa variante. Esto afecta a proyectos como
+`enchant`, publicado tanto en `master` como en `musl`.
 
 Esto arregla `nhopkg -RCv enchant`: `enchant` tiene `master` por defecto.
 Antes de indexarlo, el clone ya no pide `main` a Git; tras instalar el índice
