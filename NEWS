@@ -1,3 +1,17 @@
+2.2.0 (2026-11-23)
+--------------------------------
+* feat(source-index): new scripts/nhopkg-source-index.sh generates source metadata from the GitLab group and publishes core.sources.tar.zst, content.source.db.zst, lastsync, report.txt and detached armored .asc files; the token stays on the generating machine and clients only need HTTP
+* feat(nhopkg): -U syncs the optional source index from NHOPKG_SOURCES_REPO; an empty value keeps the old binary-only behaviour, bad signatures are warnings and binary repositories are unaffected
+* feat(nhopkg-src): --list-sources, --search-sources, --show-source and --get-source --from-index read the local index; cached nhoid files are SHA256-checked against the sidecar and the published recipe is deployed instead of the repository HEAD
+* feat(nhopkg): -C reuses indexed recipes without cloning, and NHOPKG_AUTO_SOURCE_FALLBACK=yes opt-in builds missing BuildDeps from the index with depth and cycle limits
+* fix(source-index): repos whose default branch is master work with NHOPKG_GIT_BRANCH unset: clones no longer force main, and indexed recipes use the sidecar Source-Ref (main, then master; musl only when explicitly requested)
+* build/config: default repository version moved from n2026 to n27; the source index URL is architecture-neutral (repo/n27/sources, no x86_64 segment)
+* config: NHOPKG_SOURCES_REPO, NHOPKG_GIT_BRANCH and NHOPKG_AUTO_SOURCE_FALLBACK documented in the generated config and nhopkg.conf(5); staged publication never touches the binary repositories
+* docs: new EN/ES source-index generation and publication runbook, plus command and config docs for the new index commands across the supported languages
+* i18n: source-index messages extracted and translated; update-translations.sh now includes the new library
+* test: four source-index suites, golden fixtures and GitLab/HTTP stubs; the suite grows to 16 files and is locale-neutral
+* chore(nhopkg.conf): SYSTEMD_BLFS_VER bumped to 20261022
+
 2.1.1 (2026-10-30)
 --------------------------------
 * fix(nhopkg): --packaging leaves the live system alone: the package being rebuilt stays installed instead of being desinstalled, dependencies are not installed (a missing required one stops the build with exit 1, a missing optional one only warns), and the cache and locate database are left to nhopkg -x and nhopkg -u
