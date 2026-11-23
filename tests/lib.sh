@@ -34,6 +34,11 @@ LOGS="${WORK}/logs"
 # hide the rest of the run.
 set -uo pipefail
 
+# Assertions match the English messages shipped in the .in sources. Gettext
+# would otherwise translate them when the developer's shell is in another
+# locale, making a correct build look broken.
+export LANGUAGE=C LC_ALL=C LANG=C
+
 die() {
 	printf 'error: %s\n' "$*" >&2
 	exit 1
