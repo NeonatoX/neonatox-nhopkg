@@ -156,7 +156,8 @@ mkdir -p "${STATE_EMPTY}/sources/main/packages"
 run_get_sources "${STATE_EMPTY}" "" kinfocenter
 assert_status 0 "${get_rc}" "without an index entry the clone path succeeds"
 assert_eq "1" "${get_clones}" "and clones exactly once"
-assert_contains "$(cat "${VCS_LOG}")" "main git" "the clone uses the canonical ref"
+assert_contains "$(cat "${VCS_LOG}")" " git http://no-network.invalid/sources/kinfocenter.git" \
+	"an empty branch leaves the ref to git's own default"
 assert_eq "CLONED" "$(cat "${get_dest}/nhoid")" "the recipe comes from the clone"
 
 cp -a "${STATE}" "${STATE_EXTRA}"
@@ -182,6 +183,29 @@ run_get_sources "${STATE_MAIN}" musl kinfocenter
 assert_status 0 "${get_rc}" "a musl build with only a main index still works"
 assert_eq "1" "${get_clones}" "and clones once from musl"
 assert_contains "$(cat "${VCS_LOG}")" "musl git" "an explicit musl branch is not remapped"
+
+# A recipe published only under master (default branch of many GitLab repos)
+# must be found with an empty NHOPKG_GIT_BRANCH, without forcing main.
+STATE_MASTER="${WORK}/state-master"
+mkdir -p "${STATE_MASTER}/sources/master/packages"
+printf '# Name: masteronly\n# Version: 1.0\n' \
+	> "${STATE_MASTER}/sources/master/packages/masteronly"
+master_sha="$(sha256sum "${STATE_MASTER}/sources/master/packages/masteronly" | awk '{print $1}')"
+cat > "${STATE_MASTER}/sources/master/packages/masteronly.sourceinfo" <<EOF
+Source-Project: masteronly
+Source-Ref: master
+Source-Commit: deadbeef
+Source-Url: http://no-network.invalid/sources/masteronly.git
+Source-Extra-Files: none
+Source-Nhoid-SHA256: ${master_sha}
+Source-Validated: yes
+Source-Indexed: 200
+EOF
+run_get_sources "${STATE_MASTER}" "" masteronly
+assert_status 0 "${get_rc}" "a master-only indexed recipe is found with no branch set"
+assert_eq "0" "${get_clones}" "and needs no clone"
+assert_contains "${get_out}" "Using cached source metadata for masteronly (master, no clone)." \
+	"the sidecar's ref is used, not a guessed main"
 
 # ---------------------------------------------------------------------------
 head1 "Etapa 5: the fallback is opt-in and cuts cycles"

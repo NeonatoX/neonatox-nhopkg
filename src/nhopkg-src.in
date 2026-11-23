@@ -743,9 +743,14 @@ cmd_getsource() {
 	echogn " --- Cloning source project:"
 	echo " ${project}"
 
-	# An empty branch means glibc, and "glibc" is accepted as an alias of main.
-	resolved_ref="$(nhopkg_map_git_ref "${ref:-${NHOPKG_GIT_BRANCH:-}}")"
-	export NHOGET_REF="${resolved_ref}"
+	# An empty branch leaves git free to use the repository's default branch;
+	# "glibc" is still accepted as an explicit alias of main.
+	resolved_ref="$(nhopkg_git_clone_ref "${ref:-${NHOPKG_GIT_BRANCH:-}}")"
+	if [[ -n "${resolved_ref}" ]]; then
+		export NHOGET_REF="${resolved_ref}"
+	else
+		unset NHOGET_REF
+	fi
 
 	nhoget_vcs git "${git_url}" "${proj_dir}" || exit 1
 
@@ -783,11 +788,12 @@ cmd_showsource() {
 		return 1
 	}
 
-	resolved="$(source_index_resolve_ref "${ref}")"
 	base="$(source_index_entry_path "${project}" "${ref}")" || {
+		resolved="$(source_index_resolve_ref "${ref}")"
 		echog " * No local source entry for '${project}' (ref ${resolved}). Run 'nhopkg -U' first." >&2
 		return 1
 	}
+	resolved="$(source_index_entry_ref "${base}")"
 	if ! source_index_verify_entry "${base}"; then
 		echog " *** Cached nhoid for '${project}' failed its SHA256 check." >&2
 		return 1
@@ -810,11 +816,12 @@ cmd_getsource_from_index() {
 		return 1
 	}
 
-	resolved="$(source_index_resolve_ref "${ref}")"
 	base="$(source_index_entry_path "${project}" "${ref}")" || {
+		resolved="$(source_index_resolve_ref "${ref}")"
 		echog " * No local source entry for '${project}' (ref ${resolved}). Run 'nhopkg -U', or drop --from-index." >&2
 		return 1
 	}
+	resolved="$(source_index_entry_ref "${base}")"
 	if ! source_index_verify_entry "${base}"; then
 		echog " *** Cached nhoid for '${project}' failed its SHA256 check." >&2
 		return 1

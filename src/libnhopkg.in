@@ -1707,9 +1707,9 @@ SHOOTER_SCRIPT
 
 # ---------------------------------------------------------
 # nhopkg_map_git_ref <ref>
-# Description: Map the configured branch name to the ref really used by the
-#    source repositories. An empty branch means glibc, and the old literal
-#    "glibc" is accepted for compatibility; both resolve to "main".
+# Description: Historical mapping for whole-index queries: an empty branch and
+#    the old literal "glibc" resolve to "main". Project lookup and git clones
+#    use the helpers below so an unset branch does not force main everywhere.
 # Parameters: $1: ref or branch (may be empty)
 # Returns: 0; prints the canonical ref.
 # ---------------------------------------------------------
@@ -1722,6 +1722,23 @@ nhopkg_map_git_ref()
 }
 
 # ---------------------------------------------------------
+# nhopkg_git_clone_ref [ref]
+# Description: Ref to pass to git when cloning a repository. Unlike the index
+#    mapping, an empty branch stays empty so git uses the repository's own
+#    default branch (main on some projects, master on others). An explicit
+#    "glibc" is still accepted as an alias of main.
+# Parameters: $1: ref or branch (may be empty, defaults to NHOPKG_GIT_BRANCH)
+# Returns: 0; prints the ref, or nothing when it must be auto-detected.
+# ---------------------------------------------------------
+nhopkg_git_clone_ref()
+{
+	local requested="${1:-${NHOPKG_GIT_BRANCH:-}}"
+	[[ -n "${requested}" ]] || return 0
+	[[ "${requested}" == "glibc" ]] && requested=main
+	printf '%s\n' "${requested}"
+}
+
+# ---------------------------------------------------------
 # source_index_resolve_ref [ref]
 # Description: Resolve an explicit ref, falling back to NHOPKG_GIT_BRANCH.
 # ---------------------------------------------------------
@@ -1729,6 +1746,75 @@ source_index_resolve_ref()
 {
 	local requested="${1:-${NHOPKG_GIT_BRANCH:-}}"
 	nhopkg_map_git_ref "${requested}"
+}
+
+# ---------------------------------------------------------
+# source_index_refs()
+# Description: Print the refs currently installed in the local source index.
+#    main is listed first so it stays the preferred default when a recipe is
+#    published for several refs.
+# ---------------------------------------------------------
+source_index_refs()
+{
+	local state base ref
+	local -a refs=()
+
+	state="$(source_index_state_dir)"
+	for base in "${state}"/*; do
+		[[ -d "${base}/packages" ]] || continue
+		ref="$(basename "${base}")"
+		_source_index_valid_name "${ref}" || continue
+		refs+=("${ref}")
+	done
+	(( ${#refs[@]} > 0 )) || return 1
+
+	for ref in main "${refs[@]}"; do
+		printf '%s\n' "${ref}"
+	done | awk '!seen[$0]++'
+	return 0
+}
+
+# ---------------------------------------------------------
+# source_index_find_project_ref <name> [ref]
+# Description: Resolve the ref holding a project. An explicit ref wins;
+#    otherwise prefer main, then musl, then the first ref that contains it.
+# ---------------------------------------------------------
+source_index_find_project_ref()
+{
+	local name="$1" requested="${2:-${NHOPKG_GIT_BRANCH:-}}" ref dir base
+	local -a found=()
+
+	if [[ -n "${requested}" ]]; then
+		source_index_resolve_ref "${requested}"
+		return 0
+	fi
+
+	for ref in $(source_index_refs); do
+		dir="$(source_index_packages_dir "${ref}")" || continue
+		base="${dir}/${name}"
+		[[ -f "${base}" && ! -L "${base}" ]] || continue
+		[[ -f "${base}.sourceinfo" && ! -L "${base}.sourceinfo" ]] || continue
+		found+=("${ref}")
+	done
+
+	(( ${#found[@]} > 0 )) || return 1
+	for ref in main musl "${found[@]}"; do
+		case " ${found[*]} " in
+			*" ${ref} "*) printf '%s\n' "${ref}"; return 0 ;;
+		esac
+	done
+	printf '%s\n' "${found[0]}"
+	return 0
+}
+
+# ---------------------------------------------------------
+# source_index_entry_ref <nhoid path>
+# Description: Extract the ref from a cached entry path.
+# ---------------------------------------------------------
+source_index_entry_ref()
+{
+	local base="$1"
+	basename "$(dirname "$(dirname "${base}")")"
 }
 
 # ---------------------------------------------------------
@@ -1784,9 +1870,9 @@ source_index_read_field()
 # ---------------------------------------------------------
 source_index_entry_path()
 {
-	local name="$1" ref dir base
+	local name="$1" requested="${2:-}" ref dir base
 	_source_index_valid_name "${name}" || return 1
-	ref="$(source_index_resolve_ref "${2:-}")" || return 1
+	ref="$(source_index_find_project_ref "${name}" "${requested}")" || return 1
 	dir="$(source_index_packages_dir "${ref}")" || return 1
 	base="${dir}/${name}"
 	[[ -f "${base}" && ! -L "${base}" ]] || return 1
@@ -1874,7 +1960,8 @@ source_index_search()
 #    index entry without extra files needs no clone at all; with extra files
 #    the repository is cloned (so patches/others are available) but the nhoid
 #    is taken from the index, not from whatever HEAD carries. With no usable
-#    index entry this is exactly the old clone, using the canonical ref.
+#    index entry this is the old clone; an unset ref is left to Git so a
+#    master-only repository is not asked for main.
 # Parameters: $1: source project name
 #             $2: clone/destination directory
 #             $3: optional ref, defaults to NHOPKG_GIT_BRANCH
@@ -1885,12 +1972,21 @@ source_index_get_sources()
 	local name="$1" dest="$2" requested_ref="${3:-}"
 	local base="" extras resolved git_url
 
-	resolved="$(source_index_resolve_ref "${requested_ref}")" || return 1
 	git_url="${NHOPKG_GIT_SOURCES:-}/${name}.git"
 
 	base="$(source_index_entry_path "$name" "${requested_ref}")" || base=""
 	if [[ -n "$base" ]]; then
 		source_index_verify_entry "$base" || base=""
+	fi
+
+	if [[ -n "$base" ]]; then
+		# The sidecar's ref is authoritative; it may be master on repositories
+		# whose default branch is not main.
+		resolved="$(source_index_entry_ref "${base}")"
+	else
+		# No index entry: let git use the repository's default branch unless a
+		# ref was configured explicitly.
+		resolved="$(nhopkg_git_clone_ref "${requested_ref}")"
 	fi
 
 	if [[ -n "$base" ]]; then
@@ -1904,10 +2000,19 @@ source_index_get_sources()
 	fi
 
 	echog " - Cloning ${git_url}..."
-	NHOGET_REF="${resolved}" nhoget_vcs git "${git_url}" "${dest}" || {
-		echog " * Failed to clone ${git_url}" >&2
-		return 1
-	}
+	if [[ -n "${resolved}" ]]; then
+		NHOGET_REF="${resolved}" nhoget_vcs git "${git_url}" "${dest}" || {
+			echog " * Failed to clone ${git_url}" >&2
+			return 1
+		}
+	else
+		# A previous call in the same shell may have exported a ref.
+		unset NHOGET_REF
+		nhoget_vcs git "${git_url}" "${dest}" || {
+			echog " * Failed to clone ${git_url}" >&2
+			return 1
+		}
+	fi
 	if [[ -n "$base" ]]; then
 		# Keep the exact recipe that was published, not the repository's copy.
 		cp -- "$base" "${dest}/nhoid" || return 1
@@ -1937,7 +2042,7 @@ source_fallback_for_build_dep()
 
 	base="$(source_index_entry_path "$name")" || return 1
 	source_index_verify_entry "$base" || return 1
-	ref="$(source_index_resolve_ref "")" || return 1
+	ref="$(source_index_entry_ref "$base")" || return 1
 
 	tried="${SOURCE_FALLBACK_TRIED:-}"
 	case ":${tried}:" in

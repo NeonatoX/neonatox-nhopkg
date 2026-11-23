@@ -90,6 +90,9 @@ printf 'empty=%s\n' "$(nhopkg_map_git_ref '')"
 printf 'glibc=%s\n' "$(nhopkg_map_git_ref glibc)"
 printf 'musl=%s\n' "$(nhopkg_map_git_ref musl)"
 printf 'other=%s\n' "$(nhopkg_map_git_ref v1.2)"
+printf 'clone_empty=[%s]\n' "$(nhopkg_git_clone_ref '')"
+printf 'clone_glibc=%s\n' "$(nhopkg_git_clone_ref glibc)"
+printf 'clone_musl=%s\n' "$(nhopkg_git_clone_ref musl)"
 EOF
 out=$(bash "${WORK}/map.sh" "${LIB}")
 rc=$?
@@ -98,10 +101,16 @@ assert_eq "empty=main" "$(echo "${out}" | grep '^empty=')" "empty branch resolve
 assert_eq "glibc=main" "$(echo "${out}" | grep '^glibc=')" "literal glibc resolves to main"
 assert_eq "musl=musl" "$(echo "${out}" | grep '^musl=')" "musl stays musl"
 assert_eq "other=v1.2" "$(echo "${out}" | grep '^other=')" "unknown refs pass through"
+assert_eq "clone_empty=[]" "$(echo "${out}" | grep '^clone_empty=')" \
+	"an empty branch leaves the clone ref to git's default"
+assert_eq "clone_glibc=main" "$(echo "${out}" | grep '^clone_glibc=')" \
+	"the clone helper maps an explicit glibc alias to main"
+assert_eq "clone_musl=musl" "$(echo "${out}" | grep '^clone_musl=')" \
+	"the clone helper passes explicit refs through"
 
 assert_contains "$(cat "${BUILDDIR}/src/nhopkg-src")" \
-	'nhopkg_map_git_ref "${ref:-${NHOPKG_GIT_BRANCH:-}}"' \
-	"nhopkg-src --get-source uses the mapped ref"
+	'nhopkg_git_clone_ref "${ref:-${NHOPKG_GIT_BRANCH:-}}"' \
+	"nhopkg-src --get-source leaves an empty branch to git"
 
 # ---------------------------------------------------------------------------
 head1 "Etapa 4: build the local index from the real generator"
@@ -248,7 +257,10 @@ write_config "${STATE_EXTRA}" ""
 out=$(run_src "${GET5}" --get-source kinfocenter)
 rc=$?
 assert_status 0 "${rc}" "plain --get-source still works"
-assert_contains "$(cat "${VCS_LOG}")" "NHOGET_REF=main" "plain --get-source maps an empty branch to main"
+assert_contains "$(cat "${VCS_LOG}")" "NHOGET_REF= git" \
+	"an empty branch leaves the clone ref to git's own default"
+assert_missing "$(cat "${VCS_LOG}")" "NHOGET_REF=main" \
+	"an empty branch does not force main on non-indexed projects"
 
 # ---------------------------------------------------------------------------
 head1 "Etapa 4: the ref comes from --ref or from the configured branch"

@@ -102,9 +102,14 @@ generator and installed under a simulated `NHOPKG_LOCALSTATEDIR`. Clones go
 through a logging `nhoget_vcs` stub, so the test can tell when the network path
 would have been used.
 
-- **Branch mapping is centralised.** `nhopkg_map_git_ref()` maps an empty branch
-  and the old literal `glibc` to `main`, leaves `musl` alone and passes unknown
-  refs through. Both `nhopkg` clone sites and `nhopkg-src --get-source` use it.
+- **Clone ref and index ref are separate.** `nhopkg_map_git_ref()` still maps an
+  empty branch and `glibc` to `main` for whole-index queries, but
+  `nhopkg_git_clone_ref()` leaves an empty branch empty so Git picks the
+  repository's own default (`main` or `master`). Both clone sites use it.
+- **Project lookup can find non-main refs.** `source_index_find_project_ref()`
+  prefers `main`, then `musl`, then the first ref containing the project, and
+  the sidecar's `Source-Ref` is what gets reported and cloned when extras are
+  needed.
 - **Queries are offline.** `--list-sources` and `--search-sources` find recipes
   by name, group, description and dependency; `--show-source` prints the sidecar
   and the cached recipe. None of them calls git.
@@ -125,12 +130,16 @@ generator; a logging `nhoget_vcs` stub is the only stand-in for git, so clone
 counts and refs are direct observations rather than source-text assertions.
 
 - **No extras means no clone.** A verified entry is copied byte for byte into
-  the destination; `glibc` and an empty branch both find the `main` index.
-- **Extras mean one clone.** The clone uses the canonical ref, and the indexed
-  `nhoid` replaces the one from HEAD so the published recipe wins.
+  the destination; `glibc` and an empty branch both find the `main` index when
+  that is the only ref holding the recipe.
+- **Extras mean one clone.** The clone uses the sidecar's ref (`master`
+  included), and the indexed `nhoid` replaces the one from HEAD so the
+  published recipe wins.
+- **A `master`-only recipe is found with no branch set.** Its sidecar is used
+  instead of guessing `main`, and no clone is needed.
 - **A missing or corrupt entry is not cached.** Without an entry, or when the
-  SHA256 no longer matches, the old clone path runs (one clone); a `musl` build
-  with only a `main` index clones from `musl` rather than falling back.
+  SHA256 no longer matches, the old clone path runs (one clone); an explicit
+  `musl` branch clones `musl`, while an empty branch leaves the ref to Git.
 - **The fallback is opt-in.** The generated config defaults to
   `NHOPKG_AUTO_SOURCE_FALLBACK=no`, and with `no` no child is started and the
   tried set stays empty. With `yes`, an indexed `BuildDep` is announced and
