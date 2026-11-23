@@ -33,30 +33,27 @@ Artefactos que se publican:
 | `report.txt` | Contadores y entradas rechazadas |
 | `*.asc` | Firmas separadas de los tres archivos anteriores (solo si se firma) |
 
-Refs por defecto: `main musl`. `NHOPKG_GIT_BRANCH` vacía o `glibc` → `main`;
-`musl` → `musl`. Un `--ref` explícito gana siempre.
+Refs por defecto del generador: `main musl`. Para este grupo GitLab **pasa
+siempre `--refs "main master musl"`** (ver §4): el generador filtra por nombre
+exacto y la mayoría de los repositorios tienen `master` por defecto. Una receta
+que solo tiene `master` no se indexa y ni siquiera aparece como
+`invalid-entry` en el `report.txt`.
 
-### Ramas que no se llaman `main`
+### Resolución de refs en el cliente
 
-El generador **no detecta** la rama por defecto de GitLab: filtra por nombre
-exacto los valores de `--refs`. Si una receta solo tiene `master`, no se
-indexa y ni siquiera aparece como `invalid-entry` en el `report.txt`.
+| `NHOPKG_GIT_BRANCH` / `--ref` | Proyecto indexado | Proyecto ausente del índice |
+|---|---|---|
+| vacío | gana el `Source-Ref` del sidecar (prefiere `main`, luego `musl`, luego el primer ref encontrado); las consultas globales siguen usando `main` | Git usa la rama por defecto del repo (`main` o `master`) |
+| `glibc` | `main` (alias explícito) | `main` |
+| `musl`, `master`, otro | ese ref | ese ref |
 
-Para un grupo con `master`:
+Esto arregla `nhopkg -RCv enchant`: `enchant` tiene `master` por defecto.
+Antes de indexarlo, el clone ya no pide `main` a Git; tras instalar el índice
+regenerado, `--show-source enchant` lee directamente su sidecar `master`.
 
-```bash
-scripts/nhopkg-source-index.sh \
-  --refs "master musl" \
-  --output "$OUT" --cache "$CACHE" \
-  --nhopkg-src builddir/src/nhopkg-src --rate 2 --no-sign
-```
-
-Y en el cliente, `NHOPKG_GIT_BRANCH=master` (o `--ref master`). Si se deja
-vacía, se resuelve como `main`: el cliente busca `sources/main/packages` sin
-encontrarlo y `--get-source` intenta clonar `main`. Si el grupo mezcla `main`
-y `master`, pasa ambos (`--refs "main master musl"`) y elige en cada cliente.
-El nombre del ref es la clave: `sources/<ref>/packages/` y el campo
-`Source-Ref` del sidecar deben coincidir.
+Para un grupo que solo usa `master`, basta `--refs "master musl"`. El nombre del
+ref es la clave: `sources/<ref>/packages/` y el campo `Source-Ref` del sidecar
+deben coincidir.
 
 ## 2. Antes de empezar
 
@@ -89,8 +86,10 @@ scripts/nhopkg-source-index.sh \
 cat "$OUT/report.txt"
 ```
 
-`--limit 2` cuenta **proyectos**, no entradas: 2 proyectos × 2 refs = 4
-entradas. Esperado: `indexed=4 reused=0 invalid=0 skipped=0 failed=0`.
+`--limit 2` cuenta **proyectos**, no entradas: 2 proyectos × 2 refs por defecto
+= 4 entradas. Esperado: `indexed=4 reused=0 invalid=0 skipped=0 failed=0`. El
+humo usa solo los defaults para comprobar la maquinaria; la corrida real de abajo
+los sustituye con `--refs`.
 
 ## 4. Generación real
 
@@ -105,12 +104,13 @@ mkdir -p "$OUT" "$CACHE"
 read -rsp 'GitLab token: ' GITLAB_TOKEN; echo
 export GITLAB_TOKEN
 
+NHOPKG_SIGN_KEY=repo@neonatox.vegnux.com \
 scripts/nhopkg-source-index.sh \
+  --refs "main master musl" \
   --output "$OUT" \
   --cache "$CACHE" \
   --nhopkg-src builddir/src/nhopkg-src \
-  --rate 2 --retries 3 \
-  --no-sign
+  --rate 2 --retries 3
 
 cat "$OUT/report.txt"
 ```
@@ -126,19 +126,44 @@ Puntos clave:
   baja a `--rate 1`: reintenta 3 veces respetando `Retry-After`.
 - Si falla cualquier petición, el script termina **antes de publicar**: no
   queda un índice a medias. Vuelve a correr con la misma caché.
+- `--refs "main master musl"` es la parte importante. Al reutilizar
+  `$HOME/.cache/nhopkg-source-index`, solo se bajan los ~100 proyectos que antes
+  se omitían (sin `main` ni `musl`).
+- La clave de arriba es la que ya confían los clientes
+  (`repo@neonatox.vegnux.com` / `38125726E317393F`). **No** pases
+  `--no-sign`: la publicación necesita los tres `.asc`. `--no-sign` borra las
+  firmas existentes en `$OUT` y solo sirve para el humo.
 
-Para generar **firmado** (necesario si los clientes usan
-`NHOPKG_VERIFY_SIGNATURE=yes`):
+Espera `refs: main,master,musl` en el `report.txt`, con unos 100 entradas más
+que la corrida anterior `main,musl`. El número exacto es el que diga el informe;
+léelo antes de publicar.
+
+### Firmar a mano una generación ya publicada
+
+Si los artefactos ya están generados, no hace falta repetir la corrida: firma los
+tres archivos que consume el cliente y sube los `.asc` al mismo directorio.
 
 ```bash
-NHOPKG_SIGN_KEY='tu-key-id' scripts/nhopkg-source-index.sh \
-  --output "$OUT" --cache "$CACHE" \
-  --nhopkg-src builddir/src/nhopkg-src \
-  --rate 2 --retries 3
+cd "$OUT"
+KEY=repo@neonatox.vegnux.com
+
+for f in core.sources.tar.zst content.source.db.zst lastsync; do
+  gpg --batch --yes --default-key "$KEY" \
+      --detach-sign --armor --output "${f}.asc" "$f"
+done
+
+gpg --verify core.sources.tar.zst.asc core.sources.tar.zst
 ```
 
-Con `--no-sign` se borran los `.asc` del directorio de salida; no reutilices
-un directorio que ya tuviera firmas.
+Si la clave tiene passphrase y `--batch` falla, desbloquea antes el agente con
+`echo prueba | gpg --clearsign >/dev/null`. `report.txt` no se firma. Los `.asc`
+deben estar junto a los originales; si se regenera cualquiera de los tres
+archivos, hay que volver a firmarlo.
+
+El cliente verifica solo los pares `.zst`/`.asc` y `lastsync`/`lastsync.asc`
+presentes. Con `NHOPKG_VERIFY_REPO_METADATA=yes` verá `--- Repository metadata
+verified (3 files).`; ten en cuenta que `NHOPKG_REQUIRE_SIGNED_METADATA=yes`
+rechaza firmas inválidas, pero no exige que la firma exista.
 
 Recomendación: antes del run total haz uno con `--limit 10` y la misma caché.
 Si el `report.txt` sale limpio, quita el `--limit`.
@@ -151,7 +176,7 @@ reused: 38
 skipped: 0
 invalid: 1
 failed: 0
-refs: main,musl
+refs: main,master,musl
 invalid-entry: main/foo: <motivo>
 ```
 
@@ -174,7 +199,7 @@ en un directorio nuevo y cambia `current` de golpe para que el cliente no lea
 un índice a medias:
 
 ```bash
-BASE=/ruta/real/de/staging/repo/n27/x86_64/sources   # ← ajústalo
+BASE=/ruta/real/de/staging/repo/n27/sources   # ← ajústalo (sin arquitectura)
 NEW="$BASE/.new-$DATE"
 mkdir -p "$NEW"
 
@@ -188,8 +213,17 @@ mv -T "$NEW" "$BASE/current"
 rm -rf "$BASE/.old-$DATE"
 ```
 
-`NHOPKG_SOURCES_REPO` debe apuntar a `…/sources/current`, no al padre.
-Nunca publiques directamente en la URL de producción.
+El índice es independiente de la arquitectura: va en `repo/n27/sources`, no en
+`repo/n27/x86_64/sources`. `main`, `master` y `musl` se seleccionan dentro del
+índice con `NHOPKG_GIT_BRANCH` (o con el sidecar), no con la ruta. Así una sola
+copia sirve a todas las arquitecturas.
+
+`NHOPKG_SOURCES_REPO` debe apuntar al directorio que contiene los artefactos.
+El destino autorizado en este despliegue es la URL plana de staging
+`https://neonatox.vegnux.com/repo/n27/sources/`; los repositorios binarios de
+producción (`repo.neonatox.vegnux.com/core|extra|multilib`) no se tocan.
+Si usas el esquema `current` de arriba, apunta a `…/sources/current`.
+Nunca publiques en una ruta de repositorio binario.
 
 ## 7. Probar el cliente
 
@@ -199,6 +233,7 @@ En la máquina cliente, pon la URL en `/etc/nhopkg/nhopkg.conf` y ejecuta:
 sudo nhopkg -U
 nhopkg-src --list-sources
 nhopkg-src --show-source <proyecto>
+nhopkg-src --show-source enchant   # regresión: rama por defecto master
 ```
 
 - `nhopkg -U` necesita root.
@@ -208,6 +243,8 @@ nhopkg-src --show-source <proyecto>
   `NHOPKG_SOURCES_REPO` no basta si `/etc/nhopkg/nhopkg.conf` la define vacía.
 - `--show-source` comprueba `Source-Nhoid-SHA256`: una caché manipulada se
   rechaza.
+- Con `NHOPKG_GIT_BRANCH` vacío, el sidecar del proyecto decide su ref; solo los
+  proyectos ausentes del índice caen en la rama por defecto de Git.
 - `--from-index` no es totalmente *offline*: sin extras no clona, pero el
   `nbuild()` puede seguir descargando fuentes upstream.
 
@@ -219,7 +256,8 @@ STATE=/tmp/opencode/source-index-client-state
 TMP=$(mktemp -d)
 mkdir -p "$STATE/sources"
 zstd -dc "$BASE/current/core.sources.tar.zst" | tar -xf - -C "$TMP"
-for ref in main musl; do
+for ref in main master musl; do
+  [[ -d "$TMP/$ref" ]] || continue
   mkdir -p "$STATE/sources/$ref/packages"
   cp -a "$TMP/$ref/." "$STATE/sources/$ref/packages/"
 done
@@ -237,6 +275,7 @@ rm -rf "$TMP"
 | `signing needs NHOPKG_SIGN_KEY` | Falta la clave | Definir `NHOPKG_SIGN_KEY` o usar `--no-sign` |
 | Firma falla con `--batch` | Clave con passphrase sin desbloquear | Desbloquear el agente GPG antes de generar |
 | El cliente no descarga | `lastsync` local ≥ remoto, o URL mal puesta | Comprobar `NHOPKG_SOURCES_REPO` y el número de `lastsync` |
+| El cliente intenta buscar `main` en un repo solo-`master` | El índice se generó sin `master` y no hay sidecar que usar | Regenerar con `--refs "main master musl"`; la ruta de clone ya deja el ref vacío a Git |
 | El cliente no ve una receta | Es `invalid-entry` o su ref no está en el índice | Revisar `report.txt` y el mapeo de refs |
 | `rsync: orden no encontrada` | No está instalado | Usar `cp -p` con la lista de archivos |
 
@@ -244,10 +283,12 @@ rm -rf "$TMP"
 
 1. Humo primero, `--limit 10` después, completo al final.
 2. Caché fuera del directorio de salida.
-3. Leer `report.txt` **antes** de publicar.
-4. Publicar en `current` mediante sustitución atómica.
+3. Pasar `--refs "main master musl"` para este grupo y leer `report.txt`
+   **antes** de publicar.
+4. Publicar en `current` mediante sustitución atómica, solo en la URL plana de
+   staging autorizada.
 5. Token solo en la máquina que genera; nunca en el cliente ni en un log.
-6. Staging siempre; producción solo con decisión explícita.
+6. Staging siempre; los repositorios binarios de producción nunca se tocan.
 7. Si hay firmas en el cliente, el staging debe incluir los `.asc`.
 
 ## Véase también

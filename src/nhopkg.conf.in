@@ -228,7 +228,7 @@ NHOPKG_REPO_MULTILIB="@NHOPKG_REPO_MULTILIB@"
 # Source metadata index URL. When empty, `nhopkg -U` syncs only binary
 # repositories and the local source index is left untouched.
 # Set it to the directory published by nhopkg-source-index.sh, e.g.
-# https://neonatox.vegnux.com/repo/n27/x86_64/sources
+# https://neonatox.vegnux.com/repo/n27/sources
 NHOPKG_SOURCES_REPO="@NHOPKG_SOURCES_REPO@"
 
 
@@ -240,7 +240,11 @@ NHOPKG_SOURCES_REPO="@NHOPKG_SOURCES_REPO@"
 
 NHOPKG_GIT_SOURCES=https://gitlab.com/neonatox-sources
 
-# Default Git branch/tag for --super-build (e.g., "glibc" or "musl")
+# Default Git branch/tag for --super-build and source-index queries.
+# Empty: use the indexed sidecar's Source-Ref for known projects, or Git's own
+# default branch when cloning a project that is not in the index (main on some
+# repos, master on others). "glibc" is an explicit alias of main; "musl" and
+# any other ref are passed through unchanged. An explicit --ref always wins.
 NHOPKG_GIT_BRANCH="@NHOPKG_GIT_BRANCH@"
 
 # Opt-in: when a BuildDep is missing from the binary repositories, try to

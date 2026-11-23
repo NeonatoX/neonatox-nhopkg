@@ -237,11 +237,14 @@ Default:
 .I @NHOPKG_GIT_SOURCES@
 .TP
 .B NHOPKG_GIT_BRANCH
-Default ref for \fBnhopkg -C\fR and the source-index commands. An empty value or
-\fIglibc\fR resolves to \fImain\fR; \fImusl\fR stays \fImusl\fR. An explicit
-\fB\-\-ref\fR wins.
+Default ref for \fBnhopkg \-C\fR and the source-index commands. When empty, an
+indexed project uses the \fISource\-Ref\fR in its sidecar; a project absent from
+the index is cloned using Git's own default branch (\fImain\fR or \fImaster\fR).
+Whole-index queries such as \fB\-\-list\-sources\fR still use \fImain\fR.
+\fIglibc\fR is an explicit alias of \fImain\fR; \fImusl\fR and other refs pass
+through. An explicit \fB\-\-ref\fR wins.
 Default:
-.I "" (empty: resolves to main)
+.I "" (auto: sidecar or Git default)
 .TP
 .B NHOPKG_SOURCES_REPO
 URL of the source metadata index published by \fBnhopkg\-source\-index.sh\fR.
@@ -430,8 +433,8 @@ NHOPKG_REPO_MULTILIB=https://repo.neonatox.vegnux.com/multilib
 
 # --- Git sources ---
 NHOPKG_GIT_SOURCES=https://gitlab.com/neonatox-sources
-# NHOPKG_GIT_BRANCH=glibc   # empty/glibc -> main, musl -> musl
-# NHOPKG_SOURCES_REPO=https://neonatox.vegnux.com/repo/n27/x86_64/sources
+# NHOPKG_GIT_BRANCH=glibc   # glibc -> main, empty -> auto, musl -> musl
+# NHOPKG_SOURCES_REPO=https://neonatox.vegnux.com/repo/n27/sources
 # NHOPKG_AUTO_SOURCE_FALLBACK=no
 
 # --- Language ---
