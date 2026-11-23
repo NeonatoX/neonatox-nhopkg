@@ -153,11 +153,12 @@ Repositorio Git por defecto utilizado para obtener las fuentes de los paquetes `
 | Variable | Valor por defecto | Valores aceptados | Descripción |
 |---|---|---|---|
 | `NHOPKG_GIT_SOURCES` | `https://gitlab.com/neonatox-sources` | URL | URL del repositorio Git para paquetes fuente |
-| `NHOPKG_GIT_BRANCH` | `""` (vacía) | `""`, `glibc`, `musl`, rama/tag | Ref por defecto para `--super-build` y los comandos del índice de fuentes. Vacía o `glibc` se resuelve como `main`; `musl` se mantiene como `musl`. Un `--ref` explícito tiene prioridad |
+| `NHOPKG_GIT_BRANCH` | `""` (vacía) | `""`, `glibc`, `musl`, rama/tag | Ref por defecto para `--super-build` y los comandos del índice de fuentes. Vacía usa el `Source-Ref` del entry de rama por defecto (`main`, luego `master`) para proyectos indexados, y la rama por defecto de Git para clones no indexados; `musl` solo se elige de forma explícita. `glibc` es un alias explícito de `main`. Un `--ref` explícito tiene prioridad |
 | `NHOPKG_SOURCES_REPO` | `""` (vacía) | URL o vacía | URL del índice de metadatos publicado por `nhopkg-source-index.sh`. Vacía desactiva la descarga adicional en `nhopkg -U` y deja el índice local intacto. El cliente no necesita credenciales de GitLab |
-| `NHOPKG_AUTO_SOURCE_FALLBACK` | `no` | `yes`, `no` | Durante `-C`, compilar desde el índice local un `BuildDep` ausente en lugar de abortar. Las cadenas están limitadas (profundidad 5, sin recetas repetidas) |
+| `NHOPKG_USE_SOURCE_INDEX` | `no` | `yes`, `no` | Durante `-C`, reutilizar una receta indexada verificada en lugar de clonar. Con `no` (por defecto) la receta siempre viene del repositorio Git, así que el build sigue el HEAD. Las consultas explícitas con `nhopkg-src --from-index` y el sync de `-U` no se ven afectadas |
+| `NHOPKG_AUTO_SOURCE_FALLBACK` | `no` | `yes`, `no` | Durante `-C`, compilar desde el índice local un `BuildDep` ausente en lugar de abortar. Requiere también `NHOPKG_USE_SOURCE_INDEX=yes`. Las cadenas están limitadas (profundidad 5, sin recetas repetidas) |
 
-Cuando `NHOPKG_SOURCES_REPO` está definida, `nhopkg -U` descarga también `core.sources.tar.zst`, `content.source.db.zst` y `lastsync` (además de las firmas separadas) en `${NHOPKG_LOCALSTATEDIR}/sources/<ref>/`. Un fallo o una entrada inválida en el índice de fuentes es solo un aviso: la actualización de los repositorios binarios no se ve afectada. Las recetas cacheadas están disponibles para `nhopkg-src --list-sources`, `--search-sources`, `--show-source`, `--get-source --from-index` y para el fallback de `-C` indicado arriba.
+Cuando `NHOPKG_SOURCES_REPO` está definida, `nhopkg -U` descarga también `core.sources.tar.zst`, `content.source.db.zst` y `lastsync` (además de las firmas separadas) en `${NHOPKG_LOCALSTATEDIR}/sources/<ref>/`. Un fallo o una entrada inválida en el índice de fuentes es solo un aviso: la actualización de los repositorios binarios no se ve afectada. Las recetas cacheadas están siempre disponibles para `nhopkg-src --list-sources`, `--search-sources`, `--show-source` y `--get-source --from-index`; la reutilización implícita durante `-C` necesita `NHOPKG_USE_SOURCE_INDEX=yes`.
 
 ---
 

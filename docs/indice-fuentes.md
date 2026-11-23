@@ -248,6 +248,10 @@ nhopkg-src --show-source enchant   # regression: master-only default branch
 - `--show-source` checks `Source-Nhoid-SHA256`: a tampered cache is rejected.
 - With `NHOPKG_GIT_BRANCH` empty, a project's sidecar decides its ref; only
   projects absent from the index fall back to Git's default branch.
+- `NHOPKG_USE_SOURCE_INDEX` defaults to `no` in the generated config, so
+  `nhopkg -C` clones from GitLab and follows the repository HEAD. Set it to
+  `yes` to reuse a verified indexed recipe without cloning. Explicit
+  `nhopkg-src --from-index` queries work either way.
 - `--from-index` is not fully offline: with no extra files it does not clone,
   but `nbuild()` may still download upstream sources.
 
@@ -297,7 +301,8 @@ rm -rf "$TMP"
 ## See also
 
 - [`configuracion.md`](configuracion.md) — `NHOPKG_SOURCES_REPO`,
-  `NHOPKG_GIT_BRANCH`, `NHOPKG_AUTO_SOURCE_FALLBACK`
+  `NHOPKG_GIT_BRANCH`, `NHOPKG_USE_SOURCE_INDEX`,
+  `NHOPKG_AUTO_SOURCE_FALLBACK`
 - [`nhopkg-src.md`](nhopkg-src.md) — `--list-sources`, `--search-sources`,
   `--show-source`, `--from-index`
 - [`repositorios.md`](repositorios.md) — relationship with binary repositories

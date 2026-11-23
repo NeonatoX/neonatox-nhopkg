@@ -153,11 +153,12 @@ Default Git repository used to fetch sources for `.srcnho` packages, plus the op
 | Variable | Default | Accepted Values | Description |
 |---|---|---|---|
 | `NHOPKG_GIT_SOURCES` | `https://gitlab.com/neonatox-sources` | URL | Git repository URL for source packages |
-| `NHOPKG_GIT_BRANCH` | `""` (empty) | `""`, `glibc`, `musl`, branch/tag | Default ref for `--super-build` and the source-index commands. Empty or `glibc` resolves to `main`; `musl` stays `musl`. An explicit `--ref` wins |
+| `NHOPKG_GIT_BRANCH` | `""` (empty) | `""`, `glibc`, `musl`, branch/tag | Default ref for `--super-build` and the source-index commands. Empty uses the indexed sidecar's default-branch ref (`main`, then `master`) for known projects and Git's own default branch for unindexed clones; `musl` is chosen only when explicit. `glibc` is an explicit alias of `main`. An explicit `--ref` wins |
 | `NHOPKG_SOURCES_REPO` | `""` (empty) | URL or empty | URL of the source metadata index published by `nhopkg-source-index.sh`. Empty disables the extra `nhopkg -U` download and leaves the local source index untouched. Clients need no GitLab credentials |
-| `NHOPKG_AUTO_SOURCE_FALLBACK` | `no` | `yes`, `no` | During `-C`, build a missing `BuildDep` from the local index instead of aborting. Chains are capped (depth 5, no repeated recipe) |
+| `NHOPKG_USE_SOURCE_INDEX` | `no` | `yes`, `no` | During `-C`, reuse a verified indexed recipe instead of cloning. With `no` (default) the recipe always comes from the Git repository, so builds follow HEAD. Explicit `nhopkg-src --from-index` queries and the `-U` sync are unaffected |
+| `NHOPKG_AUTO_SOURCE_FALLBACK` | `no` | `yes`, `no` | During `-C`, build a missing `BuildDep` from the local index instead of aborting. Requires `NHOPKG_USE_SOURCE_INDEX=yes` too. Chains are capped (depth 5, no repeated recipe) |
 
-When `NHOPKG_SOURCES_REPO` is set, `nhopkg -U` also downloads `core.sources.tar.zst`, `content.source.db.zst` and `lastsync` (plus detached signatures) into `${NHOPKG_LOCALSTATEDIR}/sources/<ref>/`. A failed or invalid source-index update is a warning: binary repository updates are unaffected. The cached recipes are available to `nhopkg-src --list-sources`, `--search-sources`, `--show-source`, `--get-source --from-index`, and to the `-C` fallback above.
+When `NHOPKG_SOURCES_REPO` is set, `nhopkg -U` also downloads `core.sources.tar.zst`, `content.source.db.zst` and `lastsync` (plus detached signatures) into `${NHOPKG_LOCALSTATEDIR}/sources/<ref>/`. A failed or invalid source-index update is a warning: binary repository updates are unaffected. The cached recipes are always available to `nhopkg-src --list-sources`, `--search-sources`, `--show-source` and `--get-source --from-index`; implicit reuse during `-C` needs `NHOPKG_USE_SOURCE_INDEX=yes`.
 
 ---
 

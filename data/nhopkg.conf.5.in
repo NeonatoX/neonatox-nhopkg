@@ -255,9 +255,23 @@ source index is left untouched; clients need no GitLab credentials.
 Default:
 .I "" (empty: source index sync disabled)
 .TP
+.B NHOPKG_USE_SOURCE_INDEX
+Use the local source index when preparing recipes for \fBnhopkg \-C\fR. With
+\fIno\fR (the default), the recipe is always cloned from
+\fBNHOPKG_GIT_SOURCES\fR, so builds follow the repository HEAD. With
+\fIyes\fR, a verified indexed recipe without extra files is reused without
+cloning. This switch does not affect \fBnhopkg \-U\fR sync or explicit
+\fBnhopkg\-src \-\-from\-index\fR queries.
+Values:
+.I yes
+or
+.I no
+(default).
+.TP
 .B NHOPKG_AUTO_SOURCE_FALLBACK
 During \fB\-C\fR, build a missing \fIBuildDep\fR from the local source index
-instead of aborting. Chains are capped (depth 5, no repeated recipe).
+instead of aborting. Requires \fBNHOPKG_USE_SOURCE_INDEX=yes\fR as well. Chains
+are capped (depth 5, no repeated recipe).
 Values:
 .I yes
 or

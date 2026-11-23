@@ -360,6 +360,7 @@ Use the local index as the source of the recipe. `--from-index` only applies to 
 - With `Source-Extra-Files: none`, the `nhoid` is copied from the index and **no git clone happens**. This is not fully offline: the recipe's `nbuild()` may still download or clone upstream sources.
 - When the sidecar lists `patches/` or `others/` files, the repository is cloned with the resolved ref to materialise them, and the indexed `nhoid` overwrites the cloned one.
 - With no local entry, the command fails and suggests running `nhopkg -U` or dropping `--from-index`.
+- This explicit flag is independent of `NHOPKG_USE_SOURCE_INDEX`: `--from-index` still uses the index when present, even though `nhopkg -C` ignores it by default.
 
 ## See Also
 

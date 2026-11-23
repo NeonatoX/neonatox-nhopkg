@@ -1963,12 +1963,15 @@ source_index_search()
 
 # ---------------------------------------------------------
 # source_index_get_sources <name> <dest> [ref]
-# Description: Put the source recipe for <name> in <dest>/nhoid. A verified
-#    index entry without extra files needs no clone at all; with extra files
-#    the repository is cloned (so patches/others are available) but the nhoid
-#    is taken from the index, not from whatever HEAD carries. With no usable
-#    index entry this is the old clone; an unset ref is left to Git so a
-#    master-only repository is not asked for main.
+# Description: Put the source recipe for <name> in <dest>/nhoid. With
+#    NHOPKG_USE_SOURCE_INDEX=yes, a verified index entry without extra files
+#    needs no clone at all; with extra files the repository is cloned (so
+#    patches/others are available) but the nhoid is taken from the index, not
+#    from whatever HEAD carries. With no usable index entry, or with
+#    NHOPKG_USE_SOURCE_INDEX=no (the default), this is the old clone: the
+#    recipe follows the repository HEAD. An unset ref is left to Git so a
+#    master-only repository is not asked for main. Explicit nhopkg-src
+#    --from-index queries do not use this helper and are never disabled.
 # Parameters: $1: source project name
 #             $2: clone/destination directory
 #             $3: optional ref, defaults to NHOPKG_GIT_BRANCH
@@ -1981,9 +1984,16 @@ source_index_get_sources()
 
 	git_url="${NHOPKG_GIT_SOURCES:-}/${name}.git"
 
-	base="$(source_index_entry_path "$name" "${requested_ref}")" || base=""
-	if [[ -n "$base" ]]; then
-		source_index_verify_entry "$base" || base=""
+	# The generated config defaults to "no": keep builds on the repository
+	# HEAD instead of silently reusing a published recipe. Enabling the index
+	# here affects only implicit -C reuse; --from-index is a direct query.
+	if [[ "${NHOPKG_USE_SOURCE_INDEX:-no}" == "no" ]]; then
+		base=""
+	else
+		base="$(source_index_entry_path "$name" "${requested_ref}")" || base=""
+		if [[ -n "$base" ]]; then
+			source_index_verify_entry "$base" || base=""
+		fi
 	fi
 
 	if [[ -n "$base" ]]; then
@@ -2032,8 +2042,10 @@ source_index_get_sources()
 # Description: Opt-in fallback called by dep_resolve_from_nhoid() when a build
 #    dependency cannot be satisfied from the binary repositories. It builds the
 #    dependency from the local source index and returns 0 so the caller can
-#    retry resolution. SOURCE_FALLBACK_TRIED and SOURCE_FALLBACK_DEPTH travel
-#    to the chained process, cutting cycles and capping the chain.
+#    retry resolution. Both NHOPKG_USE_SOURCE_INDEX and
+#    NHOPKG_AUTO_SOURCE_FALLBACK must be "yes"; SOURCE_FALLBACK_TRIED and
+#    SOURCE_FALLBACK_DEPTH travel to the chained process, cutting cycles and
+#    capping the chain.
 # Returns: 0 only when the chain was attempted successfully, 1 otherwise.
 # ---------------------------------------------------------
 source_fallback_for_build_dep()
@@ -2041,6 +2053,7 @@ source_fallback_for_build_dep()
 	local spec="$1" dep_type="${2:-build}" name base ref depth tried
 	local -a cmd=()
 
+	[[ "${NHOPKG_USE_SOURCE_INDEX:-no}" == "yes" ]] || return 1
 	[[ "${NHOPKG_AUTO_SOURCE_FALLBACK:-no}" == "yes" ]] || return 1
 	[[ "$dep_type" == "build" ]] || return 1
 

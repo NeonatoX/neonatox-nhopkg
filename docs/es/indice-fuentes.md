@@ -249,6 +249,10 @@ nhopkg-src --show-source enchant   # regresión: rama por defecto master
   rechaza.
 - Con `NHOPKG_GIT_BRANCH` vacío, el sidecar del proyecto decide su ref; solo los
   proyectos ausentes del índice caen en la rama por defecto de Git.
+- `NHOPKG_USE_SOURCE_INDEX` vale `no` por defecto en el config generado, así que
+  `nhopkg -C` clona desde GitLab y sigue el HEAD del repositorio. Ponla a `yes`
+  para reutilizar una receta indexada verificada sin clonar. Las consultas
+  explícitas con `nhopkg-src --from-index` funcionan en ambos casos.
 - `--from-index` no es totalmente *offline*: sin extras no clona, pero el
   `nbuild()` puede seguir descargando fuentes upstream.
 
@@ -298,7 +302,8 @@ rm -rf "$TMP"
 ## Véase también
 
 - [`configuracion.md`](configuracion.md) — variables `NHOPKG_SOURCES_REPO`,
-  `NHOPKG_GIT_BRANCH`, `NHOPKG_AUTO_SOURCE_FALLBACK`
+  `NHOPKG_GIT_BRANCH`, `NHOPKG_USE_SOURCE_INDEX`,
+  `NHOPKG_AUTO_SOURCE_FALLBACK`
 - [`nhopkg-src.md`](nhopkg-src.md) — comandos `--list-sources`,
   `--search-sources`, `--show-source`, `--from-index`
 - [`repositorios.md`](repositorios.md) — relación con los repositorios binarios

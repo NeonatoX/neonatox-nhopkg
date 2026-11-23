@@ -101,6 +101,9 @@ assert_file "${STATE}/sources/main/packages/libalpha" "the alpha dependency is i
 assert_file "${STATE}/sources/main/packages/libbeta" "the beta dependency is indexed"
 
 assert_contains "$(cat "${CONF}")" \
+	'NHOPKG_USE_SOURCE_INDEX="${NHOPKG_USE_SOURCE_INDEX:-no}"' \
+	"implicit source-index reuse is opt-in, defaulting to no"
+assert_contains "$(cat "${CONF}")" \
 	'NHOPKG_AUTO_SOURCE_FALLBACK="${NHOPKG_AUTO_SOURCE_FALLBACK:-no}"' \
 	"source fallback is opt-in, defaulting to no"
 assert_contains "$(cat "${TOOL}")" 'source_index_get_sources "${pkgname}"' \
@@ -112,13 +115,13 @@ assert_contains "$(cat "${TOOL}")" 'source_index_get_sources "${pkg_base_name}"'
 head1 "Etapa 5: -C reuses the cached nhoid, or clones when it must"
 # ---------------------------------------------------------------------------
 
-# run_get_sources <state> <branch> <name> [dest]
+# run_get_sources <state> <branch> <name> [dest] [use-index]
 get_rc=0
 get_out=''
 get_clones=0
 get_dest=''
 run_get_sources() {
-	local state="$1" branch="$2" name="$3" dest="${4:-}"
+	local state="$1" branch="$2" name="$3" dest="${4:-}" use_index="${5:-yes}"
 	[[ -n "${dest}" ]] || dest="$(mktemp -d "${WORK}/get.XXXXXX")/dest"
 	get_dest="${dest}"
 	: > "${VCS_LOG}"
@@ -127,6 +130,7 @@ run_get_sources() {
 		NHOPKG_LOCALSTATEDIR="${state}"
 		NHOPKG_GIT_BRANCH="${branch}"
 		NHOPKG_GIT_SOURCES="http://no-network.invalid/sources"
+		NHOPKG_USE_SOURCE_INDEX="${use_index}"
 		. "${LIB}"
 		nhoget_vcs() {
 			printf '%s %s\n' "${NHOGET_REF:-}" "$*" >> "${VCS_LOG}"
@@ -147,6 +151,16 @@ assert_contains "${get_out}" "no clone" "the cache hit is reported"
 cmp -s "${FIXTURES}/kinfocenter/main/nhoid" "${get_dest}/nhoid" &&
 	ok "the cached nhoid is byte-identical to the published one" ||
 	bad "the cached nhoid is byte-identical to the published one"
+
+# The generated config defaults to "no": -C must follow the repository HEAD,
+# even when a perfectly good indexed recipe is sitting in the state dir.
+run_get_sources "${STATE}" "" kinfocenter "" no
+assert_status 0 "${get_rc}" "NHOPKG_USE_SOURCE_INDEX=no still builds"
+assert_eq "1" "${get_clones}" "and clones instead of reusing the cache"
+assert_contains "$(cat "${VCS_LOG}")" " git http://no-network.invalid/sources/kinfocenter.git" \
+	"the clone targets the configured Git source"
+assert_eq "CLONED" "$(cat "${get_dest}/nhoid")" "the recipe comes from the clone"
+assert_missing "${get_out}" "Using cached source metadata" "no cache hit is reported"
 
 run_get_sources "${STATE}" glibc kinfocenter
 assert_status 0 "${get_rc}" "the glibc alias also finds the main index"
@@ -241,18 +255,19 @@ assert_contains "${get_out}" "Using cached source metadata for dualref (musl, no
 head1 "Etapa 5: the fallback is opt-in and cuts cycles"
 # ---------------------------------------------------------------------------
 
-# run_fallback <flag> <name> <tried> <depth> <chain rc> [packaging]
+# run_fallback <flag> <name> <tried> <depth> <chain rc> [packaging] [use-index]
 fb_rc=0
 fb_out=''
 fb_tried=''
 fb_depth=''
 run_fallback() {
-	local flag="$1" name="$2" tried="$3" depth="$4" chain_rc="$5" packaging="${6:-no}"
+	local flag="$1" name="$2" tried="$3" depth="$4" chain_rc="$5" packaging="${6:-no}" use_index="${7:-yes}"
 	rm -f "${CHAIN_LOG}"
 	(
 		set +u
 		NHOPKG_LOCALSTATEDIR="${STATE}"
 		NHOPKG_GIT_BRANCH=""
+		NHOPKG_USE_SOURCE_INDEX="${use_index}"
 		NHOPKG_AUTO_SOURCE_FALLBACK="${flag}"
 		NHOPKG_PACKAGING="${packaging}"
 		NHOPKG_BIN="chain-stub"
@@ -278,6 +293,11 @@ run_fallback no libalpha "" 0 0
 assert_status 1 "${fb_rc}" "with the default no the fallback is inert"
 assert_no_file "${CHAIN_LOG}" "and nothing is chained"
 assert_eq "TRIED=" "${fb_tried}" "the tried set is untouched"
+
+run_fallback yes libalpha "" 0 0 no no
+assert_status 1 "${fb_rc}" "USE_SOURCE_INDEX=no also disables the fallback"
+assert_missing "${fb_out}" "source available" "the local index is not consulted"
+assert_no_file "${CHAIN_LOG}" "and no chained build is started"
 
 run_fallback yes libalpha "" 0 0
 assert_status 0 "${fb_rc}" "with yes an indexed dependency can be built"

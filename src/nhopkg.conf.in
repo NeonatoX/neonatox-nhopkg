@@ -249,8 +249,16 @@ NHOPKG_GIT_SOURCES=https://gitlab.com/neonatox-sources
 # --ref always wins.
 NHOPKG_GIT_BRANCH="@NHOPKG_GIT_BRANCH@"
 
+# Use the local source index when preparing recipes for `nhopkg -C`.
+# "no" (default): always clone from NHOPKG_GIT_SOURCES, so the build follows
+# the repository HEAD. "yes": reuse a verified indexed recipe without cloning
+# when it has no extra files; with extras the repo is still cloned. This does
+# not affect `nhopkg -U` sync or explicit `nhopkg-src --from-index` queries.
+NHOPKG_USE_SOURCE_INDEX="${NHOPKG_USE_SOURCE_INDEX:-no}"
+
 # Opt-in: when a BuildDep is missing from the binary repositories, try to
 # build it from the local source index. "no" keeps the usual abort behaviour.
+# This also requires NHOPKG_USE_SOURCE_INDEX=yes.
 NHOPKG_AUTO_SOURCE_FALLBACK="${NHOPKG_AUTO_SOURCE_FALLBACK:-no}"
 
 

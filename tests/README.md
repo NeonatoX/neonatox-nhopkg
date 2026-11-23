@@ -118,7 +118,8 @@ would have been used.
 - **`--from-index` means "metadata from the index", not necessarily offline.**
   A recipe with `Source-Extra-Files: none` is deployed with zero git calls; one
   with extras clones with the resolved ref and then uses the indexed `nhoid`,
-  never the repository's copy.
+  never the repository's copy. It stays available even with
+  `NHOPKG_USE_SOURCE_INDEX=no`, which only gates implicit `-C` reuse.
 - **Ref resolution is explicit.** An explicit `--ref` wins over the configured
   branch; the branch comes from `NHOPKG_GIT_BRANCH` when no `--ref` is given.
 
@@ -129,9 +130,13 @@ The real generated library runs against an index produced by the real
 generator; a logging `nhoget_vcs` stub is the only stand-in for git, so clone
 counts and refs are direct observations rather than source-text assertions.
 
-- **No extras means no clone.** A verified entry is copied byte for byte into
-  the destination; `glibc` and an empty branch both find the `main` index when
-  that is the only ref holding the recipe.
+- **Index reuse is opt-in.** The generated config defaults to
+  `NHOPKG_USE_SOURCE_INDEX=no`; with `no`, a valid cached recipe is ignored and
+  the repository is cloned, so the build follows HEAD. Setting it to `yes`
+  restores the cached path below.
+- **No extras means no clone.** With index reuse enabled, a verified entry is
+  copied byte for byte into the destination; `glibc` and an empty branch both
+  find the `main` index when that is the only ref holding the recipe.
 - **Extras mean one clone.** The clone uses the sidecar's ref (`master`
   included), and the indexed `nhoid` replaces the one from HEAD so the
   published recipe wins.
@@ -142,11 +147,12 @@ counts and refs are direct observations rather than source-text assertions.
 - **A missing or corrupt entry is not cached.** Without an entry, or when the
   SHA256 no longer matches, the old clone path runs (one clone); an explicit
   `musl` branch clones `musl`, while an empty branch leaves the ref to Git.
-- **The fallback is opt-in.** The generated config defaults to
-  `NHOPKG_AUTO_SOURCE_FALLBACK=no`, and with `no` no child is started and the
-  tried set stays empty. With `yes`, an indexed `BuildDep` is announced and
-  chained through `nhopkg -C <dep>`; version constraints are stripped to the
-  package name, and `--packaging` is forwarded when the parent is packaging.
+- **The fallback is doubly opt-in.** It needs both
+  `NHOPKG_USE_SOURCE_INDEX=yes` and `NHOPKG_AUTO_SOURCE_FALLBACK=yes`. Either
+  variable at `no` leaves the tried set empty and starts no child. With both
+  `yes`, an indexed `BuildDep` is announced and chained through
+  `nhopkg -C <dep>`; version constraints are stripped to the package name, and
+  `--packaging` is forwarded when the parent is packaging.
 - **Chains terminate.** `SOURCE_FALLBACK_TRIED` cuts A→B→A, and
   `SOURCE_FALLBACK_DEPTH` (default cap 5) stops a long chain. A dependency with
   no index entry and a failed child are both reported as failures.
